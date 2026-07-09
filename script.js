@@ -3,8 +3,8 @@
   ------------------------------------------------
   IMPORTANT: Replace APPS_SCRIPT_API_URL with your Apps Script Web App /exec URL.
 */
-const APPS_SCRIPT_API_URL = 'PASTE_YOUR_APPS_SCRIPT_EXEC_URL_HERE';
-
+const APPS_SCRIPT_API_URL =
+'https://script.google.com/macros/s/AKfycbwhinuB6R-rxHMG4lSkilihzVcFUrGXOQNbhYLrNQfksn-Yy5nxOPFyaUNnRhlpIhRGhw/exec';
 let map;
 let markers = {};
 let allLocations = [];
