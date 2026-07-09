@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WTFD Fleet Dashboard</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="app">
+    <aside id="sidebar">
+      <div class="brand">
+        <div class="logo"><img src="logo.png" alt="Washington Township Fire Department Logo"></div>
+        <div>
+          <div class="title">Washington Township</div>
+          <div class="subtitle">Fire Department</div>
+          <div class="connected">● Samsara Fleet Dashboard</div>
+        </div>
+      </div>
+
+      <div class="clockPanel">
+        <div id="clock"></div>
+        <div id="lastRefresh">Loading...</div>
+      </div>
+
+      <div class="summary">
+        <div class="card">Units<span id="apparatusCount">0</span></div>
+        <div class="card">Located<span id="locatedCount">0</span></div>
+        <div class="card">Moving<span id="movingCount">0</span></div>
+        <div class="card">Away<span id="awayCount">0</span></div>
+      </div>
+
+      <div class="gpsLine">
+        <div class="gpsPill good">GPS <span id="gpsCount">0</span></div>
+        <div class="gpsPill warn">No GPS <span id="noGpsCount">0</span></div>
+        <div class="gpsPill bad">Stale <span id="staleCount">0</span></div>
+      </div>
+
+      <div class="controls">
+        <input id="search" placeholder="Search units...">
+        <button id="forceSync">Force Sync</button>
+      </div>
+
+      <div id="apparatusList"></div>
+    </aside>
+
+    <main id="map"></main>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>
