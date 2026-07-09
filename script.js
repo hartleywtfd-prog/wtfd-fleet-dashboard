@@ -4,7 +4,7 @@
   IMPORTANT: Replace APPS_SCRIPT_API_URL with your Apps Script Web App /exec URL.
 */
 const APPS_SCRIPT_API_URL =
-'https://script.google.com/macros/s/AKfycbwhinuB6R-rxHMG4lSkilihzVcFUrGXOQNbhYLrNQfksn-Yy5nxOPFyaUNnRhlpIhRGhw/exec';
+'https://script.google.com/macros/s/AKfycbwhinuB6R-rxHMG4lSkilihzVcFUrGXOQNbhYLrNQfksn-Yy5nxOPFyaUNnRhlpIhRGhw/exec?mode=json';
 let map;
 let markers = {};
 let allLocations = [];
