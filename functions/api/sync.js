@@ -1,12 +1,14 @@
 export async function onRequestGet() {
-  const response = await fetch(
-    "https://script.google.com/macros/s/AKfycbwhinuB6R-rxHMG4lSkilihzVcFUrGXOQNbhYLrNQfksn-Yy5nxOPFyaUNnRhlpIhRGhw/exec?action=sync"
-  );
+  const url =
+    "https://script.google.com/macros/s/AKfycbwhinuB6R-rxHMG4lSkilihzVcFUrGXOQNbhYLrNQfksn-Yy5nxOPFyaUNnRhlpIhRGhw/exec?mode=json&action=sync";
 
-  return new Response(await response.text(), {
+  const response = await fetch(url, { redirect: "follow" });
+  const text = await response.text();
+
+  return new Response(text, {
     headers: {
       "Content-Type": "application/json",
-      "Access-Control-Allow-Origin": "*"
+      "Cache-Control": "no-store"
     }
   });
 }
