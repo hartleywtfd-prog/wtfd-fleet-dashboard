@@ -1,9 +1,8 @@
-const APPS_SCRIPT_API_URL =
-  'https://script.google.com/macros/s/AKfycbwhinuB6R-rxHMG4lSkilihzVcFUrGXOQNbhYLrNQfksn-Yy5nxOPFyaUNnRhlpIhRGhw/exec?mode=json';
-
 let map;
 let markers = {};
 let allLocations = [];
+let activeBaseLayer = 'street';
+let baseLayers = {};
 
 function apiRequest(action) {
   const url = action === 'sync' ? '/api/sync' : '/api/dashboard';
@@ -17,26 +16,91 @@ function apiRequest(action) {
   });
 }
 
+function createBaseLayers() {
+  baseLayers = {
+    street: L.tileLayer(
+      'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+      {
+        maxZoom: 19,
+        attribution: '&copy; OpenStreetMap'
+      }
+    ),
+
+    dark: L.tileLayer(
+      'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+      {
+        subdomains: 'abcd',
+        maxZoom: 20,
+        attribution:
+          '&copy; OpenStreetMap contributors &copy; CARTO'
+      }
+    ),
+
+    satellite: L.tileLayer(
+      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+      {
+        maxZoom: 19,
+        attribution:
+          'Tiles &copy; Esri'
+      }
+    )
+  };
+}
+
 function initMap(settings) {
-  const centerLat = Number(settings.dashboardCenterLat || 39.6255);
-  const centerLon = Number(settings.dashboardCenterLon || -84.1750);
-  const zoom = Number(settings.dashboardZoom || 12);
+  const centerLat = Number(
+    settings.dashboardCenterLat || 39.6255
+  );
+
+  const centerLon = Number(
+    settings.dashboardCenterLon || -84.1750
+  );
+
+  const zoom = Number(
+    settings.dashboardZoom || 12
+  );
 
   map = L.map('map', {
     zoomControl: true
-  }).setView([centerLat, centerLon], zoom);
+  }).setView(
+    [centerLat, centerLon],
+    zoom
+  );
 
-  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19,
-    attribution: '&copy; OpenStreetMap'
-  }).addTo(map);
+  createBaseLayers();
+  baseLayers.street.addTo(map);
+}
+
+function setBaseLayer(layerName) {
+  if (!map || !baseLayers[layerName]) {
+    return;
+  }
+
+  Object.values(baseLayers).forEach(layer => {
+    if (map.hasLayer(layer)) {
+      map.removeLayer(layer);
+    }
+  });
+
+  baseLayers[layerName].addTo(map);
+  activeBaseLayer = layerName;
+
+  document
+    .querySelectorAll('.map-mode-button')
+    .forEach(button => {
+      button.classList.toggle(
+        'active',
+        button.dataset.layer === layerName
+      );
+    });
 }
 
 function updateClock() {
   const clock = document.getElementById('clock');
 
   if (clock) {
-    clock.innerText = new Date().toLocaleTimeString();
+    clock.innerText =
+      new Date().toLocaleTimeString();
   }
 }
 
@@ -44,7 +108,9 @@ setInterval(updateClock, 1000);
 updateClock();
 
 function ageMinutes(time) {
-  if (!time) return 999999;
+  if (!time) {
+    return 999999;
+  }
 
   const parsed = new Date(time);
 
@@ -52,69 +118,227 @@ function ageMinutes(time) {
     return 999999;
   }
 
-  return (new Date() - parsed) / 60000;
+  return (
+    new Date() - parsed
+  ) / 60000;
 }
 
 function hasEmergencyLights(v) {
-  return Boolean(v && v.emergencyLights === true);
+  return Boolean(
+    v && v.emergencyLights === true
+  );
 }
 
 function getStatus(v) {
   const speed = Number(v.speed || 0);
-  const gpsStatus = String(v.gpsStatus || '').toLowerCase();
-  const facility = String(v.facility || '');
+
+  const gpsStatus = String(
+    v.gpsStatus || ''
+  ).toLowerCase();
+
+  const facility = String(
+    v.facility || ''
+  );
+
   const age = ageMinutes(v.lastUpdate);
 
-  if (hasEmergencyLights(v)) return 'responding';
-  if (gpsStatus === 'no gps') return 'nogps';
-  if (gpsStatus === 'gps offline') return 'offline';
-  if (age > 120 && gpsStatus === 'gps') return 'stale';
-  if (speed >= 5) return 'moving';
-  if (facility && facility !== 'Away' && facility !== 'Unknown') return 'defined';
+  if (hasEmergencyLights(v)) {
+    return 'responding';
+  }
+
+  if (gpsStatus === 'no gps') {
+    return 'nogps';
+  }
+
+  if (gpsStatus === 'gps offline') {
+    return 'offline';
+  }
+
+  if (
+    age > 120 &&
+    gpsStatus === 'gps'
+  ) {
+    return 'stale';
+  }
+
+  if (speed >= 5) {
+    return 'moving';
+  }
+
+  if (
+    facility &&
+    facility !== 'Away' &&
+    facility !== 'Unknown'
+  ) {
+    return 'defined';
+  }
 
   return 'away';
 }
 
 function statusText(status, v) {
-  const facility = String(v.facility || '').toLowerCase();
+  const facility = String(
+    v.facility || ''
+  ).toLowerCase();
 
-  if (status === 'responding') return 'Responding';
-  if (status === 'nogps') return 'No GPS';
-  if (status === 'offline') return 'Offline';
-  if (status === 'moving') return 'Moving';
-  if (status === 'stale') return 'Stale';
-  if (status === 'away') return 'Away';
+  if (status === 'responding') {
+    return 'Responding';
+  }
 
-  if (facility.includes('headquarters')) return 'HQ';
-  if (facility.includes('maintenance')) return 'Fire Maintenance';
-  if (facility.includes('station')) return 'Station';
-  if (facility.includes('hospital') || facility.includes('health')) return 'Hospital';
+  if (status === 'nogps') {
+    return 'No GPS';
+  }
+
+  if (status === 'offline') {
+    return 'Offline';
+  }
+
+  if (status === 'moving') {
+    return 'Moving';
+  }
+
+  if (status === 'stale') {
+    return 'Stale';
+  }
+
+  if (status === 'away') {
+    return 'Away';
+  }
+
+  if (facility.includes('headquarters')) {
+    return 'HQ';
+  }
+
+  if (facility.includes('maintenance')) {
+    return 'Maintenance';
+  }
+
+  if (facility.includes('station')) {
+    return 'Station';
+  }
+
+  if (
+    facility.includes('hospital') ||
+    facility.includes('health')
+  ) {
+    return 'Hospital';
+  }
 
   return 'Located';
 }
 
-function apparatusIcon(v) {
-  const type = String(v.type || '').toLowerCase();
+function apparatusSvg(v) {
+  const type = String(
+    v.type || ''
+  ).toLowerCase();
 
-  if (type === 'engine') return '🚒';
-  if (type === 'medic') return '🚑';
-  if (type === 'ladder') return '🪜';
-  if (type === 'battalion') return '🧑‍🚒';
-  if (type === 'chief') return '🧑‍🚒';
-  if (type === 'crrd') return '🛡️';
+  const common = `
+    viewBox="0 0 64 64"
+    aria-hidden="true"
+    focusable="false"
+  `;
 
-  return '🚘';
+  if (type === 'engine') {
+    return `
+      <svg ${common}>
+        <rect x="8" y="25" width="34" height="19" rx="3" fill="currentColor"/>
+        <rect x="42" y="29" width="12" height="15" rx="2" fill="currentColor"/>
+        <rect x="13" y="18" width="24" height="7" rx="2" fill="currentColor"/>
+        <rect x="18" y="13" width="14" height="4" rx="1" fill="currentColor"/>
+        <circle cx="19" cy="47" r="5" fill="currentColor"/>
+        <circle cx="47" cy="47" r="5" fill="currentColor"/>
+        <rect x="46" y="32" width="6" height="5" rx="1" fill="#0f172a"/>
+      </svg>
+    `;
+  }
+
+  if (type === 'medic') {
+    return `
+      <svg ${common}>
+        <rect x="8" y="24" width="42" height="21" rx="4" fill="currentColor"/>
+        <rect x="48" y="29" width="8" height="16" rx="2" fill="currentColor"/>
+        <circle cx="19" cy="48" r="5" fill="currentColor"/>
+        <circle cx="47" cy="48" r="5" fill="currentColor"/>
+        <rect x="26" y="27" width="6" height="15" fill="#ffffff"/>
+        <rect x="21.5" y="31.5" width="15" height="6" fill="#ffffff"/>
+      </svg>
+    `;
+  }
+
+  if (
+    type === 'chief' ||
+    type === 'battalion'
+  ) {
+    return `
+      <svg ${common}>
+        <path d="M10 37 L16 25 H44 L54 37 V45 H10 Z" fill="currentColor"/>
+        <rect x="21" y="18" width="16" height="5" rx="2" fill="currentColor"/>
+        <circle cx="20" cy="47" r="5" fill="currentColor"/>
+        <circle cx="46" cy="47" r="5" fill="currentColor"/>
+        <rect x="20" y="27" width="10" height="7" rx="1" fill="#0f172a"/>
+        <rect x="32" y="27" width="10" height="7" rx="1" fill="#0f172a"/>
+      </svg>
+    `;
+  }
+
+  if (type === 'ladder') {
+    return `
+      <svg ${common}>
+        <rect x="8" y="29" width="43" height="16" rx="3" fill="currentColor"/>
+        <circle cx="18" cy="48" r="5" fill="currentColor"/>
+        <circle cx="45" cy="48" r="5" fill="currentColor"/>
+        <path d="M15 16 L47 8 L49 13 L17 21 Z" fill="currentColor"/>
+        <rect x="18" y="20" width="28" height="3" transform="rotate(-14 18 20)" fill="#ffffff"/>
+      </svg>
+    `;
+  }
+
+  if (type === 'crrd') {
+    return `
+      <svg ${common}>
+        <path d="M32 7 L49 14 V28 C49 40 42 49 32 56 C22 49 15 40 15 28 V14 Z" fill="currentColor"/>
+        <path d="M32 17 L36 25 L45 26 L38 32 L40 41 L32 36 L24 41 L26 32 L19 26 L28 25 Z" fill="#ffffff"/>
+      </svg>
+    `;
+  }
+
+  return `
+    <svg ${common}>
+      <path d="M10 37 L16 25 H44 L54 37 V45 H10 Z" fill="currentColor"/>
+      <circle cx="20" cy="47" r="5" fill="currentColor"/>
+      <circle cx="46" cy="47" r="5" fill="currentColor"/>
+    </svg>
+  `;
 }
 
 function markerColor(v, status) {
-  if (status === 'responding') return '#dc2626';
-  if (status === 'moving') return '#2563eb';
-  if (status === 'away') return '#d97706';
-  if (status === 'stale') return '#dc2626';
-  if (status === 'nogps') return '#64748b';
-  if (status === 'offline') return '#9333ea';
+  if (status === 'responding') {
+    return '#dc2626';
+  }
 
-  const type = String(v.type || '').toLowerCase();
+  if (status === 'moving') {
+    return '#2563eb';
+  }
+
+  if (status === 'away') {
+    return '#d97706';
+  }
+
+  if (status === 'stale') {
+    return '#dc2626';
+  }
+
+  if (status === 'nogps') {
+    return '#64748b';
+  }
+
+  if (status === 'offline') {
+    return '#9333ea';
+  }
+
+  const type = String(
+    v.type || ''
+  ).toLowerCase();
 
   if (type === 'engine') return '#dc2626';
   if (type === 'medic') return '#2563eb';
@@ -130,7 +354,10 @@ function shortLabel(v) {
   const unit = String(v.unit || '');
   const match = unit.match(/\d+/);
   const number = match ? match[0] : '';
-  const type = String(v.type || '').toLowerCase();
+
+  const type = String(
+    v.type || ''
+  ).toLowerCase();
 
   if (type === 'medic') return 'M' + number;
   if (type === 'engine') return 'E' + number;
@@ -164,17 +391,21 @@ function markerIcon(v, status) {
         class="marker-tag${statusClass}"
         style="background:${markerColor(v, status)}"
       >
-        <span class="marker-symbol">${apparatusIcon(v)}</span>
+        <span class="marker-svg">
+          ${apparatusSvg(v)}
+        </span>
         <span>${shortLabel(v)}</span>
       </div>
     `,
-    iconSize: [88, 46],
-    iconAnchor: [44, 23]
+    iconSize: [90, 46],
+    iconAnchor: [45, 23]
   });
 }
 
 function markerZIndex(v, status) {
-  const type = String(v.type || '').toLowerCase();
+  const type = String(
+    v.type || ''
+  ).toLowerCase();
 
   if (status === 'responding') return 20000;
   if (status === 'moving') return 10000;
@@ -190,7 +421,9 @@ function markerZIndex(v, status) {
 }
 
 function timeAgo(time) {
-  if (!time) return 'No GPS';
+  if (!time) {
+    return 'No GPS';
+  }
 
   const parsed = new Date(time);
 
@@ -200,31 +433,41 @@ function timeAgo(time) {
 
   const seconds = Math.max(
     0,
-    Math.round((new Date() - parsed) / 1000)
+    Math.round(
+      (new Date() - parsed) / 1000
+    )
   );
 
   if (seconds < 30) return 'Just now';
   if (seconds < 60) return seconds + ' sec ago';
 
-  const minutes = Math.round(seconds / 60);
+  const minutes = Math.round(
+    seconds / 60
+  );
 
   if (minutes === 1) return '1 min ago';
   if (minutes < 60) return minutes + ' min ago';
 
-  const hours = Math.round(minutes / 60);
+  const hours = Math.round(
+    minutes / 60
+  );
 
   if (hours === 1) return '1 hr ago';
 
   return hours + ' hr ago';
 }
 
-/*
- * Groups only units occupying nearly the same physical position.
- * This avoids spreading unrelated units simply because they share
- * the same named facility.
- */
 function groupKey(v) {
+  if (
+    v.facility &&
+    v.facility !== 'Away' &&
+    v.facility !== 'Unknown'
+  ) {
+    return 'FACILITY:' + v.facility;
+  }
+
   return (
+    'GPS:' +
     Number(v.lat).toFixed(4) +
     ',' +
     Number(v.lon).toFixed(4)
@@ -308,41 +551,97 @@ function sortGroupForLayout(group) {
       return tA - tB;
     }
 
-    return String(a.unit || '').localeCompare(
+    return String(
+      a.unit || ''
+    ).localeCompare(
       String(b.unit || '')
     );
   });
 }
 
 /*
- * Smart fan-out:
- * - One unit remains at the true coordinate.
- * - Additional units are placed on compact concentric rings.
- * - Responding and other high-priority units receive the center position.
+ * Parking-grid layout for facilities.
+ * The highest-priority unit occupies the first slot.
+ * Shared facilities spread into a compact bay-style grid.
  */
-function getSmartFanOffset(anchorLat, anchorLon, index, total) {
+function getFacilityParkingOffset(
+  anchorLat,
+  anchorLon,
+  index,
+  total
+) {
+  if (total <= 1) {
+    return [anchorLat, anchorLon];
+  }
+
+  const columns =
+    total <= 4 ? 2 : 3;
+
+  const row = Math.floor(
+    index / columns
+  );
+
+  const col = index % columns;
+
+  const rows = Math.ceil(
+    total / columns
+  );
+
+  const latSpacing = 0.00058;
+  const lonSpacing = 0.00088;
+
+  const colOffset =
+    col - (columns - 1) / 2;
+
+  const rowOffset =
+    row - (rows - 1) / 2;
+
+  return [
+    anchorLat - rowOffset * latSpacing,
+    anchorLon + colOffset * lonSpacing
+  ];
+}
+
+function getGpsFanOffset(
+  anchorLat,
+  anchorLon,
+  index,
+  total
+) {
   if (total <= 1 || index === 0) {
     return [anchorLat, anchorLon];
   }
 
   const adjustedIndex = index - 1;
   const firstRingCapacity = 6;
+
   const ring =
-    adjustedIndex < firstRingCapacity ? 1 : 2;
+    adjustedIndex < firstRingCapacity
+      ? 1
+      : 2;
 
   const ringIndex =
     ring === 1
       ? adjustedIndex
-      : adjustedIndex - firstRingCapacity;
+      : adjustedIndex -
+        firstRingCapacity;
 
   const ringCount =
     ring === 1
-      ? Math.min(total - 1, firstRingCapacity)
-      : Math.max(total - 1 - firstRingCapacity, 1);
+      ? Math.min(
+          total - 1,
+          firstRingCapacity
+        )
+      : Math.max(
+          total - 1 -
+          firstRingCapacity,
+          1
+        );
 
   const angle =
     -Math.PI / 2 +
-    (2 * Math.PI * ringIndex) / ringCount;
+    (2 * Math.PI * ringIndex) /
+      ringCount;
 
   const latSpacing =
     ring === 1 ? 0.00062 : 0.00103;
@@ -351,15 +650,43 @@ function getSmartFanOffset(anchorLat, anchorLon, index, total) {
     ring === 1 ? 0.00088 : 0.00146;
 
   return [
-    anchorLat + Math.sin(angle) * latSpacing,
-    anchorLon + Math.cos(angle) * lonSpacing
+    anchorLat +
+      Math.sin(angle) *
+        latSpacing,
+    anchorLon +
+      Math.cos(angle) *
+        lonSpacing
   ];
 }
 
+function getDisplayPosition(
+  key,
+  anchorLat,
+  anchorLon,
+  index,
+  total
+) {
+  if (key.startsWith('FACILITY:')) {
+    return getFacilityParkingOffset(
+      anchorLat,
+      anchorLon,
+      index,
+      total
+    );
+  }
+
+  return getGpsFanOffset(
+    anchorLat,
+    anchorLon,
+    index,
+    total
+  );
+}
+
 function clearMarkers() {
-  Object.values(markers).forEach(marker => {
-    map.removeLayer(marker);
-  });
+  Object.values(markers).forEach(
+    marker => map.removeLayer(marker)
+  );
 
   markers = {};
 }
@@ -372,14 +699,23 @@ function setText(id, value) {
   }
 }
 
-function extractFNumber(rawName, apparatusNumber) {
+function extractFNumber(
+  rawName,
+  apparatusNumber
+) {
   if (apparatusNumber) {
-    return String(apparatusNumber).toUpperCase();
+    return String(
+      apparatusNumber
+    ).toUpperCase();
   }
 
-  const match = String(rawName || '').match(/F\d+/i);
+  const match = String(
+    rawName || ''
+  ).match(/F\d+/i);
 
-  return match ? match[0].toUpperCase() : '';
+  return match
+    ? match[0].toUpperCase()
+    : '';
 }
 
 function escapeHtml(value) {
@@ -391,19 +727,140 @@ function escapeHtml(value) {
     .replaceAll("'", '&#039;');
 }
 
+function buildFleetMetrics(locations) {
+  const metrics = {
+    engines: 0,
+    medics: 0,
+    command: 0,
+    prevention: 0,
+    responding: 0,
+    available: 0,
+    away: 0,
+    gpsIssues: 0
+  };
+
+  locations.forEach(v => {
+    const type = String(
+      v.type || ''
+    ).toLowerCase();
+
+    const status = getStatus(v);
+
+    if (type === 'engine') {
+      metrics.engines++;
+    }
+
+    if (type === 'medic') {
+      metrics.medics++;
+    }
+
+    if (
+      type === 'chief' ||
+      type === 'battalion'
+    ) {
+      metrics.command++;
+    }
+
+    if (type === 'crrd') {
+      metrics.prevention++;
+    }
+
+    if (status === 'responding') {
+      metrics.responding++;
+    }
+
+    if (status === 'defined') {
+      metrics.available++;
+    }
+
+    if (status === 'away') {
+      metrics.away++;
+    }
+
+    if (
+      status === 'nogps' ||
+      status === 'offline' ||
+      status === 'stale'
+    ) {
+      metrics.gpsIssues++;
+    }
+  });
+
+  return metrics;
+}
+
+function renderCommandPanel(metrics) {
+  setText(
+    'commandResponding',
+    metrics.responding
+  );
+
+  setText(
+    'commandEngines',
+    metrics.engines
+  );
+
+  setText(
+    'commandMedics',
+    metrics.medics
+  );
+
+  setText(
+    'commandCommand',
+    metrics.command
+  );
+
+  setText(
+    'commandPrevention',
+    metrics.prevention
+  );
+
+  setText(
+    'commandAvailable',
+    metrics.available
+  );
+
+  setText(
+    'commandAway',
+    metrics.away
+  );
+
+  setText(
+    'commandGpsIssues',
+    metrics.gpsIssues
+  );
+
+  const panel = document.getElementById(
+    'commandStatusPanel'
+  );
+
+  if (panel) {
+    panel.classList.toggle(
+      'has-response',
+      metrics.responding > 0
+    );
+  }
+}
+
 function renderDashboard(locations) {
   clearMarkers();
 
   const unitList =
-    document.getElementById('apparatusList');
+    document.getElementById(
+      'apparatusList'
+    );
 
   unitList.innerHTML = '';
 
   const searchInput =
-    document.getElementById('search');
+    document.getElementById(
+      'search'
+    );
 
   const searchText = String(
-    searchInput ? searchInput.value : ''
+    searchInput
+      ? searchInput.value
+      : ''
   ).toLowerCase();
 
   const filtered = locations
@@ -420,108 +877,142 @@ function renderDashboard(locations) {
         .join(' ')
         .toLowerCase();
 
-      return haystack.includes(searchText);
+      return haystack.includes(
+        searchText
+      );
     })
     .sort((a, b) => {
       const statusDifference =
-        statusPriority(getStatus(a)) -
-        statusPriority(getStatus(b));
+        statusPriority(
+          getStatus(a)
+        ) -
+        statusPriority(
+          getStatus(b)
+        );
 
       if (statusDifference !== 0) {
         return statusDifference;
       }
 
-      return String(a.unit || '').localeCompare(
+      return String(
+        a.unit || ''
+      ).localeCompare(
         String(b.unit || '')
       );
     });
 
   const groups = buildGroups(filtered);
+  const metrics = buildFleetMetrics(
+    locations
+  );
 
-  let responding = 0;
-  let available = 0;
-  let away = 0;
   let gps = 0;
   let noGps = 0;
   let stale = 0;
-  let offline = 0;
 
   const bounds = [];
 
   Object.keys(groups).forEach(key => {
     const originalGroup = groups[key];
+
     const layoutGroup =
-      sortGroupForLayout(originalGroup);
+      sortGroupForLayout(
+        originalGroup
+      );
 
     const [anchorLat, anchorLon] =
-      getGroupAnchor(originalGroup);
+      getGroupAnchor(
+        originalGroup
+      );
 
-    layoutGroup.forEach((v, index) => {
-      const status = getStatus(v);
+    layoutGroup.forEach(
+      (v, index) => {
+        const status = getStatus(v);
 
-      const [displayLat, displayLon] =
-        getSmartFanOffset(
+        const [
+          displayLat,
+          displayLon
+        ] = getDisplayPosition(
+          key,
           anchorLat,
           anchorLon,
           index,
           layoutGroup.length
         );
 
-      if (status === 'responding') responding++;
-      if (status === 'defined') available++;
-      if (status === 'away') away++;
-      if (status === 'stale') stale++;
-      if (status === 'offline') offline++;
+        const gpsStatus = String(
+          v.gpsStatus || ''
+        ).toLowerCase();
 
-      const gpsStatus = String(
-        v.gpsStatus || ''
-      ).toLowerCase();
-
-      if (gpsStatus === 'gps') gps++;
-      if (gpsStatus === 'no gps') noGps++;
-
-      const marker = L.marker(
-        [displayLat, displayLon],
-        {
-          icon: markerIcon(v, status),
-          zIndexOffset: markerZIndex(v, status)
+        if (gpsStatus === 'gps') {
+          gps++;
         }
-      ).addTo(map);
 
-      const emergencyText =
-        hasEmergencyLights(v)
-          ? '<span class="popup-alert">ACTIVE</span>'
-          : 'Off';
-
-      marker.bindPopup(`
-        <div class="popup-title">
-          <span>${apparatusIcon(v)}</span>
-          <strong>${escapeHtml(v.unit)}</strong>
-        </div>
-        <br>
-        <strong>Status:</strong> ${escapeHtml(statusText(status, v))}<br>
-        <strong>Emergency Lights:</strong> ${emergencyText}<br>
-        <strong>Facility:</strong> ${escapeHtml(v.facility || 'Away')}<br>
-        <strong>Location:</strong> ${escapeHtml(v.location || 'Unknown')}<br>
-        <strong>Home Station:</strong> ${escapeHtml(v.homeStation || '')}<br>
-        <strong>Speed:</strong> ${Number(v.speed || 0).toFixed(1)} mph<br>
-        <strong>Updated:</strong> ${escapeHtml(timeAgo(v.lastUpdate))}<br><br>
-        ${
-          v.mapLink
-            ? `<a href="${escapeHtml(v.mapLink)}" target="_blank" rel="noopener noreferrer">Open in Google Maps</a>`
-            : ''
+        if (gpsStatus === 'no gps') {
+          noGps++;
         }
-      `);
 
-      markers[
-        v.rawName + '-' + v.unit
-      ] = marker;
+        if (status === 'stale') {
+          stale++;
+        }
 
-      bounds.push([
-        displayLat,
-        displayLon
-      ]);
-    });
+        const marker = L.marker(
+          [
+            displayLat,
+            displayLon
+          ],
+          {
+            icon: markerIcon(
+              v,
+              status
+            ),
+            zIndexOffset:
+              markerZIndex(
+                v,
+                status
+              )
+          }
+        ).addTo(map);
+
+        const emergencyText =
+          hasEmergencyLights(v)
+            ? '<span class="popup-alert">ACTIVE</span>'
+            : 'Off';
+
+        marker.bindPopup(`
+          <div class="popup-title">
+            <span class="popup-svg">
+              ${apparatusSvg(v)}
+            </span>
+            <strong>${escapeHtml(v.unit)}</strong>
+          </div>
+          <br>
+          <strong>Status:</strong> ${escapeHtml(statusText(status, v))}<br>
+          <strong>Emergency Lights:</strong> ${emergencyText}<br>
+          <strong>Facility:</strong> ${escapeHtml(v.facility || 'Away')}<br>
+          <strong>Location:</strong> ${escapeHtml(v.location || 'Unknown')}<br>
+          <strong>Home Station:</strong> ${escapeHtml(v.homeStation || '')}<br>
+          <strong>Speed:</strong> ${Number(v.speed || 0).toFixed(1)} mph<br>
+          <strong>Updated:</strong> ${escapeHtml(timeAgo(v.lastUpdate))}<br><br>
+          ${
+            v.mapLink
+              ? `<a href="${escapeHtml(v.mapLink)}" target="_blank" rel="noopener noreferrer">Open in Google Maps</a>`
+              : ''
+          }
+        `);
+
+        markers[
+          v.rawName +
+          '-' +
+          v.unit
+        ] = marker;
+
+        bounds.push([
+          displayLat,
+          displayLon
+        ]);
+      }
+    );
   });
 
   filtered.forEach(v => {
@@ -533,20 +1024,23 @@ function renderDashboard(locations) {
     div.className =
       `unit ${status}`;
 
-    const fNumber = extractFNumber(
-      v.rawName,
-      v.apparatusNumber
-    );
+    const fNumber =
+      extractFNumber(
+        v.rawName,
+        v.apparatusNumber
+      );
 
     div.innerHTML = `
       <div class="unit-icon" aria-hidden="true">
-        ${apparatusIcon(v)}
+        ${apparatusSvg(v)}
       </div>
 
       <div class="unit-main">
         <div class="unit-title">
           ${escapeHtml(
-            String(v.unit || '').toUpperCase()
+            String(
+              v.unit || ''
+            ).toUpperCase()
           )}
         </div>
 
@@ -558,20 +1052,32 @@ function renderDashboard(locations) {
           )}
           ${
             fNumber
-              ? ' - ' + escapeHtml(fNumber)
+              ? ' • ' +
+                escapeHtml(
+                  fNumber
+                )
               : ''
           }
         </div>
       </div>
 
       <span class="badge ${status}">
-        ${escapeHtml(statusText(status, v))}
+        ${escapeHtml(
+          statusText(
+            status,
+            v
+          )
+        )}
       </span>
     `;
 
     div.onclick = () => {
       const marker =
-        markers[v.rawName + '-' + v.unit];
+        markers[
+          v.rawName +
+          '-' +
+          v.unit
+        ];
 
       if (marker) {
         map.setView(
@@ -586,44 +1092,97 @@ function renderDashboard(locations) {
     unitList.appendChild(div);
   });
 
-  const gpsIssues =
-    noGps + stale + offline;
+  setText(
+    'apparatusCount',
+    locations.length
+  );
 
-  setText('apparatusCount', locations.length);
-  setText('respondingCount', responding);
-  setText('availableCount', available);
-  setText('awayCount', away);
-  setText('gpsIssueCount', gpsIssues);
-  setText('gpsCount', gps);
-  setText('noGpsCount', noGps);
-  setText('staleCount', stale);
+  setText(
+    'respondingCount',
+    metrics.responding
+  );
+
+  setText(
+    'availableCount',
+    metrics.available
+  );
+
+  setText(
+    'awayCount',
+    metrics.away
+  );
+
+  setText(
+    'gpsIssueCount',
+    metrics.gpsIssues
+  );
+
+  setText(
+    'gpsCount',
+    gps
+  );
+
+  setText(
+    'noGpsCount',
+    noGps
+  );
+
+  setText(
+    'staleCount',
+    stale
+  );
+
+  renderCommandPanel(metrics);
+
+  const respondingCard =
+    document.querySelector(
+      '.respondingCard'
+    );
+
+  if (respondingCard) {
+    respondingCard.classList.toggle(
+      'active-response',
+      metrics.responding > 0
+    );
+  }
 
   const refresh =
-    document.getElementById('lastRefresh');
+    document.getElementById(
+      'lastRefresh'
+    );
 
   if (refresh) {
     refresh.innerText =
       'Last refreshed: ' +
-      new Date().toLocaleTimeString();
+      new Date()
+        .toLocaleTimeString();
   }
 
   if (bounds.length > 0) {
-    map.fitBounds(bounds, {
-      padding: [65, 65]
-    });
+    map.fitBounds(
+      bounds,
+      {
+        padding: [65, 65]
+      }
+    );
   }
 }
 
 function forceSync() {
   const refresh =
-    document.getElementById('lastRefresh');
+    document.getElementById(
+      'lastRefresh'
+    );
 
   if (refresh) {
-    refresh.innerText = 'Syncing...';
+    refresh.innerText =
+      'Syncing...';
   }
 
   const forceButton =
-    document.getElementById('forceSync');
+    document.getElementById(
+      'forceSync'
+    );
 
   if (forceButton) {
     forceButton.disabled = true;
@@ -658,11 +1217,15 @@ function loadDashboard() {
         initMap(settings);
       }
 
-      renderDashboard(allLocations);
+      renderDashboard(
+        allLocations
+      );
     })
     .catch(error => {
       const refresh =
-        document.getElementById('lastRefresh');
+        document.getElementById(
+          'lastRefresh'
+        );
 
       if (refresh) {
         refresh.innerText =
@@ -673,19 +1236,25 @@ function loadDashboard() {
 }
 
 const searchInput =
-  document.getElementById('search');
+  document.getElementById(
+    'search'
+  );
 
 if (searchInput) {
   searchInput.addEventListener(
     'input',
     () => {
-      renderDashboard(allLocations);
+      renderDashboard(
+        allLocations
+      );
     }
   );
 }
 
 const forceButton =
-  document.getElementById('forceSync');
+  document.getElementById(
+    'forceSync'
+  );
 
 if (forceButton) {
   forceButton.addEventListener(
@@ -694,5 +1263,23 @@ if (forceButton) {
   );
 }
 
+document
+  .querySelectorAll(
+    '.map-mode-button'
+  )
+  .forEach(button => {
+    button.addEventListener(
+      'click',
+      () => {
+        setBaseLayer(
+          button.dataset.layer
+        );
+      }
+    );
+  });
+
 loadDashboard();
-setInterval(loadDashboard, 30000);
+setInterval(
+  loadDashboard,
+  30000
+);
