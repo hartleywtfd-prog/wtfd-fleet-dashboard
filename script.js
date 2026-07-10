@@ -44,9 +44,7 @@ setInterval(updateClock, 1000);
 updateClock();
 
 function ageMinutes(time) {
-  if (!time) {
-    return 999999;
-  }
+  if (!time) return 999999;
 
   const parsed = new Date(time);
 
@@ -58,7 +56,7 @@ function ageMinutes(time) {
 }
 
 function hasEmergencyLights(v) {
-  return v && v.emergencyLights === true;
+  return Boolean(v && v.emergencyLights === true);
 }
 
 function getStatus(v) {
@@ -93,6 +91,19 @@ function statusText(status, v) {
   if (facility.includes('hospital') || facility.includes('health')) return 'Hospital';
 
   return 'Located';
+}
+
+function apparatusIcon(v) {
+  const type = String(v.type || '').toLowerCase();
+
+  if (type === 'engine') return '🚒';
+  if (type === 'medic') return '🚑';
+  if (type === 'ladder') return '🪜';
+  if (type === 'battalion') return '🧑‍🚒';
+  if (type === 'chief') return '🧑‍🚒';
+  if (type === 'crrd') return '🛡️';
+
+  return '🚘';
 }
 
 function markerColor(v, status) {
@@ -153,11 +164,12 @@ function markerIcon(v, status) {
         class="marker-tag${statusClass}"
         style="background:${markerColor(v, status)}"
       >
-        ${shortLabel(v)}
+        <span class="marker-symbol">${apparatusIcon(v)}</span>
+        <span>${shortLabel(v)}</span>
       </div>
     `,
-    iconSize: [78, 46],
-    iconAnchor: [39, 23]
+    iconSize: [88, 46],
+    iconAnchor: [44, 23]
   });
 }
 
@@ -206,17 +218,13 @@ function timeAgo(time) {
   return hours + ' hr ago';
 }
 
+/*
+ * Groups only units occupying nearly the same physical position.
+ * This avoids spreading unrelated units simply because they share
+ * the same named facility.
+ */
 function groupKey(v) {
-  if (
-    v.facility &&
-    v.facility !== 'Away' &&
-    v.facility !== 'Unknown'
-  ) {
-    return 'FACILITY:' + v.facility;
-  }
-
   return (
-    'GPS:' +
     Number(v.lat).toFixed(4) +
     ',' +
     Number(v.lon).toFixed(4)
@@ -254,7 +262,7 @@ function getGroupAnchor(group) {
   ];
 }
 
-function sortGroupForLayout(group) {
+function statusPriority(status) {
   const priority = {
     responding: 1,
     moving: 2,
@@ -265,6 +273,10 @@ function sortGroupForLayout(group) {
     nogps: 7
   };
 
+  return priority[status] || 99;
+}
+
+function sortGroupForLayout(group) {
   const typePriority = {
     chief: 1,
     battalion: 2,
@@ -275,8 +287,8 @@ function sortGroupForLayout(group) {
   };
 
   return group.slice().sort((a, b) => {
-    const sA = priority[getStatus(a)] || 99;
-    const sB = priority[getStatus(b)] || 99;
+    const sA = statusPriority(getStatus(a));
+    const sB = statusPriority(getStatus(b));
 
     if (sA !== sB) {
       return sA - sB;
@@ -302,39 +314,45 @@ function sortGroupForLayout(group) {
   });
 }
 
-function getCircularOffsetLatLng(
-  anchorLat,
-  anchorLon,
-  index,
-  total
-) {
-  if (total <= 1) {
+/*
+ * Smart fan-out:
+ * - One unit remains at the true coordinate.
+ * - Additional units are placed on compact concentric rings.
+ * - Responding and other high-priority units receive the center position.
+ */
+function getSmartFanOffset(anchorLat, anchorLon, index, total) {
+  if (total <= 1 || index === 0) {
     return [anchorLat, anchorLon];
   }
 
-  const baseLatSpacing = 0.00085;
-  const baseLonSpacing = 0.00120;
-  const radius =
-    total <= 3
-      ? 0.85
-      : total <= 5
-        ? 1.0
-        : 1.15;
+  const adjustedIndex = index - 1;
+  const firstRingCapacity = 6;
+  const ring =
+    adjustedIndex < firstRingCapacity ? 1 : 2;
 
-  const angleOffset = -Math.PI / 2;
+  const ringIndex =
+    ring === 1
+      ? adjustedIndex
+      : adjustedIndex - firstRingCapacity;
+
+  const ringCount =
+    ring === 1
+      ? Math.min(total - 1, firstRingCapacity)
+      : Math.max(total - 1 - firstRingCapacity, 1);
+
   const angle =
-    angleOffset +
-    (2 * Math.PI * index) / total;
+    -Math.PI / 2 +
+    (2 * Math.PI * ringIndex) / ringCount;
+
+  const latSpacing =
+    ring === 1 ? 0.00062 : 0.00103;
+
+  const lonSpacing =
+    ring === 1 ? 0.00088 : 0.00146;
 
   return [
-    anchorLat +
-      Math.sin(angle) *
-        baseLatSpacing *
-        radius,
-    anchorLon +
-      Math.cos(angle) *
-        baseLonSpacing *
-        radius
+    anchorLat + Math.sin(angle) * latSpacing,
+    anchorLon + Math.cos(angle) * lonSpacing
   ];
 }
 
@@ -388,16 +406,6 @@ function renderDashboard(locations) {
     searchInput ? searchInput.value : ''
   ).toLowerCase();
 
-  const order = {
-    responding: 1,
-    moving: 2,
-    away: 3,
-    stale: 4,
-    defined: 5,
-    offline: 6,
-    nogps: 7
-  };
-
   const filtered = locations
     .filter(v => {
       const haystack = [
@@ -416,8 +424,8 @@ function renderDashboard(locations) {
     })
     .sort((a, b) => {
       const statusDifference =
-        order[getStatus(a)] -
-        order[getStatus(b)];
+        statusPriority(getStatus(a)) -
+        statusPriority(getStatus(b));
 
       if (statusDifference !== 0) {
         return statusDifference;
@@ -431,12 +439,12 @@ function renderDashboard(locations) {
   const groups = buildGroups(filtered);
 
   let responding = 0;
-  let moving = 0;
-  let located = 0;
-  let stale = 0;
+  let available = 0;
   let away = 0;
   let gps = 0;
   let noGps = 0;
+  let stale = 0;
+  let offline = 0;
 
   const bounds = [];
 
@@ -452,7 +460,7 @@ function renderDashboard(locations) {
       const status = getStatus(v);
 
       const [displayLat, displayLon] =
-        getCircularOffsetLatLng(
+        getSmartFanOffset(
           anchorLat,
           anchorLon,
           index,
@@ -460,20 +468,10 @@ function renderDashboard(locations) {
         );
 
       if (status === 'responding') responding++;
-      if (status === 'moving') moving++;
+      if (status === 'defined') available++;
       if (status === 'away') away++;
-
-      if (
-        [
-          'defined',
-          'nogps',
-          'offline'
-        ].includes(status)
-      ) {
-        located++;
-      }
-
       if (status === 'stale') stale++;
+      if (status === 'offline') offline++;
 
       const gpsStatus = String(
         v.gpsStatus || ''
@@ -486,10 +484,7 @@ function renderDashboard(locations) {
         [displayLat, displayLon],
         {
           icon: markerIcon(v, status),
-          zIndexOffset: markerZIndex(
-            v,
-            status
-          )
+          zIndexOffset: markerZIndex(v, status)
         }
       ).addTo(map);
 
@@ -499,7 +494,11 @@ function renderDashboard(locations) {
           : 'Off';
 
       marker.bindPopup(`
-        <strong>${escapeHtml(v.unit)}</strong><br><br>
+        <div class="popup-title">
+          <span>${apparatusIcon(v)}</span>
+          <strong>${escapeHtml(v.unit)}</strong>
+        </div>
+        <br>
         <strong>Status:</strong> ${escapeHtml(statusText(status, v))}<br>
         <strong>Emergency Lights:</strong> ${emergencyText}<br>
         <strong>Facility:</strong> ${escapeHtml(v.facility || 'Away')}<br>
@@ -540,10 +539,17 @@ function renderDashboard(locations) {
     );
 
     div.innerHTML = `
+      <div class="unit-icon" aria-hidden="true">
+        ${apparatusIcon(v)}
+      </div>
+
       <div class="unit-main">
-        <div class="unit-title">${escapeHtml(
-          String(v.unit || '').toUpperCase()
-        )}</div>
+        <div class="unit-title">
+          ${escapeHtml(
+            String(v.unit || '').toUpperCase()
+          )}
+        </div>
+
         <div class="unit-sub">
           ${escapeHtml(
             v.facility ||
@@ -557,6 +563,7 @@ function renderDashboard(locations) {
           }
         </div>
       </div>
+
       <span class="badge ${status}">
         ${escapeHtml(statusText(status, v))}
       </span>
@@ -579,45 +586,17 @@ function renderDashboard(locations) {
     unitList.appendChild(div);
   });
 
-  setText(
-    'apparatusCount',
-    locations.length
-  );
+  const gpsIssues =
+    noGps + stale + offline;
 
-  setText(
-    'respondingCount',
-    responding
-  );
-
-  setText(
-    'locatedCount',
-    located
-  );
-
-  setText(
-    'movingCount',
-    moving
-  );
-
-  setText(
-    'awayCount',
-    away
-  );
-
-  setText(
-    'staleCount',
-    stale
-  );
-
-  setText(
-    'gpsCount',
-    gps
-  );
-
-  setText(
-    'noGpsCount',
-    noGps
-  );
+  setText('apparatusCount', locations.length);
+  setText('respondingCount', responding);
+  setText('availableCount', available);
+  setText('awayCount', away);
+  setText('gpsIssueCount', gpsIssues);
+  setText('gpsCount', gps);
+  setText('noGpsCount', noGps);
+  setText('staleCount', stale);
 
   const refresh =
     document.getElementById('lastRefresh');
