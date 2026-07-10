@@ -82,6 +82,57 @@
         </div>
       </div>
 
+      <section
+        id="commandStatusPanel"
+        class="command-panel"
+      >
+        <div class="command-title">
+          Command Status
+        </div>
+
+        <div class="command-grid">
+          <div class="command-item response">
+            Responding
+            <strong id="commandResponding">0</strong>
+          </div>
+
+          <div class="command-item">
+            Engines
+            <strong id="commandEngines">0</strong>
+          </div>
+
+          <div class="command-item">
+            Medics
+            <strong id="commandMedics">0</strong>
+          </div>
+
+          <div class="command-item">
+            Command
+            <strong id="commandCommand">0</strong>
+          </div>
+
+          <div class="command-item">
+            Prevention
+            <strong id="commandPrevention">0</strong>
+          </div>
+
+          <div class="command-item">
+            Available
+            <strong id="commandAvailable">0</strong>
+          </div>
+
+          <div class="command-item">
+            Away
+            <strong id="commandAway">0</strong>
+          </div>
+
+          <div class="command-item warning">
+            GPS Issues
+            <strong id="commandGpsIssues">0</strong>
+          </div>
+        </div>
+      </section>
+
       <div class="gpsLine">
         <div class="gpsPill good">
           GPS
@@ -121,7 +172,69 @@
     <main
       id="map"
       aria-label="Fleet map"
-    ></main>
+    >
+      <div class="map-controls">
+        <button
+          class="map-mode-button active"
+          data-layer="street"
+          type="button"
+        >
+          Street
+        </button>
+
+        <button
+          class="map-mode-button"
+          data-layer="dark"
+          type="button"
+        >
+          Dark
+        </button>
+
+        <button
+          class="map-mode-button"
+          data-layer="satellite"
+          type="button"
+        >
+          Satellite
+        </button>
+      </div>
+
+      <div class="map-legend">
+        <div class="legend-title">
+          Status Legend
+        </div>
+
+        <div class="legend-row">
+          <span class="legend-dot responding"></span>
+          Responding
+        </div>
+
+        <div class="legend-row">
+          <span class="legend-dot available"></span>
+          Available
+        </div>
+
+        <div class="legend-row">
+          <span class="legend-dot moving"></span>
+          Moving
+        </div>
+
+        <div class="legend-row">
+          <span class="legend-dot away"></span>
+          Away
+        </div>
+
+        <div class="legend-row">
+          <span class="legend-dot nogps"></span>
+          No GPS
+        </div>
+
+        <div class="legend-row">
+          <span class="legend-dot stale"></span>
+          Stale GPS
+        </div>
+      </div>
+    </main>
   </div>
 
   <script
