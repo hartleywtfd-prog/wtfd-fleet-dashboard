@@ -233,82 +233,135 @@ function apparatusSvg(v) {
   ).toLowerCase();
 
   const common = `
-    viewBox="0 0 64 64"
+    viewBox="0 0 72 48"
     aria-hidden="true"
     focusable="false"
   `;
 
+  /*
+   * Engine: unmistakable pumper silhouette with square body,
+   * cab, pump panel, roof lights, and dual rear wheel cue.
+   */
   if (type === 'engine') {
     return `
       <svg ${common}>
-        <rect x="8" y="25" width="34" height="19" rx="3" fill="currentColor"/>
-        <rect x="42" y="29" width="12" height="15" rx="2" fill="currentColor"/>
-        <rect x="13" y="18" width="24" height="7" rx="2" fill="currentColor"/>
-        <rect x="18" y="13" width="14" height="4" rx="1" fill="currentColor"/>
-        <circle cx="19" cy="47" r="5" fill="currentColor"/>
-        <circle cx="47" cy="47" r="5" fill="currentColor"/>
-        <rect x="46" y="32" width="6" height="5" rx="1" fill="#0f172a"/>
+        <rect x="5" y="18" width="43" height="20" rx="3" fill="currentColor"/>
+        <path d="M48 23 H60 L67 30 V38 H48 Z" fill="currentColor"/>
+        <rect x="10" y="12" width="30" height="6" rx="2" fill="currentColor"/>
+        <rect x="15" y="8" width="20" height="3" rx="1.5" fill="currentColor"/>
+        <rect x="25" y="21" width="10" height="13" rx="1" fill="#0f172a"/>
+        <circle cx="18" cy="40" r="5" fill="currentColor"/>
+        <circle cx="40" cy="40" r="5" fill="currentColor"/>
+        <circle cx="59" cy="40" r="5" fill="currentColor"/>
+        <rect x="53" y="26" width="8" height="6" rx="1" fill="#0f172a"/>
+        <rect x="8" y="22" width="11" height="3" rx="1" fill="#ffffff" opacity=".9"/>
+        <rect x="8" y="28" width="11" height="3" rx="1" fill="#ffffff" opacity=".9"/>
       </svg>
     `;
   }
 
+  /*
+   * Medic: box-style ambulance with prominent medical cross.
+   */
   if (type === 'medic') {
     return `
       <svg ${common}>
-        <rect x="8" y="24" width="42" height="21" rx="4" fill="currentColor"/>
-        <rect x="48" y="29" width="8" height="16" rx="2" fill="currentColor"/>
-        <circle cx="19" cy="48" r="5" fill="currentColor"/>
-        <circle cx="47" cy="48" r="5" fill="currentColor"/>
-        <rect x="26" y="27" width="6" height="15" fill="#ffffff"/>
-        <rect x="21.5" y="31.5" width="15" height="6" fill="#ffffff"/>
+        <rect x="5" y="15" width="47" height="23" rx="4" fill="currentColor"/>
+        <path d="M52 23 H62 L68 30 V38 H52 Z" fill="currentColor"/>
+        <circle cx="18" cy="40" r="5" fill="currentColor"/>
+        <circle cx="47" cy="40" r="5" fill="currentColor"/>
+        <circle cx="61" cy="40" r="5" fill="currentColor"/>
+        <rect x="25" y="19" width="7" height="15" fill="#ffffff"/>
+        <rect x="21" y="23" width="15" height="7" fill="#ffffff"/>
+        <rect x="56" y="26" width="7" height="6" rx="1" fill="#0f172a"/>
+        <rect x="10" y="11" width="14" height="3" rx="1.5" fill="currentColor"/>
       </svg>
     `;
   }
 
+  /*
+   * Ladder: long aerial ladder and turntable are visually distinct.
+   */
+  if (type === 'ladder') {
+    return `
+      <svg ${common}>
+        <rect x="5" y="23" width="49" height="15" rx="3" fill="currentColor"/>
+        <path d="M54 27 H63 L68 32 V38 H54 Z" fill="currentColor"/>
+        <circle cx="17" cy="40" r="5" fill="currentColor"/>
+        <circle cx="43" cy="40" r="5" fill="currentColor"/>
+        <circle cx="61" cy="40" r="5" fill="currentColor"/>
+        <circle cx="34" cy="23" r="4" fill="#ffffff"/>
+        <path d="M12 16 L58 5 L60 10 L14 21 Z" fill="currentColor"/>
+        <path d="M16 16.5 L56 7" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round"/>
+        <path d="M22 15 L24 19 M31 13 L33 17 M40 11 L42 15 M49 9 L51 13"
+          stroke="#ffffff" stroke-width="1.6" stroke-linecap="round"/>
+      </svg>
+    `;
+  }
+
+  /*
+   * Command: Tahoe/SUV profile with light bar.
+   */
   if (
     type === 'chief' ||
     type === 'battalion'
   ) {
     return `
       <svg ${common}>
-        <path d="M10 37 L16 25 H44 L54 37 V45 H10 Z" fill="currentColor"/>
-        <rect x="21" y="18" width="16" height="5" rx="2" fill="currentColor"/>
-        <circle cx="20" cy="47" r="5" fill="currentColor"/>
-        <circle cx="46" cy="47" r="5" fill="currentColor"/>
-        <rect x="20" y="27" width="10" height="7" rx="1" fill="#0f172a"/>
-        <rect x="32" y="27" width="10" height="7" rx="1" fill="#0f172a"/>
+        <path d="M8 30 L15 18 H45 L55 24 H62 L68 31 V38 H8 Z" fill="currentColor"/>
+        <circle cx="20" cy="40" r="5" fill="currentColor"/>
+        <circle cx="56" cy="40" r="5" fill="currentColor"/>
+        <rect x="24" y="12" width="18" height="4" rx="2" fill="currentColor"/>
+        <path d="M18 20 H31 V28 H14 Z" fill="#0f172a"/>
+        <path d="M33 20 H44 L51 28 H33 Z" fill="#0f172a"/>
+        <rect x="59" y="29" width="5" height="3" rx="1" fill="#ffffff"/>
       </svg>
     `;
   }
 
-  if (type === 'ladder') {
-    return `
-      <svg ${common}>
-        <rect x="8" y="29" width="43" height="16" rx="3" fill="currentColor"/>
-        <circle cx="18" cy="48" r="5" fill="currentColor"/>
-        <circle cx="45" cy="48" r="5" fill="currentColor"/>
-        <path d="M15 16 L47 8 L49 13 L17 21 Z" fill="currentColor"/>
-        <rect x="18" y="20" width="28" height="3" transform="rotate(-14 18 20)" fill="#ffffff"/>
-      </svg>
-    `;
-  }
-
+  /*
+   * CRRD / Prevention: pickup silhouette to distinguish it from command.
+   */
   if (type === 'crrd') {
     return `
       <svg ${common}>
-        <path d="M32 7 L49 14 V28 C49 40 42 49 32 56 C22 49 15 40 15 28 V14 Z" fill="currentColor"/>
-        <path d="M32 17 L36 25 L45 26 L38 32 L40 41 L32 36 L24 41 L26 32 L19 26 L28 25 Z" fill="#ffffff"/>
+        <path d="M7 29 L14 19 H36 L45 25 H62 L68 31 V38 H7 Z" fill="currentColor"/>
+        <circle cx="19" cy="40" r="5" fill="currentColor"/>
+        <circle cx="57" cy="40" r="5" fill="currentColor"/>
+        <path d="M17 21 H29 V28 H13 Z" fill="#0f172a"/>
+        <path d="M31 21 H36 L42 28 H31 Z" fill="#0f172a"/>
+        <rect x="46" y="27" width="15" height="3" rx="1" fill="#ffffff" opacity=".9"/>
       </svg>
     `;
   }
 
   return `
     <svg ${common}>
-      <path d="M10 37 L16 25 H44 L54 37 V45 H10 Z" fill="currentColor"/>
-      <circle cx="20" cy="47" r="5" fill="currentColor"/>
-      <circle cx="46" cy="47" r="5" fill="currentColor"/>
+      <path d="M8 30 L15 18 H45 L55 24 H62 L68 31 V38 H8 Z" fill="currentColor"/>
+      <circle cx="20" cy="40" r="5" fill="currentColor"/>
+      <circle cx="56" cy="40" r="5" fill="currentColor"/>
     </svg>
   `;
+}
+
+function markerShapeClass(v) {
+  const type = String(
+    v.type || ''
+  ).toLowerCase();
+
+  if (type === 'engine') return ' marker-engine';
+  if (type === 'medic') return ' marker-medic';
+  if (type === 'ladder') return ' marker-ladder';
+  if (
+    type === 'chief' ||
+    type === 'battalion'
+  ) {
+    return ' marker-command';
+  }
+
+  if (type === 'crrd') return ' marker-prevention';
+
+  return ' marker-generic';
 }
 
 function markerColor(v, status) {
@@ -384,21 +437,23 @@ function markerIcon(v, status) {
     statusClass = ' movingMarker';
   }
 
+  const shapeClass = markerShapeClass(v);
+
   return L.divIcon({
     className: '',
     html: `
       <div
-        class="marker-tag${statusClass}"
+        class="marker-tag${shapeClass}${statusClass}"
         style="background:${markerColor(v, status)}"
       >
         <span class="marker-svg">
           ${apparatusSvg(v)}
         </span>
-        <span>${shortLabel(v)}</span>
+        <span class="marker-label">${shortLabel(v)}</span>
       </div>
     `,
-    iconSize: [90, 46],
-    iconAnchor: [45, 23]
+    iconSize: [96, 44],
+    iconAnchor: [48, 22]
   });
 }
 
