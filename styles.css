@@ -302,9 +302,9 @@ button:disabled,
 }
 
 .unit-icon {
-  width: 27px;
-  min-width: 27px;
-  height: 27px;
+  width: 24px;
+  min-width: 24px;
+  height: 24px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -312,8 +312,8 @@ button:disabled,
 }
 
 .unit-icon svg {
-  width: 25px;
-  height: 25px;
+  width: 21px;
+  height: 21px;
   display: block;
 }
 
@@ -323,7 +323,7 @@ button:disabled,
 }
 
 .unit-title {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 900;
   color: #ffffff;
   white-space: nowrap;
@@ -521,18 +521,18 @@ button:disabled,
 }
 
 .marker-tag {
-  min-width: 70px;
-  height: 36px;
+  min-width: 72px;
+  height: 32px;
   padding: 0 10px;
-  border-radius: 10px;
+  border-radius: 8px;
   border: 3px solid #ffffff;
   color: #ffffff;
   background: #1e293b;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 5px;
-  font-size: 15px;
+  gap: 4px;
+  font-size: 17px;
   font-weight: 900;
   box-shadow: 0 4px 12px rgba(0, 0, 0, .45);
   text-shadow: 0 1px 2px rgba(0, 0, 0, .55);
@@ -540,8 +540,8 @@ button:disabled,
 }
 
 .marker-svg {
-  width: 22px;
-  height: 22px;
+  width: 18px;
+  height: 18px;
   color: #ffffff;
   display: flex;
   align-items: center;
@@ -549,9 +549,42 @@ button:disabled,
 }
 
 .marker-svg svg {
-  width: 22px;
-  height: 22px;
+  width: 18px;
+  height: 18px;
   display: block;
+}
+
+
+.marker-label {
+  display: inline-block;
+  line-height: 1;
+  letter-spacing: .01em;
+}
+
+.marker-engine {
+  border-radius: 6px;
+}
+
+.marker-medic {
+  border-radius: 11px;
+}
+
+.marker-ladder {
+  min-width: 78px;
+  border-radius: 5px;
+}
+
+.marker-command {
+  border-radius: 999px;
+}
+
+.marker-prevention {
+  min-width: 66px;
+  border-radius: 999px;
+}
+
+.marker-generic {
+  border-radius: 8px;
 }
 
 .movingMarker {
@@ -573,7 +606,7 @@ button:disabled,
   position: absolute;
   inset: -9px;
   border: 3px solid rgba(248, 113, 113, .95);
-  border-radius: 15px;
+  border-radius: 13px;
   animation: respondingRingPulse 1.05s infinite;
   pointer-events: none;
 }
