@@ -12,6 +12,7 @@ function apiRequest(action) {
     if (!response.ok) {
       throw new Error('API request failed: ' + response.status);
     }
+
     return response.json();
   });
 }
@@ -21,7 +22,9 @@ function initMap(settings) {
   const centerLon = Number(settings.dashboardCenterLon || -84.1750);
   const zoom = Number(settings.dashboardZoom || 12);
 
-  map = L.map('map', { zoomControl: true }).setView([centerLat, centerLon], zoom);
+  map = L.map('map', {
+    zoomControl: true
+  }).setView([centerLat, centerLon], zoom);
 
   L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19,
@@ -31,15 +34,31 @@ function initMap(settings) {
 
 function updateClock() {
   const clock = document.getElementById('clock');
-  if (clock) clock.innerText = new Date().toLocaleTimeString();
+
+  if (clock) {
+    clock.innerText = new Date().toLocaleTimeString();
+  }
 }
 
 setInterval(updateClock, 1000);
 updateClock();
 
 function ageMinutes(time) {
-  if (!time) return 999999;
-  return (new Date() - new Date(time)) / 60000;
+  if (!time) {
+    return 999999;
+  }
+
+  const parsed = new Date(time);
+
+  if (Number.isNaN(parsed.getTime())) {
+    return 999999;
+  }
+
+  return (new Date() - parsed) / 60000;
+}
+
+function hasEmergencyLights(v) {
+  return v && v.emergencyLights === true;
 }
 
 function getStatus(v) {
@@ -48,6 +67,7 @@ function getStatus(v) {
   const facility = String(v.facility || '');
   const age = ageMinutes(v.lastUpdate);
 
+  if (hasEmergencyLights(v)) return 'responding';
   if (gpsStatus === 'no gps') return 'nogps';
   if (gpsStatus === 'gps offline') return 'offline';
   if (age > 120 && gpsStatus === 'gps') return 'stale';
@@ -60,6 +80,7 @@ function getStatus(v) {
 function statusText(status, v) {
   const facility = String(v.facility || '').toLowerCase();
 
+  if (status === 'responding') return 'Responding';
   if (status === 'nogps') return 'No GPS';
   if (status === 'offline') return 'Offline';
   if (status === 'moving') return 'Moving';
@@ -75,6 +96,7 @@ function statusText(status, v) {
 }
 
 function markerColor(v, status) {
+  if (status === 'responding') return '#dc2626';
   if (status === 'moving') return '#2563eb';
   if (status === 'away') return '#d97706';
   if (status === 'stale') return '#dc2626';
@@ -97,14 +119,15 @@ function shortLabel(v) {
   const unit = String(v.unit || '');
   const match = unit.match(/\d+/);
   const number = match ? match[0] : '';
+  const type = String(v.type || '').toLowerCase();
 
-  if (v.type === 'Medic') return 'M' + number;
-  if (v.type === 'Engine') return 'E' + number;
-  if (v.type === 'Ladder') return 'L' + number;
-  if (v.type === 'Battalion') return 'B' + number;
-  if (v.type === 'Chief') return 'C' + number;
+  if (type === 'medic') return 'M' + number;
+  if (type === 'engine') return 'E' + number;
+  if (type === 'ladder') return 'L' + number;
+  if (type === 'battalion') return 'B' + number;
+  if (type === 'chief') return 'C' + number;
 
-  if (v.type === 'CRRD') {
+  if (type === 'crrd') {
     return unit
       .replace('Prevention ', 'P')
       .replace('Marshal ', 'FM')
@@ -115,11 +138,24 @@ function shortLabel(v) {
 }
 
 function markerIcon(v, status) {
-  const pulseClass = status === 'moving' ? ' movingMarker' : '';
+  let statusClass = '';
+
+  if (status === 'responding') {
+    statusClass = ' respondingMarker';
+  } else if (status === 'moving') {
+    statusClass = ' movingMarker';
+  }
 
   return L.divIcon({
     className: '',
-    html: `<div class="marker-tag${pulseClass}" style="background:${markerColor(v, status)}">${shortLabel(v)}</div>`,
+    html: `
+      <div
+        class="marker-tag${statusClass}"
+        style="background:${markerColor(v, status)}"
+      >
+        ${shortLabel(v)}
+      </div>
+    `,
     iconSize: [78, 46],
     iconAnchor: [39, 23]
   });
@@ -128,6 +164,7 @@ function markerIcon(v, status) {
 function markerZIndex(v, status) {
   const type = String(v.type || '').toLowerCase();
 
+  if (status === 'responding') return 20000;
   if (status === 'moving') return 10000;
   if (type === 'chief') return 9000;
   if (type === 'battalion') return 8500;
@@ -143,7 +180,16 @@ function markerZIndex(v, status) {
 function timeAgo(time) {
   if (!time) return 'No GPS';
 
-  const seconds = Math.round((new Date() - new Date(time)) / 1000);
+  const parsed = new Date(time);
+
+  if (Number.isNaN(parsed.getTime())) {
+    return 'Unknown';
+  }
+
+  const seconds = Math.max(
+    0,
+    Math.round((new Date() - parsed) / 1000)
+  );
 
   if (seconds < 30) return 'Just now';
   if (seconds < 60) return seconds + ' sec ago';
@@ -154,15 +200,27 @@ function timeAgo(time) {
   if (minutes < 60) return minutes + ' min ago';
 
   const hours = Math.round(minutes / 60);
+
+  if (hours === 1) return '1 hr ago';
+
   return hours + ' hr ago';
 }
 
 function groupKey(v) {
-  if (v.facility && v.facility !== 'Away' && v.facility !== 'Unknown') {
+  if (
+    v.facility &&
+    v.facility !== 'Away' &&
+    v.facility !== 'Unknown'
+  ) {
     return 'FACILITY:' + v.facility;
   }
 
-  return 'GPS:' + Number(v.lat).toFixed(4) + ',' + Number(v.lon).toFixed(4);
+  return (
+    'GPS:' +
+    Number(v.lat).toFixed(4) +
+    ',' +
+    Number(v.lon).toFixed(4)
+  );
 }
 
 function buildGroups(locations) {
@@ -170,7 +228,11 @@ function buildGroups(locations) {
 
   locations.forEach(v => {
     const key = groupKey(v);
-    if (!groups[key]) groups[key] = [];
+
+    if (!groups[key]) {
+      groups[key] = [];
+    }
+
     groups[key].push(v);
   });
 
@@ -186,17 +248,21 @@ function getGroupAnchor(group) {
     lon += Number(v.lon);
   });
 
-  return [lat / group.length, lon / group.length];
+  return [
+    lat / group.length,
+    lon / group.length
+  ];
 }
 
 function sortGroupForLayout(group) {
   const priority = {
-    moving: 1,
-    away: 2,
-    stale: 3,
-    defined: 4,
-    offline: 5,
-    nogps: 6
+    responding: 1,
+    moving: 2,
+    away: 3,
+    stale: 4,
+    defined: 5,
+    offline: 6,
+    nogps: 7
   };
 
   const typePriority = {
@@ -211,57 +277,126 @@ function sortGroupForLayout(group) {
   return group.slice().sort((a, b) => {
     const sA = priority[getStatus(a)] || 99;
     const sB = priority[getStatus(b)] || 99;
-    if (sA !== sB) return sA - sB;
 
-    const tA = typePriority[String(a.type || '').toLowerCase()] || 99;
-    const tB = typePriority[String(b.type || '').toLowerCase()] || 99;
-    if (tA !== tB) return tA - tB;
+    if (sA !== sB) {
+      return sA - sB;
+    }
 
-    return String(a.unit || '').localeCompare(String(b.unit || ''));
+    const tA =
+      typePriority[
+        String(a.type || '').toLowerCase()
+      ] || 99;
+
+    const tB =
+      typePriority[
+        String(b.type || '').toLowerCase()
+      ] || 99;
+
+    if (tA !== tB) {
+      return tA - tB;
+    }
+
+    return String(a.unit || '').localeCompare(
+      String(b.unit || '')
+    );
   });
 }
 
-function getCircularOffsetLatLng(anchorLat, anchorLon, index, total) {
-  if (total <= 1) return [anchorLat, anchorLon];
+function getCircularOffsetLatLng(
+  anchorLat,
+  anchorLon,
+  index,
+  total
+) {
+  if (total <= 1) {
+    return [anchorLat, anchorLon];
+  }
 
   const baseLatSpacing = 0.00085;
   const baseLonSpacing = 0.00120;
-  const radius = total <= 3 ? 0.85 : total <= 5 ? 1.0 : 1.15;
+  const radius =
+    total <= 3
+      ? 0.85
+      : total <= 5
+        ? 1.0
+        : 1.15;
+
   const angleOffset = -Math.PI / 2;
-  const angle = angleOffset + (2 * Math.PI * index) / total;
+  const angle =
+    angleOffset +
+    (2 * Math.PI * index) / total;
 
   return [
-    anchorLat + Math.sin(angle) * baseLatSpacing * radius,
-    anchorLon + Math.cos(angle) * baseLonSpacing * radius
+    anchorLat +
+      Math.sin(angle) *
+        baseLatSpacing *
+        radius,
+    anchorLon +
+      Math.cos(angle) *
+        baseLonSpacing *
+        radius
   ];
 }
 
 function clearMarkers() {
-  Object.values(markers).forEach(marker => map.removeLayer(marker));
+  Object.values(markers).forEach(marker => {
+    map.removeLayer(marker);
+  });
+
   markers = {};
 }
 
 function setText(id, value) {
   const el = document.getElementById(id);
-  if (el) el.innerText = value;
+
+  if (el) {
+    el.innerText = value;
+  }
 }
 
-function extractFNumber(rawName) {
-  if (arguments.length > 1 && arguments[1]) {
-    return String(arguments[1]).toUpperCase();
+function extractFNumber(rawName, apparatusNumber) {
+  if (apparatusNumber) {
+    return String(apparatusNumber).toUpperCase();
   }
 
   const match = String(rawName || '').match(/F\d+/i);
+
   return match ? match[0].toUpperCase() : '';
+}
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;');
 }
 
 function renderDashboard(locations) {
   clearMarkers();
 
-  const unitList = document.getElementById('apparatusList');
+  const unitList =
+    document.getElementById('apparatusList');
+
   unitList.innerHTML = '';
 
-  const searchText = document.getElementById('search').value.toLowerCase();
+  const searchInput =
+    document.getElementById('search');
+
+  const searchText = String(
+    searchInput ? searchInput.value : ''
+  ).toLowerCase();
+
+  const order = {
+    responding: 1,
+    moving: 2,
+    away: 3,
+    stale: 4,
+    defined: 5,
+    offline: 6,
+    nogps: 7
+  };
 
   const filtered = locations
     .filter(v => {
@@ -273,25 +408,29 @@ function renderDashboard(locations) {
         v.facility,
         v.location,
         v.apparatusNumber
-      ].join(' ').toLowerCase();
+      ]
+        .join(' ')
+        .toLowerCase();
 
       return haystack.includes(searchText);
     })
     .sort((a, b) => {
-      const order = {
-        moving: 1,
-        away: 2,
-        stale: 3,
-        defined: 4,
-        offline: 5,
-        nogps: 6
-      };
+      const statusDifference =
+        order[getStatus(a)] -
+        order[getStatus(b)];
 
-      return order[getStatus(a)] - order[getStatus(b)];
+      if (statusDifference !== 0) {
+        return statusDifference;
+      }
+
+      return String(a.unit || '').localeCompare(
+        String(b.unit || '')
+      );
     });
 
   const groups = buildGroups(filtered);
 
+  let responding = 0;
   let moving = 0;
   let located = 0;
   let stale = 0;
@@ -303,66 +442,136 @@ function renderDashboard(locations) {
 
   Object.keys(groups).forEach(key => {
     const originalGroup = groups[key];
-    const layoutGroup = sortGroupForLayout(originalGroup);
-    const [anchorLat, anchorLon] = getGroupAnchor(originalGroup);
+    const layoutGroup =
+      sortGroupForLayout(originalGroup);
+
+    const [anchorLat, anchorLon] =
+      getGroupAnchor(originalGroup);
 
     layoutGroup.forEach((v, index) => {
       const status = getStatus(v);
-      const [displayLat, displayLon] = getCircularOffsetLatLng(
-        anchorLat,
-        anchorLon,
-        index,
-        layoutGroup.length
-      );
 
+      const [displayLat, displayLon] =
+        getCircularOffsetLatLng(
+          anchorLat,
+          anchorLon,
+          index,
+          layoutGroup.length
+        );
+
+      if (status === 'responding') responding++;
       if (status === 'moving') moving++;
       if (status === 'away') away++;
-      if (['defined', 'nogps', 'offline'].includes(status)) located++;
+
+      if (
+        [
+          'defined',
+          'nogps',
+          'offline'
+        ].includes(status)
+      ) {
+        located++;
+      }
+
       if (status === 'stale') stale++;
 
-      const gpsStatus = String(v.gpsStatus || '').toLowerCase();
+      const gpsStatus = String(
+        v.gpsStatus || ''
+      ).toLowerCase();
+
       if (gpsStatus === 'gps') gps++;
       if (gpsStatus === 'no gps') noGps++;
 
-      const marker = L.marker([displayLat, displayLon], {
-        icon: markerIcon(v, status),
-        zIndexOffset: markerZIndex(v, status)
-      }).addTo(map);
+      const marker = L.marker(
+        [displayLat, displayLon],
+        {
+          icon: markerIcon(v, status),
+          zIndexOffset: markerZIndex(
+            v,
+            status
+          )
+        }
+      ).addTo(map);
+
+      const emergencyText =
+        hasEmergencyLights(v)
+          ? '<span class="popup-alert">ACTIVE</span>'
+          : 'Off';
 
       marker.bindPopup(`
-        <strong>${v.unit}</strong><br><br>
-        <strong>Status:</strong> ${statusText(status, v)}<br>
-        <strong>Facility:</strong> ${v.facility || 'Away'}<br>
-        <strong>Location:</strong> ${v.location || 'Unknown'}<br>
-        <strong>Home Station:</strong> ${v.homeStation || ''}<br>
+        <strong>${escapeHtml(v.unit)}</strong><br><br>
+        <strong>Status:</strong> ${escapeHtml(statusText(status, v))}<br>
+        <strong>Emergency Lights:</strong> ${emergencyText}<br>
+        <strong>Facility:</strong> ${escapeHtml(v.facility || 'Away')}<br>
+        <strong>Location:</strong> ${escapeHtml(v.location || 'Unknown')}<br>
+        <strong>Home Station:</strong> ${escapeHtml(v.homeStation || '')}<br>
         <strong>Speed:</strong> ${Number(v.speed || 0).toFixed(1)} mph<br>
-        <strong>Updated:</strong> ${timeAgo(v.lastUpdate)}<br><br>
-        ${v.mapLink ? `<a href="${v.mapLink}" target="_blank">Open in Google Maps</a>` : ''}
+        <strong>Updated:</strong> ${escapeHtml(timeAgo(v.lastUpdate))}<br><br>
+        ${
+          v.mapLink
+            ? `<a href="${escapeHtml(v.mapLink)}" target="_blank" rel="noopener noreferrer">Open in Google Maps</a>`
+            : ''
+        }
       `);
 
-      markers[v.rawName + '-' + v.unit] = marker;
-      bounds.push([displayLat, displayLon]);
+      markers[
+        v.rawName + '-' + v.unit
+      ] = marker;
+
+      bounds.push([
+        displayLat,
+        displayLon
+      ]);
     });
   });
 
   filtered.forEach(v => {
     const status = getStatus(v);
 
-    const div = document.createElement('div');
-    div.className = `unit ${status}`;
+    const div =
+      document.createElement('div');
+
+    div.className =
+      `unit ${status}`;
+
+    const fNumber = extractFNumber(
+      v.rawName,
+      v.apparatusNumber
+    );
 
     div.innerHTML = `
       <div class="unit-main">
-        <div class="unit-title">${String(v.unit || '').toUpperCase()}</div>
-        <div class="unit-sub">${v.facility || v.homeStation || 'Unknown'} - ${extractFNumber(v.rawName, v.apparatusNumber)}</div>
+        <div class="unit-title">${escapeHtml(
+          String(v.unit || '').toUpperCase()
+        )}</div>
+        <div class="unit-sub">
+          ${escapeHtml(
+            v.facility ||
+            v.homeStation ||
+            'Unknown'
+          )}
+          ${
+            fNumber
+              ? ' - ' + escapeHtml(fNumber)
+              : ''
+          }
+        </div>
       </div>
-      <span class="badge ${status}">${statusText(status, v)}</span>
+      <span class="badge ${status}">
+        ${escapeHtml(statusText(status, v))}
+      </span>
     `;
 
     div.onclick = () => {
-      const marker = markers[v.rawName + '-' + v.unit];
+      const marker =
+        markers[v.rawName + '-' + v.unit];
+
       if (marker) {
-        map.setView(marker.getLatLng(), 17);
+        map.setView(
+          marker.getLatLng(),
+          17
+        );
+
         marker.openPopup();
       }
     };
@@ -370,56 +579,140 @@ function renderDashboard(locations) {
     unitList.appendChild(div);
   });
 
-  setText('apparatusCount', locations.length);
-  setText('locatedCount', located);
-  setText('movingCount', moving);
-  setText('awayCount', away);
-  setText('staleCount', stale);
-  setText('gpsCount', gps);
-  setText('noGpsCount', noGps);
+  setText(
+    'apparatusCount',
+    locations.length
+  );
 
-  const refresh = document.getElementById('lastRefresh');
-  if (refresh) refresh.innerText = 'Last refreshed: ' + new Date().toLocaleTimeString();
+  setText(
+    'respondingCount',
+    responding
+  );
+
+  setText(
+    'locatedCount',
+    located
+  );
+
+  setText(
+    'movingCount',
+    moving
+  );
+
+  setText(
+    'awayCount',
+    away
+  );
+
+  setText(
+    'staleCount',
+    stale
+  );
+
+  setText(
+    'gpsCount',
+    gps
+  );
+
+  setText(
+    'noGpsCount',
+    noGps
+  );
+
+  const refresh =
+    document.getElementById('lastRefresh');
+
+  if (refresh) {
+    refresh.innerText =
+      'Last refreshed: ' +
+      new Date().toLocaleTimeString();
+  }
 
   if (bounds.length > 0) {
-    map.fitBounds(bounds, { padding: [65, 65] });
+    map.fitBounds(bounds, {
+      padding: [65, 65]
+    });
   }
 }
 
 function forceSync() {
-  const refresh = document.getElementById('lastRefresh');
-  if (refresh) refresh.innerText = 'Syncing...';
+  const refresh =
+    document.getElementById('lastRefresh');
+
+  if (refresh) {
+    refresh.innerText = 'Syncing...';
+  }
+
+  const forceButton =
+    document.getElementById('forceSync');
+
+  if (forceButton) {
+    forceButton.disabled = true;
+  }
 
   apiRequest('sync')
     .then(() => loadDashboard())
     .catch(error => {
-      if (refresh) refresh.innerText = 'Sync error: ' + error.message;
+      if (refresh) {
+        refresh.innerText =
+          'Sync error: ' +
+          error.message;
+      }
+    })
+    .finally(() => {
+      if (forceButton) {
+        forceButton.disabled = false;
+      }
     });
 }
 
 function loadDashboard() {
   apiRequest('dashboard')
     .then(data => {
-      const settings = data.settings || {};
-      allLocations = data.locations || [];
+      const settings =
+        data.settings || {};
 
-      if (!map) initMap(settings);
+      allLocations =
+        data.locations || [];
+
+      if (!map) {
+        initMap(settings);
+      }
 
       renderDashboard(allLocations);
     })
     .catch(error => {
-      const refresh = document.getElementById('lastRefresh');
-      if (refresh) refresh.innerText = 'Error: ' + error.message;
+      const refresh =
+        document.getElementById('lastRefresh');
+
+      if (refresh) {
+        refresh.innerText =
+          'Error: ' +
+          error.message;
+      }
     });
 }
 
-document.getElementById('search').addEventListener('input', () => {
-  renderDashboard(allLocations);
-});
+const searchInput =
+  document.getElementById('search');
 
-const forceButton = document.getElementById('forceSync');
+if (searchInput) {
+  searchInput.addEventListener(
+    'input',
+    () => {
+      renderDashboard(allLocations);
+    }
+  );
+}
+
+const forceButton =
+  document.getElementById('forceSync');
+
 if (forceButton) {
-  forceButton.addEventListener('click', forceSync);
+  forceButton.addEventListener(
+    'click',
+    forceSync
+  );
 }
 
 loadDashboard();
