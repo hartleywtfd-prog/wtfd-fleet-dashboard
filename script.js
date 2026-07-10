@@ -365,16 +365,11 @@ function markerShapeClass(v) {
 }
 
 function markerColor(v, status) {
+  /*
+   * Critical operational statuses override apparatus type.
+   */
   if (status === 'responding') {
     return '#dc2626';
-  }
-
-  if (status === 'moving') {
-    return '#2563eb';
-  }
-
-  if (status === 'away') {
-    return '#d97706';
   }
 
   if (status === 'stale') {
@@ -386,21 +381,50 @@ function markerColor(v, status) {
   }
 
   if (status === 'offline') {
-    return '#9333ea';
+    return '#6b7280';
   }
 
   const type = String(
     v.type || ''
   ).toLowerCase();
 
-  if (type === 'engine') return '#dc2626';
-  if (type === 'medic') return '#2563eb';
-  if (type === 'ladder') return '#475569';
-  if (type === 'battalion') return '#ea580c';
-  if (type === 'chief') return '#7c3aed';
-  if (type === 'crrd') return '#16a34a';
+  const unitName = String(
+    v.unit || ''
+  ).toLowerCase();
 
-  return '#16a34a';
+  /*
+   * Safety units use amber even though they may currently be
+   * configured as Battalion in UnitConfig.
+   */
+  if (unitName.includes('safety')) {
+    return '#ca8a04';
+  }
+
+  if (type === 'engine') {
+    return '#d32f2f';
+  }
+
+  if (type === 'medic') {
+    return '#2563eb';
+  }
+
+  if (type === 'ladder') {
+    return '#991b1b';
+  }
+
+  if (type === 'battalion') {
+    return '#6d28d9';
+  }
+
+  if (type === 'chief') {
+    return '#4c1d95';
+  }
+
+  if (type === 'crrd') {
+    return '#15803d';
+  }
+
+  return '#475569';
 }
 
 function shortLabel(v) {
@@ -435,6 +459,8 @@ function markerIcon(v, status) {
     statusClass = ' respondingMarker';
   } else if (status === 'moving') {
     statusClass = ' movingMarker';
+  } else if (status === 'away') {
+    statusClass = ' awayMarker';
   }
 
   const shapeClass = markerShapeClass(v);
