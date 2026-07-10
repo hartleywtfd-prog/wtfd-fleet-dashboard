@@ -134,6 +134,14 @@ html, body {
   color: #fca5a5;
 }
 
+.card.gpsIssueCard {
+  border-color: #d97706;
+}
+
+.card.gpsIssueCard span {
+  color: #fbbf24;
+}
+
 .gpsLine {
   display: flex;
   gap: 6px;
@@ -213,7 +221,7 @@ button:disabled,
 }
 
 .unit {
-  min-height: 42px;
+  min-height: 44px;
   margin-bottom: 5px;
   padding: 6px 9px;
   background: #1e293b;
@@ -221,7 +229,6 @@ button:disabled,
   border-radius: 8px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 8px;
   cursor: pointer;
   transition:
@@ -235,8 +242,20 @@ button:disabled,
   transform: translateX(2px);
 }
 
+.unit-icon {
+  width: 25px;
+  min-width: 25px;
+  height: 25px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 17px;
+  line-height: 1;
+}
+
 .unit-main {
   min-width: 0;
+  flex: 1;
 }
 
 .unit-title {
@@ -259,14 +278,15 @@ button:disabled,
 
 .unit.responding {
   border-left-color: #ef4444;
-  background: rgba(127, 29, 29, .55);
+  background: rgba(127, 29, 29, .68);
+  animation: respondingCardPulse 1.15s infinite;
   box-shadow:
-    inset 0 0 0 1px rgba(248, 113, 113, .2),
-    0 0 14px rgba(220, 38, 38, .18);
+    inset 0 0 0 1px rgba(248, 113, 113, .32),
+    0 0 18px rgba(220, 38, 38, .28);
 }
 
 .unit.responding:hover {
-  background: rgba(153, 27, 27, .65);
+  background: rgba(153, 27, 27, .78);
 }
 
 .unit.moving {
@@ -340,7 +360,7 @@ button:disabled,
 }
 
 .marker-tag {
-  min-width: 58px;
+  min-width: 68px;
   height: 36px;
   padding: 0 10px;
   border-radius: 10px;
@@ -350,6 +370,7 @@ button:disabled,
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 5px;
   font-size: 15px;
   font-weight: 900;
   box-shadow: 0 4px 12px rgba(0,0,0,.45);
@@ -357,22 +378,44 @@ button:disabled,
   position: relative;
 }
 
+.marker-symbol {
+  font-size: 15px;
+  line-height: 1;
+}
+
 .movingMarker {
   animation: pulseMove 1.5s infinite;
 }
 
 .respondingMarker {
-  animation: respondingMarkerPulse 1.15s infinite;
+  animation: respondingMarkerPulse 1.05s infinite;
+  border-width: 4px;
+  box-shadow:
+    0 0 0 3px rgba(255,255,255,.35),
+    0 0 22px rgba(220,38,38,.9),
+    0 4px 12px rgba(0,0,0,.55);
 }
 
+.respondingMarker::before,
 .respondingMarker::after {
   content: "";
   position: absolute;
-  inset: -8px;
-  border: 3px solid rgba(248, 113, 113, .9);
-  border-radius: 14px;
-  animation: respondingRingPulse 1.15s infinite;
+  inset: -9px;
+  border: 3px solid rgba(248, 113, 113, .95);
+  border-radius: 15px;
+  animation: respondingRingPulse 1.05s infinite;
   pointer-events: none;
+}
+
+.respondingMarker::after {
+  animation-delay: .5s;
+}
+
+.popup-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 15px;
 }
 
 .popup-alert {
@@ -408,19 +451,19 @@ button:disabled,
   }
 
   50% {
-    transform: scale(1.12);
-    filter: brightness(1.35);
+    transform: scale(1.16);
+    filter: brightness(1.45);
   }
 }
 
 @keyframes respondingRingPulse {
   0% {
-    transform: scale(.82);
+    transform: scale(.78);
     opacity: 1;
   }
 
   100% {
-    transform: scale(1.45);
+    transform: scale(1.62);
     opacity: 0;
   }
 }
@@ -428,11 +471,26 @@ button:disabled,
 @keyframes respondingBadgePulse {
   0%,
   100% {
-    background: #b91c1c;
+    background: #991b1b;
   }
 
   50% {
     background: #ef4444;
+  }
+}
+
+@keyframes respondingCardPulse {
+  0%,
+  100% {
+    box-shadow:
+      inset 0 0 0 1px rgba(248, 113, 113, .3),
+      0 0 10px rgba(220, 38, 38, .18);
+  }
+
+  50% {
+    box-shadow:
+      inset 0 0 0 2px rgba(248, 113, 113, .72),
+      0 0 22px rgba(220, 38, 38, .48);
   }
 }
 
