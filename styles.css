@@ -591,6 +591,14 @@ button:disabled,
   animation: pulseMove 1.5s infinite;
 }
 
+
+.awayMarker {
+  border-color: #f59e0b;
+  box-shadow:
+    0 0 0 2px rgba(245, 158, 11, .35),
+    0 4px 12px rgba(0, 0, 0, .45);
+}
+
 .respondingMarker {
   animation: respondingMarkerPulse 1.05s infinite;
   border-width: 4px;
