@@ -1239,12 +1239,14 @@ function renderDashboard(locations) {
         .toLocaleTimeString();
   }
 
-  /*
+ /*
  * Keep the map at its configured response-area center and zoom.
  * Distant apparatus remain available in the apparatus list but
  * will not force the map to zoom out.
  */
+}
 
+function forceSync() {
 function forceSync() {
   const refresh =
     document.getElementById(
