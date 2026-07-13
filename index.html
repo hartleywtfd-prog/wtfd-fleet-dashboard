@@ -54,6 +54,7 @@
 
       <div class="clockPanel">
         <div id="clock"></div>
+        <div id="clockDate"></div>
 
         <div id="lastRefresh">
           Loading...
@@ -271,6 +272,19 @@
         </div>
       </div>
     </main>
+  </div>
+
+  <section id="incidentBanner" class="incident-banner" aria-live="polite" hidden>
+    <div class="incident-banner-label"><span>ACTIVE911</span><strong>RECENT INCIDENTS</strong></div>
+    <div id="incidentBannerTrack" class="incident-banner-track"></div>
+  </section>
+
+  <div id="reconnectOverlay" class="reconnect-overlay" hidden>
+    <div class="reconnect-panel">
+      <div class="reconnect-spinner"></div>
+      <strong>CONNECTION LOST</strong>
+      <span id="reconnectDetail">Attempting to reconnect…</span>
+    </div>
   </div>
 
   <div id="connectionWarning" class="connection-warning" hidden></div>

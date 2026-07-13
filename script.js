@@ -1,6 +1,6 @@
 /* ===== User-adjustable dashboard settings ===== */
 const DASHBOARD_CONFIG = {
-  version: '1.0.3',
+  version: '2.0.0',
   // Fallback map view used only if the jurisdiction boundary cannot load.
   defaultCenterLat: 39.62784,
   defaultCenterLon: -84.15996,
@@ -18,6 +18,10 @@ const DASHBOARD_CONFIG = {
   active911PollMs: 5000,
   active911PopupDurationMs: 15000,
   active911IncidentMarkerDurationMs: 5 * 60 * 1000,
+  active911BannerDurationMs: 10 * 60 * 1000,
+  active911BannerMaxItems: 5,
+  reconnectRetryMs: 5000,
+  cacheKey: 'wtfd-dashboard-cache-v2',
   kioskIncidentFocusMs: 15000,
 
   // Kiosk-mode settings. Enable by adding ?mode=kiosk to the URL.
@@ -60,6 +64,11 @@ let activeIncidentMarkerTimer = null;
 let activeIncidentKey = '';
 let activeIncidentAlert = null;
 let currentRespondingUnits = [];
+let lastRefreshDisplayTimer = null;
+let activeIncidents = [];
+let reconnectRetryTimer = null;
+let preferredAutomaticLayer = '';
+let lastDashboardSettings = {};
 
 function setConnectionState(state, message) {
   const indicator = document.getElementById('connectionStatus');
@@ -210,7 +219,9 @@ function initMap(settings) {
   );
 
   createBaseLayers();
-  baseLayers.street.addTo(map);
+  preferredAutomaticLayer = automaticLayerForTime();
+  baseLayers[preferredAutomaticLayer].addTo(map);
+  activeBaseLayer = preferredAutomaticLayer;
 
   configureKioskMap();
   saveHomeMapView();
@@ -254,7 +265,7 @@ function loadServiceAreaBoundary() {
           weight: 3,
           opacity: 0.9,
           fillColor: '#dc2626',
-          fillOpacity: 0.035
+          fillOpacity: 0.12
         }
       }).addTo(map);
 
@@ -310,15 +321,65 @@ function setBaseLayer(layerName) {
 }
 
 function updateClock() {
+  const now = new Date();
   const clock = document.getElementById('clock');
+  const date = document.getElementById('clockDate');
 
   if (clock) {
-    clock.innerText =
-      new Date().toLocaleTimeString();
+    clock.innerText = now.toLocaleTimeString([], {
+      hour: 'numeric',
+      minute: '2-digit',
+      second: IS_KIOSK_MODE ? undefined : '2-digit'
+    });
+  }
+
+  if (date) {
+    date.innerText = now.toLocaleDateString([], {
+      weekday: 'long',
+      month: 'long',
+      day: 'numeric'
+    });
+  }
+}
+
+function updateLastRefreshDisplay() {
+  const refresh = document.getElementById('lastRefresh');
+  if (!refresh) return;
+
+  if (!lastSuccessfulDashboardRefresh) {
+    refresh.innerText = 'Waiting for fleet data…';
+    return;
+  }
+
+  const ageSeconds = Math.max(0, Math.floor((Date.now() - lastSuccessfulDashboardRefresh) / 1000));
+  refresh.classList.toggle('refresh-warning', ageSeconds >= 120);
+  refresh.classList.toggle('refresh-lost', ageSeconds >= 300);
+
+  if (ageSeconds < 5) refresh.innerText = 'Updated just now';
+  else if (ageSeconds < 60) refresh.innerText = `Updated ${ageSeconds} seconds ago`;
+  else {
+    const minutes = Math.floor(ageSeconds / 60);
+    refresh.innerText = `Updated ${minutes} minute${minutes === 1 ? '' : 's'} ago`;
+  }
+}
+
+function automaticLayerForTime(date = new Date()) {
+  const hour = date.getHours();
+  return hour >= 19 || hour < 7 ? 'dark' : 'street';
+}
+
+function applyAutomaticMapTheme() {
+  if (!map || activeBaseLayer === 'satellite') return;
+  const desired = automaticLayerForTime();
+  if (preferredAutomaticLayer !== desired || activeBaseLayer !== desired) {
+    preferredAutomaticLayer = desired;
+    setBaseLayer(desired);
   }
 }
 
 setInterval(updateClock, 1000);
+setInterval(updateLastRefreshDisplay, 1000);
+setInterval(applyAutomaticMapTheme, 60000);
 updateClock();
 
 function ageMinutes(time) {
@@ -1490,12 +1551,7 @@ function renderDashboard(locations) {
       'lastRefresh'
     );
 
-  if (refresh) {
-    refresh.innerText =
-      'Last refreshed: ' +
-      new Date()
-        .toLocaleTimeString();
-  }
+  updateLastRefreshDisplay();
 
   /*
    * Keep the map at its configured response-area center and zoom.
@@ -1625,41 +1681,78 @@ function forceSync() {
     });
 }
 
+function saveDashboardCache(data) {
+  try {
+    localStorage.setItem(DASHBOARD_CONFIG.cacheKey, JSON.stringify({
+      savedAt: Date.now(),
+      data
+    }));
+  } catch (error) {
+    console.warn('Unable to cache dashboard data:', error);
+  }
+}
+
+function readDashboardCache() {
+  try {
+    const cached = JSON.parse(localStorage.getItem(DASHBOARD_CONFIG.cacheKey) || 'null');
+    return cached && cached.data ? cached : null;
+  } catch (error) {
+    console.warn('Unable to read dashboard cache:', error);
+    return null;
+  }
+}
+
+function setReconnectOverlay(visible, detail = '') {
+  const overlay = document.getElementById('reconnectOverlay');
+  const detailElement = document.getElementById('reconnectDetail');
+  if (!overlay) return;
+  overlay.hidden = !visible;
+  if (detailElement) detailElement.textContent = detail;
+}
+
+function scheduleReconnect() {
+  if (reconnectRetryTimer) return;
+  reconnectRetryTimer = setTimeout(() => {
+    reconnectRetryTimer = null;
+    loadDashboard();
+  }, DASHBOARD_CONFIG.reconnectRetryMs);
+}
+
 function loadDashboard() {
   apiRequest('dashboard')
     .then(data => {
-      const settings =
-        data.settings || {};
+      const settings = data.settings || {};
+      lastDashboardSettings = settings;
+      allLocations = data.locations || [];
 
-      allLocations =
-        data.locations || [];
-
-      if (!map) {
-        initMap(settings);
-      }
-
-      renderDashboard(
-        allLocations
-      );
-
+      if (!map) initMap(settings);
+      renderDashboard(allLocations);
+      saveDashboardCache(data);
       recordSuccessfulDashboardRefresh();
+      setReconnectOverlay(false);
+
+      if (reconnectRetryTimer) {
+        clearTimeout(reconnectRetryTimer);
+        reconnectRetryTimer = null;
+      }
     })
     .catch(error => {
-      const refresh =
-        document.getElementById(
-          'lastRefresh'
-        );
+      const cached = readDashboardCache();
 
-      if (refresh) {
-        refresh.innerText =
-          'Error: ' +
-          error.message;
+      if ((!allLocations || !allLocations.length) && cached) {
+        const data = cached.data;
+        lastDashboardSettings = data.settings || {};
+        allLocations = data.locations || [];
+        if (!map) initMap(lastDashboardSettings);
+        renderDashboard(allLocations);
       }
 
-      setConnectionState(
-        'delayed',
-        '● Data refresh delayed'
-      );
+      setConnectionState('delayed', '● Data refresh delayed');
+      setReconnectOverlay(true, cached
+        ? 'Showing the last successful fleet data while reconnecting.'
+        : 'No fleet data is available yet. Retrying automatically.');
+      console.warn('Dashboard refresh failed:', error);
+      scheduleReconnect();
     });
 }
 
@@ -1861,6 +1954,53 @@ function active911FormatTime(value) {
   });
 }
 
+function incidentReceivedTime(alert) {
+  const parsed = new Date(alert?.received || '').getTime();
+  return Number.isFinite(parsed) ? parsed : Date.now();
+}
+
+function incidentAgeText(timestamp) {
+  const seconds = Math.max(0, Math.floor((Date.now() - timestamp) / 1000));
+  if (seconds < 60) return 'Dispatched less than a minute ago';
+  const minutes = Math.floor(seconds / 60);
+  return `Dispatched ${minutes} minute${minutes === 1 ? '' : 's'} ago`;
+}
+
+function addIncidentToBanner(alert) {
+  if (!alert) return;
+  const key = incidentKey(alert) || String(Date.now());
+  activeIncidents = activeIncidents.filter(item => item.key !== key);
+  activeIncidents.unshift({ key, alert, timestamp: incidentReceivedTime(alert) });
+  activeIncidents = activeIncidents.slice(0, DASHBOARD_CONFIG.active911BannerMaxItems);
+  renderIncidentBanner();
+}
+
+function renderIncidentBanner() {
+  const banner = document.getElementById('incidentBanner');
+  const track = document.getElementById('incidentBannerTrack');
+  if (!banner || !track) return;
+
+  const cutoff = Date.now() - DASHBOARD_CONFIG.active911BannerDurationMs;
+  activeIncidents = activeIncidents.filter(item => item.timestamp >= cutoff);
+  banner.hidden = activeIncidents.length === 0;
+  document.body.classList.toggle('has-incident-banner', activeIncidents.length > 0);
+
+  track.innerHTML = activeIncidents.map(item => {
+    const alert = item.alert;
+    const location = [alert.address, alert.unit, alert.city].filter(Boolean).join(' ');
+    return `<article class="incident-banner-card">
+      <div class="incident-banner-icon">!</div>
+      <div class="incident-banner-copy">
+        <strong>${escapeHtml(alert.description || 'Emergency Call')}</strong>
+        <span>${escapeHtml(location || alert.place || 'Location unavailable')}</span>
+        <small>${escapeHtml(incidentAgeText(item.timestamp))}</small>
+      </div>
+    </article>`;
+  }).join('');
+}
+
+setInterval(renderIncidentBanner, 15000);
+
 function showActive911Alert(alert) {
   const overlay = document.getElementById('active911Overlay');
   if (!overlay || !alert) return;
@@ -1912,6 +2052,7 @@ function showActive911Alert(alert) {
   overlay.hidden = false;
   active911PopupOpen = true;
   showTemporaryIncidentMarker(alert);
+  addIncidentToBanner(alert);
 
   if (active911DismissTimer) {
     clearTimeout(active911DismissTimer);
