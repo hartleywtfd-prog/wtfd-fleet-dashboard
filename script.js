@@ -1,6 +1,6 @@
 /* ===== User-adjustable dashboard settings ===== */
 const DASHBOARD_CONFIG = {
-  version: '2.0.0',
+  version: '2.1.0',
   // Fallback map view used only if the jurisdiction boundary cannot load.
   defaultCenterLat: 39.62784,
   defaultCenterLon: -84.15996,
@@ -496,7 +496,8 @@ function statusText(status, v) {
   }
 
   if (status === 'stale') {
-    return 'Stale';
+    const age = Math.max(0, Math.floor(ageMinutes(v.lastUpdate)));
+    return `GPS ${age}m`;
   }
 
   if (status === 'away') {
@@ -1570,6 +1571,21 @@ function kioskUnitTypeClass(v) {
   return 'other';
 }
 
+
+function conciseAwayLocation(v) {
+  const raw = String(v.location || v.facility || 'Away').trim();
+  if (!raw) return 'Away';
+
+  const parts = raw.split(',').map(part => part.trim()).filter(Boolean);
+  if (parts.length >= 2) {
+    const stateZip = /^(OH|Ohio)(\s+\d{5}(?:-\d{4})?)?$/i;
+    const candidates = parts.filter(part => !stateZip.test(part));
+    if (candidates.length >= 2) return candidates[candidates.length - 1];
+  }
+
+  return raw.length > 34 ? `${raw.slice(0, 31)}…` : raw;
+}
+
 function renderKioskStatusBoard(locations, metrics, gps, noGps, stale) {
   if (!IS_KIOSK_MODE) return;
 
@@ -1618,7 +1634,7 @@ function renderKioskStatusBoard(locations, metrics, gps, noGps, stale) {
         : '<div class="kiosk-station-empty" aria-label="No units at station">—</div>';
       return `
         <div class="kiosk-station-card ${stateClass}">
-          <div class="kiosk-station-name">${escapeHtml(stationLabel)}</div>
+          <div class="kiosk-station-name">${escapeHtml(stationLabel)}<small>${present.length}</small></div>
           <div class="kiosk-station-detail">${detail}</div>
         </div>`;
     }).join('');
@@ -1630,7 +1646,7 @@ function renderKioskStatusBoard(locations, metrics, gps, noGps, stale) {
       ? away.slice(0, 8).map(v => `
           <div class="kiosk-unit-row away">
             <span>${escapeHtml(String(v.unit || '').toUpperCase())}</span>
-            <strong>${escapeHtml(v.location || v.facility || 'Away')}</strong>
+            <strong title="${escapeHtml(v.location || v.facility || 'Away')}">${escapeHtml(conciseAwayLocation(v))}</strong>
           </div>`).join('')
       : '<div class="kiosk-empty-state">No Units Away</div>';
   }

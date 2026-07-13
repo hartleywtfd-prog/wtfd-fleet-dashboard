@@ -1,6 +1,6 @@
 # WTFD Fleet Dashboard - Cloudflare Pages
 
-Version 2.0.0
+Version 2.1.0
 
 ## Project contents
 
@@ -59,3 +59,17 @@ The Apps Script endpoints are configured through the Cloudflare Pages Function f
 - Corrected duplicate JavaScript declaration in the Active911 section
 
 The incident banner only represents recent alerts because Active911 does not provide unit status or clear updates.
+
+
+## Version 2.1.0 refinements
+- Reduced kiosk sidebar width to provide more map area.
+- Reduced recent-incident banner height from 96px to 72px.
+- Banner still collapses completely when no recent incidents exist.
+- Added subtle pulse to recent-incident icons.
+- Added units-present count to each station card.
+- Stale status badges now show GPS age in minutes.
+- Kiosk away list now favors the municipality/area instead of a long street string.
+- Enlarged the kiosk legend slightly for distance viewing.
+- Maintained the 15-second top Active911 alert and 10-minute recent-incident retention.
+
+A response-path line was not added because the Active911 feed does not identify assigned/responding apparatus. Drawing one from emergency-light status alone could falsely associate a unit with the incident.

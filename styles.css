@@ -1424,3 +1424,68 @@ body.has-incident-banner #sidebar, body.has-incident-banner #map { padding-botto
   .incident-banner-track { overflow-x:auto; }
   .incident-banner-card { min-width:250px; }
 }
+
+
+/* ===== Version 2.1.0 visual refinements ===== */
+/* Preserve map space while keeping the kiosk status board readable. */
+.kiosk-mode #sidebar { width: 320px; min-width: 320px; }
+@media (max-height: 850px) {
+  .kiosk-mode #sidebar { width: 310px; min-width: 310px; }
+}
+
+/* Compact, automatically collapsing recent-incident rail. */
+.incident-banner {
+  min-height: 72px;
+  grid-template-columns: 108px 1fr;
+}
+.incident-banner-label { padding: 8px 10px; }
+.incident-banner-label span { font-size: 9px; }
+.incident-banner-label strong { margin-top: 2px; font-size: 14px; line-height: 1; }
+.incident-banner-track { gap: 7px; padding: 6px 8px; }
+.incident-banner-card {
+  min-width: 235px;
+  grid-template-columns: 36px 1fr;
+  gap: 8px;
+  padding: 6px 9px;
+  border-radius: 8px;
+}
+.incident-banner-icon {
+  width: 32px;
+  height: 32px;
+  border-width: 2px;
+  font-size: 21px;
+  animation: incidentBannerPulse 1.8s ease-in-out infinite;
+}
+@keyframes incidentBannerPulse {
+  0%, 70%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(220,38,38,0); }
+  82% { transform: scale(1.08); box-shadow: 0 0 0 6px rgba(220,38,38,.14); }
+}
+.incident-banner-copy strong { font-size: 13px; line-height: 1.05; }
+.incident-banner-copy span { margin-top: 2px; font-size: 11px; }
+.incident-banner-copy small { margin-top: 2px; font-size: 9px; }
+body.has-incident-banner #sidebar, body.has-incident-banner #map { padding-bottom: 72px; }
+.kiosk-mode .incident-banner { min-height: 72px; grid-template-columns: 108px 1fr; }
+.kiosk-mode .incident-banner-label { padding: 8px 10px; }
+.kiosk-mode .incident-banner-label strong { font-size: 14px; }
+.kiosk-mode .incident-banner-card { min-width: 235px; padding: 6px 9px; }
+.kiosk-mode .incident-banner-copy strong { font-size: 13px; }
+.kiosk-mode .incident-banner-copy span { font-size: 11px; }
+.kiosk-mode.has-incident-banner #sidebar, .kiosk-mode.has-incident-banner #map { padding-bottom: 72px; }
+
+/* Station cards now show the number of units physically present. */
+.kiosk-mode .kiosk-station-name { display: flex; align-items: center; gap: 5px; }
+.kiosk-mode .kiosk-station-name small {
+  display: inline-grid;
+  min-width: 16px;
+  height: 16px;
+  place-items: center;
+  border-radius: 8px;
+  background: #334155;
+  color: #cbd5e1;
+  font-size: 9px;
+  line-height: 1;
+}
+.kiosk-mode .kiosk-station-card.empty .kiosk-station-name small { background: #7f1d1d; color: #fecaca; }
+
+/* Slightly larger kiosk legend for across-the-room readability. */
+.kiosk-mode .map-legend { transform: scale(.82); }
