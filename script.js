@@ -1,3 +1,13 @@
+/* ===== User-adjustable dashboard settings ===== */
+const DASHBOARD_CONFIG = {
+  defaultCenterLat: 39.6255,
+  defaultCenterLon: -84.1750,
+  minimumMapZoom: 13,
+  dashboardRefreshMs: 30000,
+  active911PollMs: 5000,
+  active911PopupDurationMs: 15000
+};
+
 let map;
 let markers = {};
 let allLocations = [];
@@ -49,20 +59,23 @@ function createBaseLayers() {
 
 function initMap(settings) {
   const centerLat = Number(
-    settings.dashboardCenterLat || 39.6255
+    settings.dashboardCenterLat || DASHBOARD_CONFIG.defaultCenterLat
   );
 
   const centerLon = Number(
-    settings.dashboardCenterLon || -84.1750
+    settings.dashboardCenterLon || DASHBOARD_CONFIG.defaultCenterLon
   );
 
   // Keep the dashboard focused more tightly on the response area.
   // Use at least zoom level 13 even if the backend still returns 12.
   const configuredZoom = Number(
-    settings.dashboardZoom || 13
+    settings.dashboardZoom || DASHBOARD_CONFIG.minimumMapZoom
   );
 
-  const zoom = Math.max(configuredZoom, 13);
+  const zoom = Math.max(
+    configuredZoom,
+    DASHBOARD_CONFIG.minimumMapZoom
+  );
 
   map = L.map('map', {
     zoomControl: true
@@ -1381,7 +1394,7 @@ document
 loadDashboard();
 setInterval(
   loadDashboard,
-  30000
+  DASHBOARD_CONFIG.dashboardRefreshMs
 );
 
 /* Active911 popup integration */
@@ -1389,7 +1402,6 @@ let active911BaselineReady = false;
 let active911LatestId = '';
 let active911PopupOpen = false;
 let active911DismissTimer = null;
-const ACTIVE911_AUTO_DISMISS_MS = 30000;
 
 function active911SetText(id, value) {
   const element = document.getElementById(id);
@@ -1477,7 +1489,7 @@ function showActive911Alert(alert) {
 
   active911DismissTimer = setTimeout(() => {
     dismissActive911Alert();
-  }, ACTIVE911_AUTO_DISMISS_MS);
+  }, DASHBOARD_CONFIG.active911PopupDurationMs);
 
   const dismissButton = document.getElementById('active911Dismiss');
   if (dismissButton) dismissButton.focus();
@@ -1543,4 +1555,7 @@ document.addEventListener('keydown', event => {
 });
 
 checkActive911Alerts();
-setInterval(checkActive911Alerts, 5000);
+setInterval(
+  checkActive911Alerts,
+  DASHBOARD_CONFIG.active911PollMs
+);
