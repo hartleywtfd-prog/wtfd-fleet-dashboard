@@ -46,9 +46,7 @@ async function getAccessToken(env) {
     return cachedAccessToken;
   }
 
-  const refreshToken = String(
-    env.ACTIVE911_REFRESH_TOKEN || ''
-  ).trim();
+  const refreshToken = env.ACTIVE911_REFRESH_TOKEN;
 
   if (!refreshToken) {
     throw new Error(
@@ -64,10 +62,9 @@ async function getAccessToken(env) {
     method: 'POST',
     headers: {
       'Content-Type':
-        'application/x-www-form-urlencoded;charset=UTF-8',
-      Accept: 'application/json'
+        'application/x-www-form-urlencoded;charset=UTF-8'
     },
-    body: body.toString()
+    body
   });
 
   const text = await response.text();
@@ -85,12 +82,11 @@ async function getAccessToken(env) {
     throw new Error(
       payload.error_description ||
       payload.error ||
-      payload.message ||
       'Unable to obtain an Active911 access token.'
     );
   }
 
-  cachedAccessToken = String(payload.access_token).trim();
+  cachedAccessToken = payload.access_token;
 
   const expirationSeconds = Number(payload.expiration);
   const expiresInSeconds = Number(payload.expires_in);
@@ -115,7 +111,6 @@ async function active911Fetch(path, accessToken) {
   const response = await fetch(
     `${ACTIVE911_API_ROOT}${path}`,
     {
-      method: 'GET',
       headers: {
         Authorization: `Bearer ${accessToken}`,
         Accept: 'application/json'
@@ -137,7 +132,6 @@ async function active911Fetch(path, accessToken) {
   if (!response.ok) {
     throw new Error(
       payload.error_description ||
-      payload.error ||
       payload.message ||
       `Active911 request failed (${response.status}).`
     );
@@ -162,57 +156,35 @@ function normalizeAlert(alert) {
     unit: alert.unit || '',
     city: alert.city || '',
     state: alert.state || '',
-    crossStreet:
-      alert.cross_street ||
-      alert.crossStreet ||
-      '',
+    crossStreet: alert.cross_street || '',
     units: alert.units || '',
     details: alert.details || '',
     priority: alert.priority || '',
     received: alert.received || alert.sent || '',
-    latitude:
-      alert.latitude === undefined ? null : alert.latitude,
-    longitude:
-      alert.longitude === undefined ? null : alert.longitude
+    latitude: alert.latitude || null,
+    longitude: alert.longitude || null
   };
-}
-
-function extractAlertReferences(alertList) {
-  if (Array.isArray(alertList)) {
-    return alertList;
-  }
-
-  if (Array.isArray(alertList.alerts)) {
-    return alertList.alerts;
-  }
-
-  if (
-    alertList.message &&
-    Array.isArray(alertList.message.alerts)
-  ) {
-    return alertList.message.alerts;
-  }
-
-  return [];
 }
 
 export async function onRequestGet(context) {
   try {
     const accessToken = await getAccessToken(context.env);
-
     const alertList = await active911Fetch(
       '/alerts?alert_minutes=180',
       accessToken
     );
 
-    const references = extractAlertReferences(alertList);
+    const references = Array.isArray(alertList.alerts)
+      ? alertList.alerts
+      : [];
 
     if (!references.length) {
       return jsonResponse({ alert: null });
     }
 
+    // Active911 does not document collection ordering, so inspect
+    // both ends of the returned list and de-duplicate by alert ID.
     const candidateMap = new Map();
-
     [...references.slice(0, 10), ...references.slice(-10)]
       .forEach(reference => {
         if (reference && reference.id) {
@@ -221,39 +193,28 @@ export async function onRequestGet(context) {
       });
 
     const recentReferences = [...candidateMap.values()];
-
     const alerts = await Promise.all(
       recentReferences.map(async reference => {
         const id = reference && reference.id;
         if (!id) return null;
 
-        try {
-          const result = await active911Fetch(
-            `/alerts/${encodeURIComponent(id)}`,
-            accessToken
-          );
+        const result = await active911Fetch(
+          `/alerts/${encodeURIComponent(id)}`,
+          accessToken
+        );
 
-          return result.alert || result || null;
-        } catch (error) {
-          console.error(
-            `Unable to retrieve Active911 alert ${id}:`,
-            error
-          );
-          return null;
-        }
+        return result.alert || null;
       })
     );
 
     const latest = alerts
-      .filter(alert => alert && alert.id)
+      .filter(Boolean)
       .sort((a, b) => timestampValue(b) - timestampValue(a))[0];
 
     return jsonResponse({
       alert: latest ? normalizeAlert(latest) : null
     });
   } catch (error) {
-    console.error('Active911 endpoint error:', error);
-
     return jsonResponse(
       {
         error:
