@@ -1069,3 +1069,135 @@ button:disabled,
 .kiosk-mode.kiosk-cursor-hidden * {
   cursor: none !important;
 }
+
+/* ===== Purpose-built unattended command display ===== */
+.kiosk-status-board { display: none; }
+
+.kiosk-mode #sidebar {
+  width: 430px;
+  min-width: 430px;
+  border-right-width: 3px;
+}
+
+.kiosk-mode .brand { padding: 12px 14px; }
+.kiosk-mode .logo { width: 64px; height: 64px; }
+.kiosk-mode .title { font-size: 23px; }
+.kiosk-mode .subtitle { font-size: 13px; }
+.kiosk-mode .connected { font-size: 12px; }
+.kiosk-mode .clockPanel { padding: 13px 14px; }
+.kiosk-mode #clock { font-size: 38px; }
+.kiosk-mode #lastRefresh { font-size: 12px; }
+.kiosk-mode .summary { padding: 10px; gap: 7px; }
+.kiosk-mode .card { font-size: 10px; padding: 9px 3px; }
+.kiosk-mode .card span { font-size: 29px; }
+
+.kiosk-mode .command-panel,
+.kiosk-mode .gpsLine,
+.kiosk-mode .controls,
+.kiosk-mode #apparatusList,
+.kiosk-mode .map-controls,
+.kiosk-mode .leaflet-control-zoom {
+  display: none !important;
+}
+
+.kiosk-mode .kiosk-status-board {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 10px 10px;
+}
+
+.kiosk-board-section {
+  border: 1px solid #334155;
+  border-radius: 9px;
+  background: rgba(15, 23, 42, .88);
+  padding: 8px;
+}
+
+.kiosk-responding-section { min-height: 72px; }
+.kiosk-section-title {
+  margin-bottom: 6px;
+  color: #cbd5e1;
+  font-size: 11px;
+  font-weight: 950;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+}
+
+.kiosk-board-list { display: grid; gap: 5px; }
+.kiosk-unit-row {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  gap: 8px;
+  align-items: center;
+  min-height: 31px;
+  padding: 5px 8px;
+  border-left: 5px solid #64748b;
+  border-radius: 6px;
+  background: #1e293b;
+}
+.kiosk-unit-row span { color: #fff; font-size: 14px; font-weight: 950; }
+.kiosk-unit-row strong {
+  color: #94a3b8;
+  font-size: 10px;
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.kiosk-unit-row.responding { border-left-color: #ef4444; background: rgba(127,29,29,.65); }
+.kiosk-unit-row.away { border-left-color: #f59e0b; }
+.kiosk-empty-state { padding: 8px; color: #94a3b8; font-size: 14px; font-weight: 800; text-align: center; }
+
+.kiosk-station-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
+.kiosk-station-card {
+  min-height: 52px;
+  padding: 7px 8px;
+  border: 1px solid #334155;
+  border-left: 6px solid #16a34a;
+  border-radius: 7px;
+  background: #1e293b;
+}
+.kiosk-station-card.empty { border-left-color: #dc2626; background: rgba(127,29,29,.45); }
+.kiosk-station-name { color: #fff; font-size: 14px; font-weight: 950; }
+.kiosk-station-detail {
+  margin-top: 4px;
+  color: #94a3b8;
+  font-size: 9px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.kiosk-station-card.empty .kiosk-station-detail { color: #fca5a5; }
+
+.kiosk-health-section { margin-top: auto; }
+.kiosk-health-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; }
+.kiosk-health-grid > div { padding: 6px 3px; border-radius: 6px; background: #1e293b; text-align: center; }
+.kiosk-health-grid span { display: block; color: #94a3b8; font-size: 9px; font-weight: 800; }
+.kiosk-health-grid strong { display: block; margin-top: 3px; color: #fff; font-size: 19px; }
+.kiosk-health-grid strong.good { color: #4ade80; }
+.kiosk-health-grid strong.bad { color: #f87171; }
+
+.kiosk-mode .marker-tag {
+  transform: scale(1.14);
+  transform-origin: center;
+}
+.kiosk-mode .map-legend { right: 14px; bottom: 28px; transform: scale(1.08); transform-origin: bottom right; }
+.kiosk-mode .leaflet-container { cursor: none !important; }
+
+@media (max-height: 850px) {
+  .kiosk-mode #sidebar { width: 400px; min-width: 400px; }
+  .kiosk-mode .brand { padding: 7px 10px; }
+  .kiosk-mode .logo { width: 52px; height: 52px; }
+  .kiosk-mode .clockPanel { padding: 9px 11px; }
+  .kiosk-mode #clock { font-size: 31px; }
+  .kiosk-mode .summary { padding: 7px; }
+  .kiosk-mode .card span { font-size: 24px; }
+  .kiosk-mode .kiosk-status-board { gap: 5px; padding: 0 7px 7px; }
+  .kiosk-board-section { padding: 6px; }
+  .kiosk-station-card { min-height: 44px; padding: 5px 7px; }
+  .kiosk-unit-row { min-height: 27px; padding: 4px 7px; }
+}
