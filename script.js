@@ -1477,7 +1477,7 @@ function renderKioskStatusBoard(locations, metrics, gps, noGps, stale) {
             <span>${escapeHtml(String(v.unit || '').toUpperCase())}</span>
             <strong>${escapeHtml(v.location || 'Responding')}</strong>
           </div>`).join('')
-      : '<div class="kiosk-empty-state">None</div>';
+      : '<div class="kiosk-empty-state">No Active Incidents</div>';
   }
 
   const stationNames = [...new Set(locations
@@ -1496,8 +1496,10 @@ function renderKioskStatusBoard(locations, metrics, gps, noGps, stale) {
       const stationNumber = station.match(/\d+/)?.[0] || station;
       const stateClass = present.length ? 'covered' : 'empty';
       const detail = present.length
-        ? present.map(v => escapeHtml(v.unit || '')).join(' • ')
-        : 'No units at station';
+        ? `<div class="kiosk-station-units">${present.map(v =>
+            `<span>${escapeHtml(shortLabel(v))}</span>`
+          ).join('')}</div>`
+        : '<div class="kiosk-station-empty">No units at station</div>';
       return `
         <div class="kiosk-station-card ${stateClass}">
           <div class="kiosk-station-name">Station ${escapeHtml(stationNumber)}</div>
@@ -1514,13 +1516,13 @@ function renderKioskStatusBoard(locations, metrics, gps, noGps, stale) {
             <span>${escapeHtml(String(v.unit || '').toUpperCase())}</span>
             <strong>${escapeHtml(v.location || v.facility || 'Away')}</strong>
           </div>`).join('')
-      : '<div class="kiosk-empty-state">None</div>';
+      : '<div class="kiosk-empty-state">No Units Away</div>';
   }
 
   const health = document.getElementById('kioskHealth');
   if (health) {
     health.innerHTML = `
-      <div><span>GPS</span><strong class="good">${gps}</strong></div>
+      <div><span>Tracking</span><strong class="good">${gps}</strong></div>
       <div><span>No GPS</span><strong>${noGps}</strong></div>
       <div><span>Stale</span><strong class="bad">${stale}</strong></div>
       <div><span>Available</span><strong class="good">${metrics.available}</strong></div>`;
