@@ -1,6 +1,6 @@
 /* ===== User-adjustable dashboard settings ===== */
 const DASHBOARD_CONFIG = {
-  version: '1.0.2',
+  version: '1.0.3',
   // Fallback map view used only if the jurisdiction boundary cannot load.
   defaultCenterLat: 39.62784,
   defaultCenterLon: -84.15996,
@@ -1161,7 +1161,8 @@ function renderCommandPanel(metrics) {
 }
 
 function renderDashboard(locations) {
-  clearMarkers();
+  const nextMarkers = {};
+  const markerBuildErrors = [];
 
   const unitList =
     document.getElementById(
@@ -1273,60 +1274,83 @@ function renderDashboard(locations) {
           stale++;
         }
 
-        const marker = L.marker(
-          [
-            displayLat,
-            displayLon
-          ],
-          {
-            icon: markerIcon(
-              v,
-              status
-            ),
-            zIndexOffset:
-              markerZIndex(
+        try {
+          const marker = L.marker(
+            [
+              displayLat,
+              displayLon
+            ],
+            {
+              icon: markerIcon(
                 v,
                 status
-              )
-          }
-        ).addTo(map);
+              ),
+              zIndexOffset:
+                markerZIndex(
+                  v,
+                  status
+                )
+            }
+          ).addTo(map);
 
-        const emergencyText =
-          hasEmergencyLights(v)
-            ? '<span class="popup-alert">ACTIVE</span>'
-            : 'Off';
+          const emergencyText =
+            hasEmergencyLights(v)
+              ? '<span class="popup-alert">ACTIVE</span>'
+              : 'Off';
 
-        marker.bindPopup(`
-          <div class="popup-title">
-            <span class="popup-svg">
-              ${apparatusSvg(v)}
-            </span>
-            <strong>${escapeHtml(v.unit)}</strong>
-          </div>
-          <br>
-          <strong>Status:</strong> ${escapeHtml(statusText(status, v))}<br>
-          <strong>Emergency Lights:</strong> ${emergencyText}<br>
-          <strong>Facility:</strong> ${escapeHtml(v.facility || 'Away')}<br>
-          <strong>Location:</strong> ${escapeHtml(v.location || 'Unknown')}<br>
-          <strong>Home Station:</strong> ${escapeHtml(v.homeStation || '')}<br>
-          <strong>Speed:</strong> ${Number(v.speed || 0).toFixed(1)} mph<br>
-          <strong>Updated:</strong> ${escapeHtml(timeAgo(v.lastUpdate))}<br><br>
-          ${
-            v.mapLink
-              ? `<a href="${escapeHtml(v.mapLink)}" target="_blank" rel="noopener noreferrer">Open in Google Maps</a>`
-              : ''
-          }
-        `);
+          marker.bindPopup(`
+            <div class="popup-title">
+              <span class="popup-svg">
+                ${apparatusSvg(v)}
+              </span>
+              <strong>${escapeHtml(v.unit)}</strong>
+            </div>
+            <br>
+            <strong>Status:</strong> ${escapeHtml(statusText(status, v))}<br>
+            <strong>Emergency Lights:</strong> ${emergencyText}<br>
+            <strong>Facility:</strong> ${escapeHtml(v.facility || 'Away')}<br>
+            <strong>Location:</strong> ${escapeHtml(v.location || 'Unknown')}<br>
+            <strong>Home Station:</strong> ${escapeHtml(v.homeStation || '')}<br>
+            <strong>Speed:</strong> ${Number(v.speed || 0).toFixed(1)} mph<br>
+            <strong>Updated:</strong> ${escapeHtml(timeAgo(v.lastUpdate))}<br><br>
+            ${
+              v.mapLink
+                ? `<a href="${escapeHtml(v.mapLink)}" target="_blank" rel="noopener noreferrer">Open in Google Maps</a>`
+                : ''
+            }
+          `);
 
-        markers[
-          v.rawName +
-          '-' +
-          v.unit
-        ] = marker;
+          nextMarkers[
+            v.rawName +
+            '-' +
+            v.unit
+          ] = marker;
+        } catch (error) {
+          markerBuildErrors.push({
+            unit: v.unit || v.rawName || 'Unknown unit',
+            error
+          });
+          console.error('Unable to render vehicle marker:', v, error);
+        }
 
       }
     );
   });
+
+  // Replace the live marker set only after the new set has been built.
+  // If every marker fails, preserve the last known-good markers instead
+  // of leaving the map empty.
+  if (Object.keys(nextMarkers).length > 0 || locations.length === 0) {
+    Object.values(markers).forEach(marker => {
+      if (map.hasLayer(marker)) map.removeLayer(marker);
+    });
+    markers = nextMarkers;
+  } else {
+    Object.values(nextMarkers).forEach(marker => {
+      if (map.hasLayer(marker)) map.removeLayer(marker);
+    });
+    console.error('Marker refresh aborted; preserving previous markers.', markerBuildErrors);
+  }
 
   filtered.forEach(v => {
     const status = getStatus(v);
