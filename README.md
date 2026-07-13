@@ -1,3 +1,12 @@
+
+## Version 2.5.0
+
+- Corrects Fully Kiosk Browser vertical clipping on portrait displays.
+- Keeps all five summary cards on one row in kiosk mode.
+- Uses dynamic viewport height (`100dvh`) for Android kiosk browsers.
+- Compacts inactive incident, station, away-unit, and system-health sections.
+- Adds additional short-screen rules while preserving all station rows.
+
 # WTFD Fleet Dashboard v2.4.0
 
 This release includes standard-dashboard and unattended-kiosk refinements.
