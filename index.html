@@ -237,6 +237,52 @@
     </main>
   </div>
 
+  <div
+    id="active911Overlay"
+    class="active911-overlay"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="active911Description"
+    hidden
+  >
+    <div class="active911-panel">
+      <div class="active911-banner">
+        <span class="active911-light"></span>
+        ACTIVE911 ALERT
+        <span class="active911-light"></span>
+      </div>
+
+      <div id="active911Description" class="active911-description">
+        Emergency Call
+      </div>
+
+      <div id="active911Place" class="active911-place" hidden></div>
+
+      <div class="active911-address-block">
+        <div id="active911Address" class="active911-address"></div>
+        <div id="active911City" class="active911-city"></div>
+        <div id="active911CrossStreet" class="active911-cross-street" hidden></div>
+      </div>
+
+      <div class="active911-grid">
+        <div id="active911UnitsCard" class="active911-info-card" hidden>
+          <div class="active911-label">Dispatched Units</div>
+          <div id="active911Units" class="active911-value"></div>
+        </div>
+
+        <div id="active911DetailsCard" class="active911-info-card" hidden>
+          <div class="active911-label">Details</div>
+          <div id="active911Details" class="active911-value"></div>
+        </div>
+      </div>
+
+      <div class="active911-footer">
+        <div id="active911Received"></div>
+        <button id="active911Dismiss" type="button">Dismiss</button>
+      </div>
+    </div>
+  </div>
+
   <script
     src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
   ></script>
