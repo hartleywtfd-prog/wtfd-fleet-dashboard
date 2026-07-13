@@ -1,8 +1,18 @@
 /* ===== User-adjustable dashboard settings ===== */
 const DASHBOARD_CONFIG = {
-  defaultCenterLat: 39.6255,
-  defaultCenterLon: -84.2000,
+  // Fallback map view used only if the jurisdiction boundary cannot load.
+  defaultCenterLat: 39.62784,
+  defaultCenterLon: -84.15996,
   minimumMapZoom: 13,
+
+  // WTFD jurisdiction boundary from ArcGIS Online.
+  serviceAreaQueryUrl:
+    'https://services3.arcgis.com/zfU4OP7x8VRbXrlu/arcgis/rest/services/' +
+    'WTFD_Service_Area/FeatureServer/0/query' +
+    '?where=1%3D1&outFields=*&returnGeometry=true&outSR=4326&f=geojson',
+  fitMapToServiceArea: true,
+  serviceAreaMaxZoom: 13,
+
   dashboardRefreshMs: 30000,
   active911PollMs: 5000,
   active911PopupDurationMs: 15000
@@ -13,6 +23,8 @@ let markers = {};
 let allLocations = [];
 let activeBaseLayer = 'street';
 let baseLayers = {};
+let serviceAreaLayer = null;
+let serviceAreaViewApplied = false;
 
 function apiRequest(action) {
   const url = action === 'sync' ? '/api/sync' : '/api/dashboard';
@@ -86,6 +98,75 @@ function initMap(settings) {
 
   createBaseLayers();
   baseLayers.street.addTo(map);
+
+  loadServiceAreaBoundary();
+}
+
+function loadServiceAreaBoundary() {
+  if (!map || !DASHBOARD_CONFIG.serviceAreaQueryUrl) {
+    return;
+  }
+
+  fetch(DASHBOARD_CONFIG.serviceAreaQueryUrl, {
+    cache: 'no-store'
+  })
+    .then(response => {
+      if (!response.ok) {
+        throw new Error(
+          'Service-area request failed: ' + response.status
+        );
+      }
+
+      return response.json();
+    })
+    .then(geojson => {
+      if (
+        !geojson ||
+        !Array.isArray(geojson.features) ||
+        geojson.features.length === 0
+      ) {
+        throw new Error('No service-area geometry was returned.');
+      }
+
+      if (serviceAreaLayer) {
+        map.removeLayer(serviceAreaLayer);
+      }
+
+      serviceAreaLayer = L.geoJSON(geojson, {
+        interactive: false,
+        style: {
+          color: '#dc2626',
+          weight: 3,
+          opacity: 0.9,
+          fillColor: '#dc2626',
+          fillOpacity: 0.035
+        }
+      }).addTo(map);
+
+      // Keep the jurisdiction outline below apparatus markers.
+      serviceAreaLayer.bringToBack();
+
+      const bounds = serviceAreaLayer.getBounds();
+
+      if (
+        DASHBOARD_CONFIG.fitMapToServiceArea &&
+        !serviceAreaViewApplied &&
+        bounds.isValid()
+      ) {
+        map.fitBounds(bounds, {
+          paddingTopLeft: [30, 30],
+          paddingBottomRight: [30, 30],
+          maxZoom: DASHBOARD_CONFIG.serviceAreaMaxZoom,
+          animate: false
+        });
+
+        serviceAreaViewApplied = true;
+      }
+    })
+    .catch(error => {
+      // The fixed fallback center/zoom remains active if ArcGIS is unavailable.
+      console.error('Unable to load WTFD service area:', error);
+    });
 }
 
 function setBaseLayer(layerName) {
