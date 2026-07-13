@@ -1,6 +1,6 @@
 /* ===== User-adjustable dashboard settings ===== */
 const DASHBOARD_CONFIG = {
-  version: '2.5.0',
+  version: '2.6.0',
   // Fallback map view used only if the jurisdiction boundary cannot load.
   defaultCenterLat: 39.62784,
   defaultCenterLon: -84.15996,
@@ -29,8 +29,20 @@ const DASHBOARD_CONFIG = {
   kioskHomeResetMs: 10 * 60 * 1000,
   kioskCursorHideMs: 5000,
   connectionDelayedMs: 2 * 60 * 1000,
-  connectionLostMs: 5 * 60 * 1000
+  connectionLostMs: 5 * 60 * 1000,
+
+  // Active911 audible alert. These values can be overridden in dashboard-config.js.
+  alertSoundEnabled: true,
+  alertSoundUrl: 'sounds/dispatch-chime.wav',
+  alertSoundVolume: 0.75,
+  alertSoundPlayOncePerIncident: true,
+  alertSoundStorageKey: 'wtfd-last-audible-active911-id'
 };
+
+Object.assign(
+  DASHBOARD_CONFIG,
+  window.WTFD_DASHBOARD_CONFIG || {}
+);
 
 const DASHBOARD_MODE =
   new URLSearchParams(window.location.search)
@@ -1990,6 +2002,77 @@ let active911BaselineReady = false;
 let active911LatestId = '';
 let active911PopupOpen = false;
 let active911DismissTimer = null;
+let active911Audio = null;
+let pendingActive911Sound = false;
+
+function getActive911Audio() {
+  if (!DASHBOARD_CONFIG.alertSoundEnabled || !DASHBOARD_CONFIG.alertSoundUrl) {
+    return null;
+  }
+
+  if (!active911Audio) {
+    active911Audio = new Audio(DASHBOARD_CONFIG.alertSoundUrl);
+    active911Audio.preload = 'auto';
+  }
+
+  active911Audio.volume = Math.min(
+    1,
+    Math.max(0, Number(DASHBOARD_CONFIG.alertSoundVolume) || 0)
+  );
+
+  return active911Audio;
+}
+
+function wasIncidentSoundPlayed(id) {
+  if (!DASHBOARD_CONFIG.alertSoundPlayOncePerIncident || !id) return false;
+
+  try {
+    return localStorage.getItem(DASHBOARD_CONFIG.alertSoundStorageKey) === String(id);
+  } catch (error) {
+    return false;
+  }
+}
+
+function rememberIncidentSound(id) {
+  if (!DASHBOARD_CONFIG.alertSoundPlayOncePerIncident || !id) return;
+
+  try {
+    localStorage.setItem(DASHBOARD_CONFIG.alertSoundStorageKey, String(id));
+  } catch (error) {
+    // Storage may be unavailable in a locked-down kiosk browser.
+  }
+}
+
+async function playActive911Sound(alert) {
+  const id = String(alert?.id || '');
+  const audio = getActive911Audio();
+
+  if (!audio || wasIncidentSoundPlayed(id)) return;
+
+  try {
+    audio.currentTime = 0;
+    await audio.play();
+    pendingActive911Sound = false;
+    rememberIncidentSound(id);
+  } catch (error) {
+    // Standard browsers can block autoplay until the page receives one user action.
+    // Fully Kiosk Browser can be configured to permit media autoplay.
+    pendingActive911Sound = true;
+    console.warn('Active911 alert sound was blocked:', error);
+  }
+}
+
+function retryPendingActive911Sound() {
+  if (!pendingActive911Sound || !activeIncidentAlert) return;
+  playActive911Sound(activeIncidentAlert);
+}
+
+['pointerdown', 'keydown', 'touchstart'].forEach(eventName => {
+  document.addEventListener(eventName, retryPendingActive911Sound, {
+    once: false,
+    passive: true
+  });
+});
 
 function active911SetText(id, value) {
   const element = document.getElementById(id);
@@ -2130,8 +2213,10 @@ function showActive911Alert(alert) {
 
   overlay.hidden = false;
   active911PopupOpen = true;
+  activeIncidentAlert = alert;
   showTemporaryIncidentMarker(alert);
   addIncidentToBanner(alert);
+  playActive911Sound(alert);
 
   if (active911DismissTimer) {
     clearTimeout(active911DismissTimer);

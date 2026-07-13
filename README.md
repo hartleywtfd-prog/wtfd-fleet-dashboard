@@ -1,3 +1,27 @@
+## Version 2.6.0
+
+- Adds a short, royalty-free two-note dispatch chime for new Active911 incidents.
+- Plays the tone once per new incident on both the standard and kiosk sites.
+- Stores the last sounded incident ID locally so a refresh does not replay the same call.
+- Retries after the first user interaction when a standard browser blocks autoplay.
+- Adds `dashboard-config.js` so the alert sound, volume, popup duration, banner duration, refresh rate, and polling rate can be changed without editing `script.js`.
+- Keeps all v2.5.0 Fully Kiosk Browser portrait-layout corrections.
+
+### Changing the tone later
+
+The included tone is `sounds/dispatch-chime.wav`.
+
+You may either:
+
+1. Replace that file with another WAV file using the same filename, or
+2. Add a different MP3/WAV file and change `alertSoundUrl` in `dashboard-config.js`.
+
+Use `alertSoundEnabled: false` to disable the tone. Set `alertSoundVolume` from `0` to `1`.
+
+### Fully Kiosk Browser audio
+
+Make sure Android media volume is turned up and Fully Kiosk Browser is allowed to play web audio/media. The dashboard will request the tone immediately when a new incident is detected.
+
 
 ## Version 2.5.0
 
