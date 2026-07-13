@@ -167,6 +167,28 @@
       </div>
 
       <div id="apparatusList"></div>
+
+      <div id="kioskStatusBoard" class="kiosk-status-board" aria-live="polite">
+        <section class="kiosk-board-section kiosk-responding-section">
+          <div class="kiosk-section-title">Responding</div>
+          <div id="kioskRespondingList" class="kiosk-board-list"></div>
+        </section>
+
+        <section class="kiosk-board-section">
+          <div class="kiosk-section-title">Stations</div>
+          <div id="kioskStationList" class="kiosk-station-grid"></div>
+        </section>
+
+        <section class="kiosk-board-section">
+          <div class="kiosk-section-title">Units Away</div>
+          <div id="kioskAwayList" class="kiosk-board-list"></div>
+        </section>
+
+        <section class="kiosk-board-section kiosk-health-section">
+          <div class="kiosk-section-title">System Health</div>
+          <div id="kioskHealth" class="kiosk-health-grid"></div>
+        </section>
+      </div>
     </aside>
 
     <main
