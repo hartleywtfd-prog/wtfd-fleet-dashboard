@@ -1,6 +1,6 @@
 /* ===== User-adjustable dashboard settings ===== */
 const DASHBOARD_CONFIG = {
-  version: '2.8.1',
+  version: '2.9.0',
   // Fallback map view used only if the jurisdiction boundary cannot load.
   defaultCenterLat: 39.62784,
   defaultCenterLon: -84.15996,
@@ -28,8 +28,9 @@ const DASHBOARD_CONFIG = {
   kioskAutoReloadMs: 6 * 60 * 60 * 1000,
   kioskHomeResetMs: 10 * 60 * 1000,
   kioskCursorHideMs: 5000,
-  connectionDelayedMs: 2 * 60 * 1000,
-  connectionLostMs: 5 * 60 * 1000,
+  connectionDelayedMs: 30 * 1000,
+  connectionLostMs: 90 * 1000,
+  kioskReloadAfterFailures: 12,
 
   // Active911 audible alert. These values can be overridden in dashboard-config.js.
   alertSoundEnabled: true,
@@ -81,11 +82,40 @@ let activeIncidents = [];
 let reconnectRetryTimer = null;
 let preferredAutomaticLayer = '';
 let lastDashboardSettings = {};
+let dashboardRequestInFlight = false;
+let consecutiveDashboardFailures = 0;
+let nextReconnectAttemptAt = 0;
+let reconnectCountdownTimer = null;
+let previousConnectionState = 'online';
+let recoveryToastTimer = null;
+
+function showRecoveryToast() {
+  const toast = document.getElementById('connectionRestoredToast');
+  if (!toast) return;
+  toast.hidden = false;
+  clearTimeout(recoveryToastTimer);
+  recoveryToastTimer = setTimeout(() => {
+    toast.hidden = true;
+  }, 5000);
+}
+
+function formatConnectionAge(ageMs) {
+  const seconds = Math.max(0, Math.floor(ageMs / 1000));
+  if (seconds < 60) return `${seconds}s ago`;
+  const minutes = Math.floor(seconds / 60);
+  const remaining = seconds % 60;
+  return `${minutes}m ${remaining}s ago`;
+}
 
 function setConnectionState(state, message) {
   const indicator = document.getElementById('connectionStatus');
   const banner = document.getElementById('connectionWarning');
   const kioskState = document.getElementById('kioskConnectionState');
+
+  if (previousConnectionState !== 'online' && state === 'online') {
+    showRecoveryToast();
+  }
+  previousConnectionState = state;
 
   if (indicator) {
     indicator.className = `connected connection-${state}`;
@@ -95,7 +125,7 @@ function setConnectionState(state, message) {
   if (kioskState) {
     kioskState.className = `connection-${state}`;
     kioskState.textContent = state === 'online'
-      ? '● CONNECTED'
+      ? '● LIVE'
       : state === 'delayed'
         ? '● DELAYED'
         : '● OFFLINE';
@@ -111,7 +141,8 @@ function setConnectionState(state, message) {
 
 function recordSuccessfulDashboardRefresh() {
   lastSuccessfulDashboardRefresh = Date.now();
-  setConnectionState('online', '● Samsara Fleet Dashboard');
+  consecutiveDashboardFailures = 0;
+  setConnectionState('online', '● LIVE — updated now');
 }
 
 function saveHomeMapView() {
@@ -796,6 +827,8 @@ function markerIcon(v, status) {
     statusClass = ' movingMarker';
   } else if (status === 'away') {
     statusClass = ' awayMarker';
+  } else if (status === 'stale') {
+    statusClass = ' staleMarker';
   }
 
   const shapeClass = markerShapeClass(v);
@@ -1785,58 +1818,91 @@ function readDashboardCache() {
   }
 }
 
+function updateReconnectCountdown() {
+  const detailElement = document.getElementById('reconnectDetail');
+  const countdownElement = document.getElementById('reconnectCountdown');
+  if (!detailElement || !countdownElement || !nextReconnectAttemptAt) return;
+  const seconds = Math.max(0, Math.ceil((nextReconnectAttemptAt - Date.now()) / 1000));
+  countdownElement.textContent = `Retrying in ${seconds} second${seconds === 1 ? '' : 's'}…`;
+}
+
 function setReconnectOverlay(visible, detail = '') {
   const overlay = document.getElementById('reconnectOverlay');
   const detailElement = document.getElementById('reconnectDetail');
   if (!overlay) return;
   overlay.hidden = !visible;
   if (detailElement) detailElement.textContent = detail;
+  if (!visible) {
+    nextReconnectAttemptAt = 0;
+    clearInterval(reconnectCountdownTimer);
+    reconnectCountdownTimer = null;
+  } else if (!reconnectCountdownTimer) {
+    updateReconnectCountdown();
+    reconnectCountdownTimer = setInterval(updateReconnectCountdown, 250);
+  }
 }
 
 function scheduleReconnect() {
   if (reconnectRetryTimer) return;
+  nextReconnectAttemptAt = Date.now() + DASHBOARD_CONFIG.reconnectRetryMs;
+  updateReconnectCountdown();
   reconnectRetryTimer = setTimeout(() => {
     reconnectRetryTimer = null;
     loadDashboard();
   }, DASHBOARD_CONFIG.reconnectRetryMs);
 }
 
-function loadDashboard() {
-  apiRequest('dashboard')
-    .then(data => {
-      const settings = data.settings || {};
-      lastDashboardSettings = settings;
+async function loadDashboard() {
+  if (dashboardRequestInFlight) return;
+  dashboardRequestInFlight = true;
+
+  try {
+    const data = await apiRequest('dashboard');
+    const settings = data.settings || {};
+    lastDashboardSettings = settings;
+    allLocations = data.locations || [];
+
+    if (!map) initMap(settings);
+    renderDashboard(allLocations);
+    saveDashboardCache(data);
+    recordSuccessfulDashboardRefresh();
+    setReconnectOverlay(false);
+
+    if (reconnectRetryTimer) {
+      clearTimeout(reconnectRetryTimer);
+      reconnectRetryTimer = null;
+    }
+  } catch (error) {
+    consecutiveDashboardFailures++;
+    const cached = readDashboardCache();
+
+    if ((!allLocations || !allLocations.length) && cached) {
+      const data = cached.data;
+      lastDashboardSettings = data.settings || {};
       allLocations = data.locations || [];
-
-      if (!map) initMap(settings);
+      if (!map) initMap(lastDashboardSettings);
       renderDashboard(allLocations);
-      saveDashboardCache(data);
-      recordSuccessfulDashboardRefresh();
-      setReconnectOverlay(false);
+    }
 
-      if (reconnectRetryTimer) {
-        clearTimeout(reconnectRetryTimer);
-        reconnectRetryTimer = null;
-      }
-    })
-    .catch(error => {
-      const cached = readDashboardCache();
+    const age = lastSuccessfulDashboardRefresh
+      ? Date.now() - lastSuccessfulDashboardRefresh
+      : DASHBOARD_CONFIG.connectionLostMs;
+    const state = age >= DASHBOARD_CONFIG.connectionLostMs ? 'lost' : 'delayed';
+    setConnectionState(state, state === 'lost' ? '● OFFLINE' : '● DELAYED');
+    setReconnectOverlay(true, cached
+      ? 'Showing the last successful fleet data while reconnecting.'
+      : 'No fleet data is available yet. Retrying automatically.');
+    console.warn('Dashboard refresh failed:', error);
 
-      if ((!allLocations || !allLocations.length) && cached) {
-        const data = cached.data;
-        lastDashboardSettings = data.settings || {};
-        allLocations = data.locations || [];
-        if (!map) initMap(lastDashboardSettings);
-        renderDashboard(allLocations);
-      }
+    if (IS_KIOSK_MODE && consecutiveDashboardFailures >= DASHBOARD_CONFIG.kioskReloadAfterFailures) {
+      window.location.reload();
+      return;
+    }
 
-      setConnectionState('delayed', '● Data refresh delayed');
-      setReconnectOverlay(true, cached
-        ? 'Showing the last successful fleet data while reconnecting.'
-        : 'No fleet data is available yet. Retrying automatically.');
-      console.warn('Dashboard refresh failed:', error);
-      scheduleReconnect();
-    });
+    scheduleReconnect();
+  } finally {
+    dashboardRequestInFlight = false;
+  }
 }
 
 const searchInput =
@@ -2327,12 +2393,13 @@ setInterval(() => {
   if (!lastSuccessfulDashboardRefresh) return;
 
   const age = Date.now() - lastSuccessfulDashboardRefresh;
+  const ageText = formatConnectionAge(age);
 
   if (age >= DASHBOARD_CONFIG.connectionLostMs) {
-    setConnectionState('lost', '● Connection lost');
+    setConnectionState('lost', `● OFFLINE — last update ${ageText}`);
   } else if (age >= DASHBOARD_CONFIG.connectionDelayedMs) {
-    setConnectionState('delayed', '● Data delayed');
+    setConnectionState('delayed', `● DELAYED — updated ${ageText}`);
   } else {
-    setConnectionState('online', '● Samsara Fleet Dashboard');
+    setConnectionState('online', `● LIVE — updated ${ageText}`);
   }
-}, 30000);
+}, 1000);

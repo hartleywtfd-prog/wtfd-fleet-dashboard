@@ -15,5 +15,8 @@ window.WTFD_DASHBOARD_CONFIG = {
   active911IncidentMarkerDurationMs: 10 * 60 * 1000,
   active911BannerDurationMs: 10 * 60 * 1000,
   dashboardRefreshMs: 10000,
-  active911PollMs: 5000
+  active911PollMs: 5000,
+  connectionDelayedMs: 30000,
+  connectionLostMs: 90000,
+  kioskReloadAfterFailures: 12
 };

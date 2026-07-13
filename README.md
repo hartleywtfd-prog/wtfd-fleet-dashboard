@@ -102,3 +102,13 @@ Replace the repository contents with these files, commit, and allow Cloudflare P
 - Display fallback order is municipality/township, street or available location text, then `Away`.
 - `Washington Township` is shortened to `Washington Twp` to fit the sidebar.
 - The improved location label is used on both the standard dashboard and kiosk Units Away list.
+
+
+## Version 2.9.0
+- Adds LIVE / DELAYED / OFFLINE status with exact data age.
+- Adds a five-second connection-restored confirmation.
+- Adds retry countdown details to the connection-loss overlay.
+- Prevents overlapping dashboard requests.
+- Reloads kiosk mode after 12 consecutive dashboard failures while preserving the existing periodic kiosk reload.
+- Adds stronger visual treatment for stale GPS cards and markers.
+- Keeps the 10-second dashboard polling interval and no-cache API behavior.

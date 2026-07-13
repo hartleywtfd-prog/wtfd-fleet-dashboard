@@ -197,7 +197,7 @@
       </div>
 
       <div class="dashboard-version" aria-label="Dashboard version">
-        WTFD Fleet Dashboard <span id="dashboardVersion">v2.5.0</span>
+        WTFD Fleet Dashboard <span id="dashboardVersion">v2.9.0</span>
       </div>
     </aside>
 
@@ -284,10 +284,15 @@
       <div class="reconnect-spinner"></div>
       <strong>CONNECTION LOST</strong>
       <span id="reconnectDetail">Attempting to reconnect…</span>
+      <span id="reconnectCountdown">Retrying automatically…</span>
     </div>
   </div>
 
   <div id="connectionWarning" class="connection-warning" hidden></div>
+
+  <div id="connectionRestoredToast" class="connection-restored-toast" role="status" hidden>
+    ✓ Connection restored
+  </div>
 
   <div
     id="active911Overlay"

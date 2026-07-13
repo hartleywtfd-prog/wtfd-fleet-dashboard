@@ -367,6 +367,8 @@ button:disabled,
 
 .unit.stale {
   border-left-color: #dc2626;
+  opacity: .72;
+  filter: grayscale(.28);
 }
 
 .unit.nogps {
@@ -407,6 +409,7 @@ button:disabled,
 
 .badge.stale {
   background: #dc2626;
+  border: 1px dashed #fecaca;
 }
 
 .badge.nogps {
@@ -1796,4 +1799,44 @@ body,
   .kiosk-mode .kiosk-empty-state { min-height: 17px; padding: 3px; font-size: 9px; }
   .kiosk-mode .kiosk-station-card { min-height: 23px; }
   .kiosk-mode .dashboard-version { display: none; }
+}
+
+
+/* ===== Version 2.9.0 reliability and status refinements ===== */
+.marker-tag.staleMarker {
+  opacity: .58;
+  filter: grayscale(.55);
+  border-style: dashed;
+}
+#reconnectCountdown {
+  margin-top: 5px;
+  color: #fbbf24;
+  font-size: 12px;
+  font-weight: 850;
+}
+.connection-restored-toast {
+  position: fixed;
+  top: 18px;
+  right: 18px;
+  z-index: 5100;
+  padding: 11px 16px;
+  border: 1px solid #4ade80;
+  border-radius: 10px;
+  background: rgba(20, 83, 45, .96);
+  color: #ffffff;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .38);
+  font-size: 14px;
+  font-weight: 900;
+  letter-spacing: .02em;
+  animation: restoredToastIn .25s ease-out;
+}
+.connection-restored-toast[hidden] { display: none !important; }
+@keyframes restoredToastIn {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.kiosk-mode .connection-restored-toast {
+  top: 12px;
+  right: 12px;
+  font-size: 13px;
 }
