@@ -82,7 +82,7 @@
         </div>
 
         <div class="card gpsIssueCard">
-          GPS Issues
+          Tracking Issues
           <span id="gpsIssueCount">0</span>
         </div>
       </div>
@@ -200,6 +200,11 @@
       id="map"
       aria-label="Fleet map"
     >
+      <div id="kioskOperationStrip" class="kiosk-operation-strip" aria-live="polite">
+        <span id="kioskOperationState">NORMAL OPERATIONS</span>
+        <strong id="kioskIncidentSummary"></strong>
+      </div>
+
       <div class="map-controls">
         <button
           class="map-mode-button active"
