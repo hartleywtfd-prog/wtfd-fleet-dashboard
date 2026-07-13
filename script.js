@@ -49,11 +49,11 @@ function createBaseLayers() {
 
 function initMap(settings) {
   const centerLat = Number(
-    settings.dashboardCenterLat || 39.6255
+    settings.dashboardCenterLat || 39.6290
   );
 
   const centerLon = Number(
-    settings.dashboardCenterLon || -84.1750
+    settings.dashboardCenterLon || -84.1680
   );
 
   // Keep the dashboard focused more tightly on the response area.
