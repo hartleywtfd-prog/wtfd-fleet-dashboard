@@ -53,6 +53,7 @@ let activeIncidentMarker = null;
 let activeIncidentMarkerTimer = null;
 let activeIncidentKey = '';
 let activeIncidentAlert = null;
+let currentRespondingUnits = [];
 
 function setConnectionState(state, message) {
   const indicator = document.getElementById('connectionStatus');
@@ -1480,6 +1481,9 @@ function renderKioskStatusBoard(locations, metrics, gps, noGps, stale) {
     .filter(v => getStatus(v) === 'responding')
     .sort((a, b) => String(a.unit || '').localeCompare(String(b.unit || '')));
 
+  currentRespondingUnits = responding.map(v => v.unit || v.displayName || 'Responding unit');
+  updateKioskOperationStrip();
+
   const away = locations
     .filter(v => getStatus(v) === 'away')
     .sort((a, b) => String(a.unit || '').localeCompare(String(b.unit || '')));
@@ -1682,26 +1686,42 @@ function incidentKey(alert) {
     .toLowerCase();
 }
 
-function updateKioskOperationStrip(alert = null) {
+function respondingUnitSummary() {
+  return currentRespondingUnits
+    .map(unit => String(unit || '').trim().toUpperCase())
+    .filter(Boolean)
+    .join(' • ');
+}
+
+function updateKioskOperationStrip(alert = activeIncidentAlert) {
   if (!IS_KIOSK_MODE) return;
   const strip = document.getElementById('kioskOperationStrip');
   const state = document.getElementById('kioskOperationState');
   const summary = document.getElementById('kioskIncidentSummary');
   if (!strip || !state || !summary) return;
 
-  if (!alert) {
-    strip.classList.remove('incident');
-    state.textContent = 'NORMAL OPERATIONS';
-    summary.textContent = '';
+  if (alert) {
+    strip.classList.add('incident');
+    state.textContent = 'ACTIVE INCIDENT';
+    const address = [alert.address, alert.unit].filter(Boolean).join(' ');
+    summary.textContent = [alert.description || 'Emergency Call', address]
+      .filter(Boolean)
+      .join(' • ');
     return;
   }
 
-  strip.classList.add('incident');
-  state.textContent = 'ACTIVE INCIDENT';
-  const address = [alert.address, alert.unit].filter(Boolean).join(' ');
-  summary.textContent = [alert.description || 'Emergency Call', address]
-    .filter(Boolean)
-    .join(' • ');
+  if (currentRespondingUnits.length > 0) {
+    strip.classList.add('incident');
+    state.textContent = currentRespondingUnits.length === 1
+      ? 'UNIT RESPONDING'
+      : 'UNITS RESPONDING';
+    summary.textContent = respondingUnitSummary();
+    return;
+  }
+
+  strip.classList.remove('incident');
+  state.textContent = 'NORMAL OPERATIONS';
+  summary.textContent = '';
 }
 
 function clearTemporaryIncidentMarker() {
@@ -1715,7 +1735,7 @@ function clearTemporaryIncidentMarker() {
   activeIncidentMarker = null;
   activeIncidentKey = '';
   activeIncidentAlert = null;
-  updateKioskOperationStrip(null);
+  updateKioskOperationStrip();
   returnToHomeView();
 }
 
