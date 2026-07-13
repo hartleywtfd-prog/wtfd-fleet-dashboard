@@ -1354,3 +1354,47 @@ button:disabled,
   line-height: 1;
   letter-spacing: 0;
 }
+
+
+/* ===== Version 1.0.1 kiosk marker sizing refinement ===== */
+/* Keep the interactive dashboard unchanged while making TV-mode markers
+   more compact and allowing more road detail to remain visible. */
+.kiosk-mode .marker-tag {
+  transform: scale(1.08);
+  transform-origin: center;
+  gap: 3px;
+  border-radius: 7px;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, .34);
+}
+.kiosk-mode .marker-engine,
+.kiosk-mode .marker-generic { border-radius: 5px; }
+.kiosk-mode .marker-medic { border-radius: 9px; }
+.kiosk-mode .awayMarker {
+  box-shadow:
+    0 0 0 1px rgba(245, 158, 11, .24),
+    0 3px 8px rgba(0, 0, 0, .34);
+}
+.kiosk-mode .respondingMarker {
+  animation: kioskRespondingMarkerPulse 1s ease-in-out infinite;
+  box-shadow: 0 3px 9px rgba(0, 0, 0, .40);
+}
+@keyframes kioskRespondingMarkerPulse {
+  0%, 100% {
+    transform: scale(1.08);
+    filter: brightness(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.15);
+    filter: brightness(1.25);
+    opacity: .88;
+  }
+}
+@media (max-height: 850px) {
+  .kiosk-mode .marker-tag { transform: scale(1.05); }
+  .kiosk-mode .respondingMarker { animation-name: kioskRespondingMarkerPulseCompact; }
+}
+@keyframes kioskRespondingMarkerPulseCompact {
+  0%, 100% { transform: scale(1.05); filter: brightness(1); opacity: 1; }
+  50% { transform: scale(1.12); filter: brightness(1.25); opacity: .88; }
+}
