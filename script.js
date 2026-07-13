@@ -1,6 +1,6 @@
 /* ===== User-adjustable dashboard settings ===== */
 const DASHBOARD_CONFIG = {
-  version: '2.9.1',
+  version: '2.9.2',
   // Fallback map view used only if the jurisdiction boundary cannot load.
   defaultCenterLat: 39.62784,
   defaultCenterLon: -84.15996,
@@ -225,15 +225,6 @@ function createBaseLayers() {
       }
     ),
 
-    dark: L.tileLayer(
-      'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-      {
-        subdomains: 'abcd',
-        maxZoom: 20,
-        attribution:
-          '&copy; OpenStreetMap contributors &copy; CARTO'
-      }
-    ),
 
     satellite: L.tileLayer(
       'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
@@ -274,9 +265,9 @@ function initMap(settings) {
   );
 
   createBaseLayers();
-  preferredAutomaticLayer = automaticLayerForTime();
-  baseLayers[preferredAutomaticLayer].addTo(map);
-  activeBaseLayer = preferredAutomaticLayer;
+  preferredAutomaticLayer = 'street';
+  baseLayers.street.addTo(map);
+  activeBaseLayer = 'street';
 
   configureKioskMap();
   saveHomeMapView();
@@ -320,7 +311,7 @@ function loadServiceAreaBoundary() {
           weight: 3,
           opacity: 0.9,
           fillColor: '#dc2626',
-          fillOpacity: 0.12
+          fillOpacity: 0.14
         }
       }).addTo(map);
 
@@ -439,9 +430,8 @@ function updateLastRefreshDisplay() {
   refresh.innerHTML = `<span>Last Update</span><strong>${ageText}</strong>`;
 }
 
-function automaticLayerForTime(date = new Date()) {
-  const hour = date.getHours();
-  return hour >= 19 || hour < 7 ? 'dark' : 'street';
+function automaticLayerForTime() {
+  return 'street';
 }
 
 function applyAutomaticMapTheme() {
@@ -868,8 +858,8 @@ function markerIcon(v, status) {
         <span class="marker-label">${shortLabel(v)}</span>
       </div>
     `,
-    iconSize: [96, 44],
-    iconAnchor: [48, 22]
+    iconSize: [102, 46],
+    iconAnchor: [51, 23]
   });
 }
 

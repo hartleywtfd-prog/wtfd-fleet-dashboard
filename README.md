@@ -1,4 +1,15 @@
-# WTFD Fleet Dashboard v2.9.1
+# WTFD Fleet Dashboard v2.9.2
+
+## v2.9.2 light-map readability update
+
+- Standard and kiosk displays now always start with the light Street basemap.
+- Removed the Dark map option and automatic nighttime dark-theme switching.
+- Satellite remains available as a manual alternate map.
+- Slightly enlarged apparatus markers for across-the-room kiosk readability.
+- Increased service-area fill slightly while retaining street visibility.
+- Smoothed the responding-unit halo animation.
+- Preserves the tighter v2.9.1 kiosk framing and all v2.9.0 reliability safeguards.
+
 
 ## v2.9.1 kiosk map framing
 - Tightens the kiosk map by one effective zoom level after fitting the service-area boundary.

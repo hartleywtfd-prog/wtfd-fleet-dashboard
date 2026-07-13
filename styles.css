@@ -524,8 +524,8 @@ button:disabled,
 }
 
 .marker-tag {
-  min-width: 72px;
-  height: 32px;
+  min-width: 76px;
+  height: 34px;
   padding: 0 10px;
   border-radius: 8px;
   border: 3px solid #ffffff;
@@ -535,7 +535,7 @@ button:disabled,
   align-items: center;
   justify-content: center;
   gap: 4px;
-  font-size: 17px;
+  font-size: 18px;
   font-weight: 900;
   box-shadow: 0 4px 12px rgba(0, 0, 0, .45);
   text-shadow: 0 1px 2px rgba(0, 0, 0, .55);
@@ -543,8 +543,8 @@ button:disabled,
 }
 
 .marker-svg {
-  width: 18px;
-  height: 18px;
+  width: 19px;
+  height: 19px;
   color: #ffffff;
   display: flex;
   align-items: center;
@@ -552,8 +552,8 @@ button:disabled,
 }
 
 .marker-svg svg {
-  width: 18px;
-  height: 18px;
+  width: 19px;
+  height: 19px;
   display: block;
 }
 
@@ -1552,7 +1552,7 @@ body.has-incident-banner #sidebar, body.has-incident-banner #map { padding-botto
   border: 3px solid rgba(239, 68, 68, .72);
   border-radius: inherit;
   pointer-events: none;
-  animation: respondingHalo 2.2s ease-out infinite;
+  animation: respondingHalo 2.4s ease-in-out infinite;
 }
 @keyframes respondingHalo {
   0%, 42% { transform: scale(.94); opacity: 0; }
