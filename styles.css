@@ -1014,3 +1014,58 @@ button:disabled,
     width: 100%;
   }
 }
+
+
+/* ===== Kiosk / unattended display mode ===== */
+.connection-online {
+  color: #22c55e;
+}
+
+.connection-delayed {
+  color: #fbbf24;
+}
+
+.connection-lost {
+  color: #f87171;
+}
+
+.connection-warning {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 5000;
+  padding: 11px 18px;
+  border-bottom: 2px solid #fecaca;
+  background: #b91c1c;
+  color: #ffffff;
+  text-align: center;
+  font-size: 16px;
+  font-weight: 950;
+  letter-spacing: .04em;
+}
+
+.kiosk-mode .controls,
+.kiosk-mode .map-controls,
+.kiosk-mode .leaflet-control-zoom,
+.kiosk-mode #active911Dismiss {
+  display: none !important;
+}
+
+.kiosk-mode .active911-footer {
+  justify-content: center;
+}
+
+.kiosk-mode .active911-panel {
+  pointer-events: none;
+}
+
+.kiosk-mode #map,
+.kiosk-mode .leaflet-container {
+  cursor: default;
+}
+
+.kiosk-mode.kiosk-cursor-hidden,
+.kiosk-mode.kiosk-cursor-hidden * {
+  cursor: none !important;
+}
