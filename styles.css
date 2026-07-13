@@ -600,27 +600,10 @@ button:disabled,
 }
 
 .respondingMarker {
-  animation: respondingMarkerPulse 1.05s infinite;
+  animation: respondingMarkerPulse 1s ease-in-out infinite;
   border-width: 4px;
-  box-shadow:
-    0 0 0 3px rgba(255, 255, 255, .35),
-    0 0 22px rgba(220, 38, 38, .9),
-    0 4px 12px rgba(0, 0, 0, .55);
-}
-
-.respondingMarker::before,
-.respondingMarker::after {
-  content: "";
-  position: absolute;
-  inset: -9px;
-  border: 3px solid rgba(248, 113, 113, .95);
-  border-radius: 13px;
-  animation: respondingRingPulse 1.05s infinite;
-  pointer-events: none;
-}
-
-.respondingMarker::after {
-  animation-delay: .5s;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, .55);
+  will-change: transform, filter, opacity;
 }
 
 .popup-title {
@@ -668,27 +651,15 @@ button:disabled,
 }
 
 @keyframes respondingMarkerPulse {
-  0%,
-  100% {
+  0%, 100% {
     transform: scale(1);
     filter: brightness(1);
-  }
-
-  50% {
-    transform: scale(1.16);
-    filter: brightness(1.45);
-  }
-}
-
-@keyframes respondingRingPulse {
-  0% {
-    transform: scale(.78);
     opacity: 1;
   }
-
-  100% {
-    transform: scale(1.62);
-    opacity: 0;
+  50% {
+    transform: scale(1.10);
+    filter: brightness(1.45);
+    opacity: .78;
   }
 }
 
@@ -1337,7 +1308,7 @@ button:disabled,
 .kiosk-mode .map-legend {
   right: 12px;
   bottom: 24px;
-  transform: scale(.86);
+  transform: scale(.70);
   transform-origin: bottom right;
 }
 .incident-map-marker {
@@ -1357,4 +1328,29 @@ button:disabled,
   .kiosk-mode #sidebar { width: 330px; min-width: 330px; }
   .kiosk-mode .marker-tag { transform: scale(1.24); }
   .kiosk-mode .kiosk-operation-strip { top: 7px; padding: 7px 13px; }
+}
+
+
+/* ===== Version 1.0 final operational corrections ===== */
+.dashboard-version {
+  padding: 3px 10px 6px;
+  color: #64748b;
+  font-size: 9px;
+  text-align: left;
+  white-space: nowrap;
+}
+.dashboard-version span { color: #94a3b8; font-weight: 800; }
+.kiosk-mode .dashboard-version {
+  padding: 2px 8px 5px;
+  font-size: 8px;
+}
+.kiosk-mode #kioskConnectionState.connection-online { color: #22c55e; }
+.kiosk-mode #kioskConnectionState.connection-delayed { color: #fbbf24; }
+.kiosk-mode #kioskConnectionState.connection-lost { color: #f87171; }
+.kiosk-mode .kiosk-station-empty {
+  color: #fca5a5;
+  font-size: 15px;
+  font-weight: 950;
+  line-height: 1;
+  letter-spacing: 0;
 }
