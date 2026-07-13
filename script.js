@@ -1239,15 +1239,11 @@ function renderDashboard(locations) {
         .toLocaleTimeString();
   }
 
-  if (bounds.length > 0) {
-    map.fitBounds(
-      bounds,
-      {
-        padding: [65, 65]
-      }
-    );
-  }
-}
+  /*
+ * Keep the map at its configured response-area center and zoom.
+ * Distant apparatus remain available in the apparatus list but
+ * will not force the map to zoom out.
+ */
 
 function forceSync() {
   const refresh =
