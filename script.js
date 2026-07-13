@@ -1379,3 +1379,149 @@ setInterval(
   loadDashboard,
   30000
 );
+
+/* Active911 popup integration */
+let active911BaselineReady = false;
+let active911LatestId = '';
+let active911PopupOpen = false;
+
+function active911SetText(id, value) {
+  const element = document.getElementById(id);
+  if (element) element.textContent = value || '';
+}
+
+function active911SetOptional(id, value) {
+  const element = document.getElementById(id);
+  if (!element) return;
+
+  const hasValue = Boolean(String(value || '').trim());
+  element.hidden = !hasValue;
+  element.textContent = hasValue ? value : '';
+}
+
+function active911FormatTime(value) {
+  if (!value) return '';
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+
+  return date.toLocaleString([], {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    second: '2-digit'
+  });
+}
+
+function showActive911Alert(alert) {
+  const overlay = document.getElementById('active911Overlay');
+  if (!overlay || !alert) return;
+
+  active911SetText(
+    'active911Description',
+    alert.description || 'Emergency Call'
+  );
+
+  active911SetOptional('active911Place', alert.place);
+
+  const address = [alert.address, alert.unit]
+    .filter(Boolean)
+    .join(' ');
+
+  active911SetText(
+    'active911Address',
+    address || 'Address unavailable'
+  );
+
+  active911SetText(
+    'active911City',
+    [alert.city, alert.state].filter(Boolean).join(', ')
+  );
+
+  active911SetOptional(
+    'active911CrossStreet',
+    alert.crossStreet
+      ? `Cross streets: ${alert.crossStreet}`
+      : ''
+  );
+
+  active911SetOptional('active911Units', alert.units);
+  active911SetOptional('active911Details', alert.details);
+
+  const unitsCard = document.getElementById('active911UnitsCard');
+  const detailsCard = document.getElementById('active911DetailsCard');
+
+  if (unitsCard) unitsCard.hidden = !String(alert.units || '').trim();
+  if (detailsCard) detailsCard.hidden = !String(alert.details || '').trim();
+
+  active911SetText(
+    'active911Received',
+    alert.received
+      ? `Received ${active911FormatTime(alert.received)}`
+      : ''
+  );
+
+  overlay.hidden = false;
+  active911PopupOpen = true;
+
+  const dismissButton = document.getElementById('active911Dismiss');
+  if (dismissButton) dismissButton.focus();
+}
+
+function dismissActive911Alert() {
+  const overlay = document.getElementById('active911Overlay');
+  if (overlay) overlay.hidden = true;
+  active911PopupOpen = false;
+}
+
+async function checkActive911Alerts() {
+  try {
+    const response = await fetch('/api/active911', {
+      cache: 'no-store'
+    });
+
+    if (!response.ok) {
+      throw new Error(`Active911 request failed: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const alert = data.alert;
+
+    if (!alert || !alert.id) return;
+
+    if (!active911BaselineReady) {
+      active911LatestId = String(alert.id);
+      active911BaselineReady = true;
+      return;
+    }
+
+    const id = String(alert.id);
+
+    if (id !== active911LatestId) {
+      active911LatestId = id;
+      showActive911Alert(alert);
+    }
+  } catch (error) {
+    console.warn('Active911 popup check failed:', error);
+  }
+}
+
+const active911DismissButton =
+  document.getElementById('active911Dismiss');
+
+if (active911DismissButton) {
+  active911DismissButton.addEventListener(
+    'click',
+    dismissActive911Alert
+  );
+}
+
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape' && active911PopupOpen) {
+    dismissActive911Alert();
+  }
+});
+
+checkActive911Alerts();
+setInterval(checkActive911Alerts, 5000);
