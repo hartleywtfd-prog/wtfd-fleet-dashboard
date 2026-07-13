@@ -1,6 +1,6 @@
 /* ===== User-adjustable dashboard settings ===== */
 const DASHBOARD_CONFIG = {
-  version: '2.9.0',
+  version: '2.9.1',
   // Fallback map view used only if the jurisdiction boundary cannot load.
   defaultCenterLat: 39.62784,
   defaultCenterLon: -84.15996,
@@ -13,6 +13,10 @@ const DASHBOARD_CONFIG = {
     '?where=1%3D1&outFields=*&returnGeometry=true&outSR=4326&f=geojson',
   fitMapToServiceArea: true,
   serviceAreaMaxZoom: 13,
+  // Kiosk-only framing: one level tighter with a slight eastward center shift.
+  kioskServiceAreaZoomBoost: 1,
+  kioskServiceAreaMaxZoom: 14,
+  kioskServiceAreaCenterShiftLon: 0.006,
 
   dashboardRefreshMs: 10000,
   active911PollMs: 5000,
@@ -336,6 +340,24 @@ function loadServiceAreaBoundary() {
           maxZoom: DASHBOARD_CONFIG.serviceAreaMaxZoom,
           animate: false
         });
+
+        // Kiosk screens benefit from a tighter command-display view. The
+        // standard dashboard keeps the full service-area fit unchanged.
+        if (IS_KIOSK_MODE) {
+          const fittedCenter = map.getCenter();
+          const boostedZoom = Math.min(
+            map.getZoom() + Number(DASHBOARD_CONFIG.kioskServiceAreaZoomBoost || 0),
+            Number(DASHBOARD_CONFIG.kioskServiceAreaMaxZoom || 14)
+          );
+          const shiftedLongitude =
+            fittedCenter.lng + Number(DASHBOARD_CONFIG.kioskServiceAreaCenterShiftLon || 0);
+
+          map.setView(
+            [fittedCenter.lat, shiftedLongitude],
+            boostedZoom,
+            { animate: false }
+          );
+        }
 
         serviceAreaViewApplied = true;
         saveHomeMapView();

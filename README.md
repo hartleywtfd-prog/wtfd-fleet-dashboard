@@ -1,3 +1,12 @@
+# WTFD Fleet Dashboard v2.9.1
+
+## v2.9.1 kiosk map framing
+- Tightens the kiosk map by one effective zoom level after fitting the service-area boundary.
+- Shifts the kiosk map center slightly east so the jurisdiction is better positioned in the available map pane.
+- Limits the kiosk home view to zoom level 14 to preserve nearby mutual-aid context.
+- Leaves the standard dashboard map framing unchanged.
+- Preserves all v2.9.0 reliability, Active911, audible alert, stale-GPS, and kiosk safeguards.
+
 ## Version 2.8.1
 
 - Reduces standard and kiosk fleet-data polling from 30 seconds to 10 seconds.

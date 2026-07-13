@@ -18,5 +18,10 @@ window.WTFD_DASHBOARD_CONFIG = {
   active911PollMs: 5000,
   connectionDelayedMs: 30000,
   connectionLostMs: 90000,
-  kioskReloadAfterFailures: 12
+  kioskReloadAfterFailures: 12,
+
+  // Kiosk-only service-area framing.
+  kioskServiceAreaZoomBoost: 1,
+  kioskServiceAreaMaxZoom: 14,
+  kioskServiceAreaCenterShiftLon: 0.006
 };
