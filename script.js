@@ -1,5 +1,6 @@
 /* ===== User-adjustable dashboard settings ===== */
 const DASHBOARD_CONFIG = {
+  version: '1.0.0',
   // Fallback map view used only if the jurisdiction boundary cannot load.
   defaultCenterLat: 39.62784,
   defaultCenterLon: -84.15996,
@@ -39,6 +40,11 @@ const IS_KIOSK_MODE = DASHBOARD_MODE === 'kiosk';
 document.body.classList.toggle('kiosk-mode', IS_KIOSK_MODE);
 document.documentElement.dataset.dashboardMode = DASHBOARD_MODE;
 
+document.addEventListener('DOMContentLoaded', () => {
+  const version = document.getElementById('dashboardVersion');
+  if (version) version.textContent = `v${DASHBOARD_CONFIG.version}`;
+});
+
 let map;
 let markers = {};
 let allLocations = [];
@@ -58,10 +64,20 @@ let currentRespondingUnits = [];
 function setConnectionState(state, message) {
   const indicator = document.getElementById('connectionStatus');
   const banner = document.getElementById('connectionWarning');
+  const kioskState = document.getElementById('kioskConnectionState');
 
   if (indicator) {
     indicator.className = `connected connection-${state}`;
     indicator.textContent = message;
+  }
+
+  if (kioskState) {
+    kioskState.className = `connection-${state}`;
+    kioskState.textContent = state === 'online'
+      ? '● CONNECTED'
+      : state === 'delayed'
+        ? '● DELAYED'
+        : '● OFFLINE';
   }
 
   if (banner) {
@@ -1519,7 +1535,7 @@ function renderKioskStatusBoard(locations, metrics, gps, noGps, stale) {
         ? `<div class="kiosk-station-units">${present.map(v =>
             `<span class="${kioskUnitTypeClass(v)}">${escapeHtml(shortLabel(v))}</span>`
           ).join('')}</div>`
-        : '<div class="kiosk-station-empty">EMPTY</div>';
+        : '<div class="kiosk-station-empty" aria-label="No units at station">—</div>';
       return `
         <div class="kiosk-station-card ${stateClass}">
           <div class="kiosk-station-name">${escapeHtml(stationLabel)}</div>
