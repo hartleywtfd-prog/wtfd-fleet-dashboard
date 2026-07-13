@@ -1,6 +1,6 @@
 /* ===== User-adjustable dashboard settings ===== */
 const DASHBOARD_CONFIG = {
-  version: '2.1.0',
+  version: '2.2.0',
   // Fallback map view used only if the jurisdiction boundary cannot load.
   defaultCenterLat: 39.62784,
   defaultCenterLon: -84.15996,
@@ -352,15 +352,18 @@ function updateLastRefreshDisplay() {
   }
 
   const ageSeconds = Math.max(0, Math.floor((Date.now() - lastSuccessfulDashboardRefresh) / 1000));
-  refresh.classList.toggle('refresh-warning', ageSeconds >= 120);
+  refresh.classList.toggle('refresh-warning', ageSeconds >= 60);
   refresh.classList.toggle('refresh-lost', ageSeconds >= 300);
 
-  if (ageSeconds < 5) refresh.innerText = 'Updated just now';
-  else if (ageSeconds < 60) refresh.innerText = `Updated ${ageSeconds} seconds ago`;
+  let ageText;
+  if (ageSeconds < 5) ageText = 'Just now';
+  else if (ageSeconds < 60) ageText = `${ageSeconds} seconds ago`;
   else {
     const minutes = Math.floor(ageSeconds / 60);
-    refresh.innerText = `Updated ${minutes} minute${minutes === 1 ? '' : 's'} ago`;
+    ageText = `${minutes} minute${minutes === 1 ? '' : 's'} ago`;
   }
+
+  refresh.innerHTML = `<span>Last Update</span><strong>${ageText}</strong>`;
 }
 
 function automaticLayerForTime(date = new Date()) {
@@ -1654,7 +1657,7 @@ function renderKioskStatusBoard(locations, metrics, gps, noGps, stale) {
   const health = document.getElementById('kioskHealth');
   if (health) {
     health.innerHTML = `
-      <div><span>Tracking</span><strong class="good">${gps}</strong></div>
+      <div><span>GPS Good</span><strong class="good">${gps}</strong></div>
       <div><span>No GPS</span><strong>${noGps}</strong></div>
       <div><span>Stale</span><strong class="bad">${stale}</strong></div>
       <div><span>Available</span><strong class="good">${metrics.available}</strong></div>`;
@@ -1850,6 +1853,7 @@ function updateKioskOperationStrip(alert = activeIncidentAlert) {
   if (!strip || !state || !summary) return;
 
   if (alert) {
+    strip.hidden = false;
     strip.classList.add('incident');
     state.textContent = 'ACTIVE INCIDENT';
     const address = [alert.address, alert.unit].filter(Boolean).join(' ');
@@ -1860,6 +1864,7 @@ function updateKioskOperationStrip(alert = activeIncidentAlert) {
   }
 
   if (currentRespondingUnits.length > 0) {
+    strip.hidden = false;
     strip.classList.add('incident');
     state.textContent = currentRespondingUnits.length === 1
       ? 'UNIT RESPONDING'
@@ -1869,7 +1874,8 @@ function updateKioskOperationStrip(alert = activeIncidentAlert) {
   }
 
   strip.classList.remove('incident');
-  state.textContent = 'NORMAL OPERATIONS';
+  strip.hidden = true;
+  state.textContent = '';
   summary.textContent = '';
 }
 
@@ -1982,6 +1988,19 @@ function incidentAgeText(timestamp) {
   return `Dispatched ${minutes} minute${minutes === 1 ? '' : 's'} ago`;
 }
 
+function incidentElapsedText(timestamp) {
+  const totalSeconds = Math.max(0, Math.floor((Date.now() - timestamp) / 1000));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  if (hours > 0) {
+    return `${hours}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')} elapsed`;
+  }
+
+  return `${minutes}:${String(seconds).padStart(2, '0')} elapsed`;
+}
+
 function addIncidentToBanner(alert) {
   if (!alert) return;
   const key = incidentKey(alert) || String(Date.now());
@@ -2009,13 +2028,13 @@ function renderIncidentBanner() {
       <div class="incident-banner-copy">
         <strong>${escapeHtml(alert.description || 'Emergency Call')}</strong>
         <span>${escapeHtml(location || alert.place || 'Location unavailable')}</span>
-        <small>${escapeHtml(incidentAgeText(item.timestamp))}</small>
+        <small><b>${escapeHtml(incidentElapsedText(item.timestamp))}</b> • ${escapeHtml(incidentAgeText(item.timestamp))}</small>
       </div>
     </article>`;
   }).join('');
 }
 
-setInterval(renderIncidentBanner, 15000);
+setInterval(renderIncidentBanner, 1000);
 
 function showActive911Alert(alert) {
   const overlay = document.getElementById('active911Overlay');

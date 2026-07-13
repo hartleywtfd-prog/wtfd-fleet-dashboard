@@ -1489,3 +1489,124 @@ body.has-incident-banner #sidebar, body.has-incident-banner #map { padding-botto
 
 /* Slightly larger kiosk legend for across-the-room readability. */
 .kiosk-mode .map-legend { transform: scale(.82); }
+
+
+/* ===== Version 2.2.0 standard + kiosk refinements ===== */
+/* Clear, operational update-age treatment. */
+#lastRefresh {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-height: 17px;
+  font-weight: 800;
+}
+#lastRefresh > span {
+  color: #94a3b8;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+#lastRefresh > strong {
+  color: #4ade80;
+  font-size: 12px;
+  font-weight: 950;
+}
+#lastRefresh.refresh-warning > strong { color: #fbbf24; }
+#lastRefresh.refresh-lost > strong { color: #f87171; }
+.kiosk-mode #lastRefresh {
+  display: grid;
+  gap: 2px;
+  margin-top: 6px;
+}
+.kiosk-mode #lastRefresh > span { font-size: 9px; }
+.kiosk-mode #lastRefresh > strong { font-size: 12px; }
+
+/* Improve command-status legibility on the standard dashboard. */
+.command-item {
+  padding: 7px 4px;
+  font-size: 7.5px;
+  line-height: 1.05;
+}
+.command-item strong {
+  margin-top: 3px;
+  font-size: 17px;
+}
+
+/* Moving apparatus remain static; only emergency responses animate. */
+.movingMarker { animation: none !important; }
+.respondingMarker {
+  position: relative;
+  animation: none !important;
+  filter: none !important;
+  opacity: 1 !important;
+}
+.respondingMarker::after {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  z-index: -1;
+  border: 3px solid rgba(239, 68, 68, .72);
+  border-radius: inherit;
+  pointer-events: none;
+  animation: respondingHalo 2.2s ease-out infinite;
+}
+@keyframes respondingHalo {
+  0%, 42% { transform: scale(.94); opacity: 0; }
+  50% { transform: scale(1); opacity: .85; }
+  86%, 100% { transform: scale(1.28); opacity: 0; }
+}
+
+/* More readable status legend on both versions. */
+.map-legend { padding: 11px 12px; }
+.legend-title { margin-bottom: 9px; font-size: 11px; }
+.legend-row { gap: 8px; margin-top: 7px; font-size: 11px; }
+.legend-dot { width: 11px; height: 11px; }
+
+/* Elapsed time is the primary incident-age cue. */
+.incident-banner-copy small b { color: #e2e8f0; font-weight: 950; }
+
+/* Kiosk is display-only and prioritizes map area. */
+.kiosk-mode #sidebar { width: 300px; min-width: 300px; }
+@media (max-height: 850px) {
+  .kiosk-mode #sidebar { width: 292px; min-width: 292px; }
+}
+.kiosk-mode .controls,
+.kiosk-mode .map-controls,
+.kiosk-mode .leaflet-control-zoom { display: none !important; }
+.kiosk-mode .kiosk-operation-strip[hidden] { display: none !important; }
+
+/* Another 10–15% marker reduction without reducing label size. */
+.kiosk-mode .marker-tag {
+  min-width: 55px;
+  height: 24px;
+  padding: 0 6px;
+  gap: 2px;
+  border-width: 2px;
+  border-radius: 6px;
+  font-size: 14px;
+  box-shadow: 0 2px 6px rgba(0,0,0,.30);
+}
+.kiosk-mode .marker-ladder { min-width: 60px; }
+.kiosk-mode .marker-prevention { min-width: 52px; }
+.kiosk-mode .marker-svg,
+.kiosk-mode .marker-svg svg { width: 14px; height: 14px; }
+.kiosk-mode .awayMarker {
+  box-shadow: 0 0 0 1px rgba(245,158,11,.22), 0 2px 6px rgba(0,0,0,.30);
+}
+
+/* Keep the kiosk legend readable despite the narrower sidebar. */
+.kiosk-mode .map-legend {
+  transform: scale(.90);
+  transform-origin: bottom right;
+}
+.kiosk-mode .legend-row { font-size: 11px; }
+
+/* Occupancy counts are explicit and readable. */
+.kiosk-mode .kiosk-station-name small {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 9px;
+  font-size: 10px;
+}
