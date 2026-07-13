@@ -652,14 +652,14 @@ button:disabled,
 
 @keyframes respondingMarkerPulse {
   0%, 100% {
-    transform: scale(1);
     filter: brightness(1);
     opacity: 1;
+    box-shadow: 0 3px 8px rgba(0, 0, 0, .40);
   }
   50% {
-    transform: scale(1.10);
-    filter: brightness(1.45);
-    opacity: .78;
+    filter: brightness(1.35);
+    opacity: .82;
+    box-shadow: 0 0 0 5px rgba(239, 68, 68, .24), 0 3px 8px rgba(0, 0, 0, .40);
   }
 }
 
@@ -1151,11 +1151,6 @@ button:disabled,
 .kiosk-health-grid strong { display: block; margin-top: 3px; color: #fff; font-size: 19px; }
 .kiosk-health-grid strong.good { color: #4ade80; }
 .kiosk-health-grid strong.bad { color: #f87171; }
-
-.kiosk-mode .marker-tag {
-  transform: scale(1.10);
-  transform-origin: center;
-}
 .kiosk-mode .map-legend { right: 14px; bottom: 28px; transform: scale(1.08); transform-origin: bottom right; }
 .kiosk-mode .leaflet-container { cursor: none !important; }
 
@@ -1229,7 +1224,6 @@ button:disabled,
 @media (max-height: 850px) {
   .kiosk-mode .title { font-size: 19px; }
   .kiosk-mode .kiosk-brand-line { font-size: 9px; }
-  .kiosk-mode .marker-tag { transform: scale(1.07); }
 }
 
 
@@ -1304,7 +1298,6 @@ button:disabled,
 .kiosk-mode .kiosk-station-units span.prevention { background: #15803d; }
 .kiosk-mode .kiosk-station-units span.other { background: #475569; }
 .kiosk-mode .kiosk-station-empty { font-size: 9px; letter-spacing: .08em; }
-.kiosk-mode .marker-tag { transform: scale(1.10); }
 .kiosk-mode .map-legend {
   right: 12px;
   bottom: 24px;
@@ -1326,8 +1319,7 @@ button:disabled,
 @keyframes incidentMarkerPulse { 50% { transform: scale(1.12); box-shadow: 0 0 0 12px rgba(220,38,38,.12), 0 5px 14px rgba(0,0,0,.45); } }
 @media (max-height: 850px) {
   .kiosk-mode #sidebar { width: 330px; min-width: 330px; }
-  .kiosk-mode .marker-tag { transform: scale(1.07); }
-  .kiosk-mode .kiosk-operation-strip { top: 7px; padding: 7px 13px; }
+.kiosk-mode .kiosk-operation-strip { top: 7px; padding: 7px 13px; }
 }
 
 
@@ -1356,13 +1348,35 @@ button:disabled,
 }
 
 
-/* ===== Version 1.0.2 safe compact kiosk markers ===== */
-/* Size is controlled only by the existing kiosk scale rules above.
-   No additional transform animations are applied to marker elements. */
+
+/* ===== Version 1.0.3 safe compact kiosk markers ===== */
 .kiosk-mode .marker-tag {
+  min-width: 62px;
+  height: 28px;
+  padding: 0 8px;
   gap: 3px;
+  border-width: 2px;
+  border-radius: 7px;
+  font-size: 15px;
   box-shadow: 0 3px 8px rgba(0, 0, 0, .34);
+}
+.kiosk-mode .marker-ladder { min-width: 68px; }
+.kiosk-mode .marker-prevention { min-width: 58px; }
+.kiosk-mode .marker-svg,
+.kiosk-mode .marker-svg svg {
+  width: 16px;
+  height: 16px;
 }
 .kiosk-mode .awayMarker {
   box-shadow: 0 0 0 1px rgba(245, 158, 11, .24), 0 3px 8px rgba(0, 0, 0, .34);
+}
+@media (max-height: 850px) {
+  .kiosk-mode .marker-tag {
+    min-width: 58px;
+    height: 27px;
+    padding: 0 7px;
+    font-size: 14px;
+  }
+  .kiosk-mode .marker-ladder { min-width: 64px; }
+  .kiosk-mode .marker-prevention { min-width: 55px; }
 }
