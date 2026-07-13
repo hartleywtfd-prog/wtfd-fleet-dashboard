@@ -1,6 +1,6 @@
 /* ===== User-adjustable dashboard settings ===== */
 const DASHBOARD_CONFIG = {
-  version: '2.7.0',
+  version: '2.8.0',
   // Fallback map view used only if the jurisdiction boundary cannot load.
   defaultCenterLat: 39.62784,
   defaultCenterLon: -84.15996,
@@ -14,7 +14,7 @@ const DASHBOARD_CONFIG = {
   fitMapToServiceArea: true,
   serviceAreaMaxZoom: 13,
 
-  dashboardRefreshMs: 30000,
+  dashboardRefreshMs: 10000,
   active911PollMs: 5000,
   active911PopupDurationMs: 15000,
   active911IncidentMarkerDurationMs: 10 * 60 * 1000,
@@ -161,9 +161,17 @@ function showKioskCursorTemporarily() {
 }
 
 function apiRequest(action) {
-  const url = action === 'sync' ? '/api/sync' : '/api/dashboard';
+  const endpoint = action === 'sync' ? '/api/sync' : '/api/dashboard';
+  const separator = endpoint.includes('?') ? '&' : '?';
+  const url = `${endpoint}${separator}_=${Date.now()}`;
 
-  return fetch(url, { cache: 'no-store' }).then(response => {
+  return fetch(url, {
+    cache: 'no-store',
+    headers: {
+      'Cache-Control': 'no-cache, no-store, max-age=0',
+      'Pragma': 'no-cache'
+    }
+  }).then(response => {
     if (!response.ok) {
       throw new Error('API request failed: ' + response.status);
     }

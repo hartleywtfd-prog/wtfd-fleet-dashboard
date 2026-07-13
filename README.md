@@ -1,3 +1,21 @@
+## Version 2.8.0
+
+- Reduces standard and kiosk fleet-data polling from 30 seconds to 10 seconds.
+- Adds a timestamp cache-buster to every dashboard API request.
+- Sends explicit browser and Cloudflare no-cache directives for dashboard and manual-sync requests.
+- Keeps the one-minute Google Apps Script trigger unchanged; new sheet data should now appear on the display within approximately 0–10 seconds after the backend update.
+- Preserves all v2.7.0 incident marker, alert tone, standard-site, and Fully Kiosk Browser features.
+
+### Refresh setting
+
+The fleet display refresh rate is controlled in `dashboard-config.js`:
+
+```javascript
+dashboardRefreshMs: 10000
+```
+
+Ten seconds is recommended. A shorter interval generally will not create newer coordinates because Google Apps Script is still updating once per minute.
+
 ## Version 2.7.0
 
 - Keeps an Active911 incident location marker on the map for 10 minutes on both the standard and kiosk sites.

@@ -2,13 +2,26 @@ export async function onRequestGet() {
   const url =
     "https://script.google.com/macros/s/AKfycbwhinuB6R-rxHMG4lSkilihzVcFUrGXOQNbhYLrNQfksn-Yy5nxOPFyaUNnRhlpIhRGhw/exec?mode=json&action=sync";
 
-  const response = await fetch(url, { redirect: "follow" });
+  const response = await fetch(url, {
+    redirect: "follow",
+    cache: "no-store",
+    headers: {
+      "Cache-Control": "no-cache, no-store, max-age=0",
+      "Pragma": "no-cache"
+    },
+    cf: {
+      cacheTtl: 0,
+      cacheEverything: false
+    }
+  });
   const text = await response.text();
 
   return new Response(text, {
     headers: {
       "Content-Type": "application/json",
-      "Cache-Control": "no-store"
+      "Cache-Control": "no-cache, no-store, max-age=0, must-revalidate",
+      "Pragma": "no-cache",
+      "Expires": "0"
     }
   });
 }

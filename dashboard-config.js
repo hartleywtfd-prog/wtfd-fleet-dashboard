@@ -14,6 +14,6 @@ window.WTFD_DASHBOARD_CONFIG = {
   // How long the incident location marker remains on the map.
   active911IncidentMarkerDurationMs: 10 * 60 * 1000,
   active911BannerDurationMs: 10 * 60 * 1000,
-  dashboardRefreshMs: 30000,
+  dashboardRefreshMs: 10000,
   active911PollMs: 5000
 };
