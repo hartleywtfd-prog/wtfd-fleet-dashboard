@@ -16,6 +16,8 @@ const DASHBOARD_CONFIG = {
   dashboardRefreshMs: 30000,
   active911PollMs: 5000,
   active911PopupDurationMs: 15000,
+  active911IncidentMarkerDurationMs: 5 * 60 * 1000,
+  kioskIncidentFocusMs: 15000,
 
   // Kiosk-mode settings. Enable by adding ?mode=kiosk to the URL.
   kioskAutoReloadMs: 6 * 60 * 60 * 1000,
@@ -47,6 +49,10 @@ let serviceAreaViewApplied = false;
 let homeMapView = null;
 let lastSuccessfulDashboardRefresh = 0;
 let kioskCursorTimer = null;
+let activeIncidentMarker = null;
+let activeIncidentMarkerTimer = null;
+let activeIncidentKey = '';
+let activeIncidentAlert = null;
 
 function setConnectionState(state, message) {
   const indicator = document.getElementById('connectionStatus');
@@ -1458,6 +1464,15 @@ function renderDashboard(locations) {
 }
 
 
+function kioskUnitTypeClass(v) {
+  const type = String(v.type || '').toLowerCase();
+  if (type === 'engine' || type === 'ladder') return 'fire';
+  if (type === 'medic') return 'medic';
+  if (type === 'chief' || type === 'battalion') return 'command';
+  if (type === 'crrd') return 'prevention';
+  return 'other';
+}
+
 function renderKioskStatusBoard(locations, metrics, gps, noGps, stale) {
   if (!IS_KIOSK_MODE) return;
 
@@ -1493,16 +1508,17 @@ function renderKioskStatusBoard(locations, metrics, gps, noGps, stale) {
         const status = getStatus(v);
         return status === 'defined' && String(v.facility || '').trim().toLowerCase() === station.toLowerCase();
       });
-      const stationNumber = station.match(/\d+/)?.[0] || station;
+      const stationNumber = station.match(/\d+/)?.[0] || station.replace(/^Station\s*/i, '') || station;
+      const stationLabel = /headquarters/i.test(station) ? 'HQ' : stationNumber;
       const stateClass = present.length ? 'covered' : 'empty';
       const detail = present.length
         ? `<div class="kiosk-station-units">${present.map(v =>
-            `<span>${escapeHtml(shortLabel(v))}</span>`
+            `<span class="${kioskUnitTypeClass(v)}">${escapeHtml(shortLabel(v))}</span>`
           ).join('')}</div>`
-        : '<div class="kiosk-station-empty">No units at station</div>';
+        : '<div class="kiosk-station-empty">EMPTY</div>';
       return `
         <div class="kiosk-station-card ${stateClass}">
-          <div class="kiosk-station-name">Station ${escapeHtml(stationNumber)}</div>
+          <div class="kiosk-station-name">${escapeHtml(stationLabel)}</div>
           <div class="kiosk-station-detail">${detail}</div>
         </div>`;
     }).join('');
@@ -1652,6 +1668,104 @@ setInterval(
   DASHBOARD_CONFIG.dashboardRefreshMs
 );
 
+function normalizeIncidentCoordinate(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function incidentKey(alert) {
+  if (alert && alert.id) return String(alert.id);
+  return [alert?.address, alert?.unit, alert?.city]
+    .filter(Boolean)
+    .join('|')
+    .trim()
+    .toLowerCase();
+}
+
+function updateKioskOperationStrip(alert = null) {
+  if (!IS_KIOSK_MODE) return;
+  const strip = document.getElementById('kioskOperationStrip');
+  const state = document.getElementById('kioskOperationState');
+  const summary = document.getElementById('kioskIncidentSummary');
+  if (!strip || !state || !summary) return;
+
+  if (!alert) {
+    strip.classList.remove('incident');
+    state.textContent = 'NORMAL OPERATIONS';
+    summary.textContent = '';
+    return;
+  }
+
+  strip.classList.add('incident');
+  state.textContent = 'ACTIVE INCIDENT';
+  const address = [alert.address, alert.unit].filter(Boolean).join(' ');
+  summary.textContent = [alert.description || 'Emergency Call', address]
+    .filter(Boolean)
+    .join(' • ');
+}
+
+function clearTemporaryIncidentMarker() {
+  if (activeIncidentMarkerTimer) {
+    clearTimeout(activeIncidentMarkerTimer);
+    activeIncidentMarkerTimer = null;
+  }
+  if (activeIncidentMarker && map) {
+    map.removeLayer(activeIncidentMarker);
+  }
+  activeIncidentMarker = null;
+  activeIncidentKey = '';
+  activeIncidentAlert = null;
+  updateKioskOperationStrip(null);
+  returnToHomeView();
+}
+
+function showTemporaryIncidentMarker(alert) {
+  if (!map || !alert) return;
+
+  const lat = normalizeIncidentCoordinate(alert.latitude);
+  const lon = normalizeIncidentCoordinate(alert.longitude);
+  const key = incidentKey(alert);
+
+  activeIncidentAlert = alert;
+  activeIncidentKey = key;
+  updateKioskOperationStrip(alert);
+
+  if (activeIncidentMarkerTimer) clearTimeout(activeIncidentMarkerTimer);
+
+  if (lat !== null && lon !== null) {
+    if (activeIncidentMarker) map.removeLayer(activeIncidentMarker);
+
+    const address = [alert.address, alert.unit].filter(Boolean).join(' ');
+    const icon = L.divIcon({
+      className: '',
+      html: `<div class="incident-map-marker"><span>!</span></div>`,
+      iconSize: [46, 46],
+      iconAnchor: [23, 23]
+    });
+
+    activeIncidentMarker = L.marker([lat, lon], {
+      icon,
+      zIndexOffset: 30000,
+      interactive: !IS_KIOSK_MODE
+    }).addTo(map);
+
+    activeIncidentMarker.bindTooltip(
+      `<strong>${escapeHtml(alert.description || 'Emergency Call')}</strong><br>${escapeHtml(address || 'Location unavailable')}`,
+      { direction: 'top', offset: [0, -22], permanent: false }
+    );
+
+    if (IS_KIOSK_MODE) {
+      map.setView([lat, lon], Math.max(map.getZoom(), 14), { animate: false });
+      setTimeout(returnToHomeView, DASHBOARD_CONFIG.kioskIncidentFocusMs);
+    }
+  }
+
+  activeIncidentMarkerTimer = setTimeout(
+    clearTemporaryIncidentMarker,
+    DASHBOARD_CONFIG.active911IncidentMarkerDurationMs
+  );
+}
+
 /* Active911 popup integration */
 let active911BaselineReady = false;
 let active911LatestId = '';
@@ -1737,6 +1851,7 @@ function showActive911Alert(alert) {
 
   overlay.hidden = false;
   active911PopupOpen = true;
+  showTemporaryIncidentMarker(alert);
 
   if (active911DismissTimer) {
     clearTimeout(active911DismissTimer);
