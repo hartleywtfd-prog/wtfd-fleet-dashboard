@@ -56,9 +56,13 @@ function initMap(settings) {
     settings.dashboardCenterLon || -84.1750
   );
 
-  const zoom = Number(
-    settings.dashboardZoom || 12
+  // Keep the dashboard focused more tightly on the response area.
+  // Use at least zoom level 13 even if the backend still returns 12.
+  const configuredZoom = Number(
+    settings.dashboardZoom || 13
   );
+
+  const zoom = Math.max(configuredZoom, 13);
 
   map = L.map('map', {
     zoomControl: true
