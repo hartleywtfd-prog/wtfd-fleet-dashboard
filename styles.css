@@ -799,3 +799,207 @@ button:disabled,
     flex-direction: column;
   }
 }
+
+/* Active911 incident popup */
+.active911-overlay[hidden] {
+  display: none;
+}
+
+.active911-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 5000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(2, 6, 23, .82);
+  backdrop-filter: blur(6px);
+}
+
+.active911-panel {
+  width: min(980px, 96vw);
+  max-height: 92vh;
+  overflow: auto;
+  border: 5px solid #ef4444;
+  border-radius: 20px;
+  background: #0f172a;
+  box-shadow:
+    0 0 0 8px rgba(239, 68, 68, .18),
+    0 0 60px rgba(239, 68, 68, .65);
+  animation: active911PanelPulse 1.15s infinite;
+}
+
+.active911-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 22px;
+  padding: 16px 24px;
+  background: #b91c1c;
+  color: #ffffff;
+  font-size: clamp(24px, 4vw, 48px);
+  font-weight: 1000;
+  letter-spacing: .08em;
+  text-align: center;
+}
+
+.active911-light {
+  width: 22px;
+  height: 22px;
+  flex: 0 0 22px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 0 20px #ffffff;
+  animation: active911LightFlash .55s infinite alternate;
+}
+
+.active911-description {
+  padding: 26px 32px 10px;
+  color: #fca5a5;
+  font-size: clamp(34px, 6vw, 72px);
+  font-weight: 1000;
+  line-height: 1.05;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.active911-place {
+  padding: 0 30px 8px;
+  color: #f8fafc;
+  font-size: clamp(20px, 3vw, 32px);
+  font-weight: 800;
+  text-align: center;
+}
+
+.active911-address-block {
+  padding: 12px 30px 24px;
+  text-align: center;
+}
+
+.active911-address {
+  color: #ffffff;
+  font-size: clamp(28px, 4.8vw, 58px);
+  font-weight: 950;
+  line-height: 1.08;
+}
+
+.active911-city {
+  margin-top: 8px;
+  color: #cbd5e1;
+  font-size: clamp(18px, 2.7vw, 30px);
+  font-weight: 800;
+}
+
+.active911-cross-street {
+  margin-top: 12px;
+  color: #fde68a;
+  font-size: clamp(16px, 2.3vw, 25px);
+  font-weight: 800;
+}
+
+.active911-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  padding: 0 26px 24px;
+}
+
+.active911-info-card {
+  min-width: 0;
+  padding: 18px;
+  border: 1px solid #475569;
+  border-radius: 12px;
+  background: #111c31;
+}
+
+.active911-label {
+  margin-bottom: 8px;
+  color: #93c5fd;
+  font-size: 15px;
+  font-weight: 900;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.active911-value {
+  color: #ffffff;
+  font-size: clamp(18px, 2vw, 25px);
+  font-weight: 750;
+  line-height: 1.35;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.active911-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 16px 26px;
+  border-top: 1px solid #334155;
+  background: #0b1220;
+  color: #cbd5e1;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+#active911Dismiss {
+  min-width: 180px;
+  padding: 14px 24px;
+  border: 2px solid #fca5a5;
+  border-radius: 10px;
+  background: #b91c1c;
+  color: #ffffff;
+  font-size: 19px;
+  font-weight: 950;
+  cursor: pointer;
+}
+
+#active911Dismiss:hover,
+#active911Dismiss:focus-visible {
+  background: #dc2626;
+  outline: 3px solid rgba(255, 255, 255, .45);
+}
+
+@keyframes active911PanelPulse {
+  0%, 100% {
+    border-color: #dc2626;
+  }
+
+  50% {
+    border-color: #fca5a5;
+  }
+}
+
+@keyframes active911LightFlash {
+  from {
+    opacity: .2;
+    transform: scale(.72);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1.18);
+  }
+}
+
+@media (max-width: 760px) {
+  .active911-overlay {
+    padding: 8px;
+  }
+
+  .active911-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .active911-footer {
+    align-items: stretch;
+    flex-direction: column;
+    text-align: center;
+  }
+
+  #active911Dismiss {
+    width: 100%;
+  }
+}
