@@ -1,6 +1,6 @@
 /* ===== User-adjustable dashboard settings ===== */
 const DASHBOARD_CONFIG = {
-  version: '2.2.0',
+  version: '2.3.0',
   // Fallback map view used only if the jurisdiction boundary cannot load.
   defaultCenterLat: 39.62784,
   defaultCenterLon: -84.15996,
@@ -500,7 +500,20 @@ function statusText(status, v) {
 
   if (status === 'stale') {
     const age = Math.max(0, Math.floor(ageMinutes(v.lastUpdate)));
-    return `GPS ${age}m`;
+    const days = Math.floor(age / 1440);
+    const hours = Math.floor((age % 1440) / 60);
+    const minutes = age % 60;
+
+    let ageText;
+    if (days > 0) {
+      ageText = `${days}d${hours > 0 ? ` ${hours}h` : ''}`;
+    } else if (hours > 0) {
+      ageText = `${hours}h${minutes > 0 ? ` ${minutes}m` : ''}`;
+    } else {
+      ageText = `${minutes}m`;
+    }
+
+    return `GPS ${ageText} old`;
   }
 
   if (status === 'away') {

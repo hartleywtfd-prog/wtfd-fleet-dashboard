@@ -1491,7 +1491,7 @@ body.has-incident-banner #sidebar, body.has-incident-banner #map { padding-botto
 .kiosk-mode .map-legend { transform: scale(.82); }
 
 
-/* ===== Version 2.2.0 standard + kiosk refinements ===== */
+/* ===== Version 2.3.0 GPS age formatting ===== */
 /* Clear, operational update-age treatment. */
 #lastRefresh {
   display: flex;

@@ -1,4 +1,4 @@
-# WTFD Fleet Dashboard v2.2.0
+# WTFD Fleet Dashboard v2.3.0
 
 This release includes standard-dashboard and unattended-kiosk refinements.
 
@@ -21,3 +21,7 @@ This release includes standard-dashboard and unattended-kiosk refinements.
 
 ## Deployment
 Replace the repository contents with these files, commit, and allow Cloudflare Pages to redeploy. Then hard refresh the browser with Ctrl+F5.
+
+## v2.3.0 GPS age formatting
+- Stale GPS badges now use human-readable ages such as `GPS 4h 49m old`.
+- Ages under one hour show minutes, and ages over one day show days and hours.
