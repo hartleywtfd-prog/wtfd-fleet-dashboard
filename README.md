@@ -1,4 +1,4 @@
-# WTFD Fleet Dashboard v2.3.0
+# WTFD Fleet Dashboard v2.4.0
 
 This release includes standard-dashboard and unattended-kiosk refinements.
 
@@ -25,3 +25,11 @@ Replace the repository contents with these files, commit, and allow Cloudflare P
 ## v2.3.0 GPS age formatting
 - Stale GPS badges now use human-readable ages such as `GPS 4h 49m old`.
 - Ages under one hour show minutes, and ages over one day show days and hours.
+
+
+## v2.4.0 Samsara away-location formatting
+- Away units now show the municipality or township parsed from Samsara's Current Location value.
+- Postal codes are no longer used when a municipality is available.
+- Display fallback order is municipality/township, street or available location text, then `Away`.
+- `Washington Township` is shortened to `Washington Twp` to fit the sidebar.
+- The improved location label is used on both the standard dashboard and kiosk Units Away list.

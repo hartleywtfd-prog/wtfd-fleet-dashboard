@@ -1,6 +1,6 @@
 /* ===== User-adjustable dashboard settings ===== */
 const DASHBOARD_CONFIG = {
-  version: '2.3.0',
+  version: '2.4.0',
   // Fallback map view used only if the jurisdiction boundary cannot load.
   defaultCenterLat: 39.62784,
   defaultCenterLon: -84.15996,
@@ -1461,9 +1461,9 @@ function renderDashboard(locations) {
 
         <div class="unit-sub">
           ${escapeHtml(
-            v.facility ||
-            v.homeStation ||
-            'Unknown'
+            status === 'away'
+              ? conciseAwayLocation(v)
+              : (v.facility || v.homeStation || 'Unknown')
           )}
           ${
             fNumber
@@ -1588,18 +1588,49 @@ function kioskUnitTypeClass(v) {
 }
 
 
+function normalizeAwayMunicipality(value) {
+  const cleaned = String(value || '')
+    .replace(/^City of\s+/i, '')
+    .replace(/^Village of\s+/i, '')
+    .trim();
+
+  if (/^Washington Township$/i.test(cleaned)) return 'Washington Twp';
+  return cleaned;
+}
+
 function conciseAwayLocation(v) {
   const raw = String(v.location || v.facility || 'Away').trim();
   if (!raw) return 'Away';
 
-  const parts = raw.split(',').map(part => part.trim()).filter(Boolean);
-  if (parts.length >= 2) {
-    const stateZip = /^(OH|Ohio)(\s+\d{5}(?:-\d{4})?)?$/i;
-    const candidates = parts.filter(part => !stateZip.test(part));
-    if (candidates.length >= 2) return candidates[candidates.length - 1];
+  /*
+   * Samsara normally returns a comma-delimited reverse-geocoded location,
+   * such as "Paragon Road, Washington Township, OH, 45458". Remove the
+   * state, country, and postal-code components, then use the final remaining
+   * component as the municipality. The street is retained as the fallback.
+   */
+  const parts = raw
+    .split(',')
+    .map(part => part.trim())
+    .filter(Boolean);
+
+  const isPostalCode = part => /^\d{5}(?:-\d{4})?$/.test(part);
+  const isState = part => /^(OH|Ohio)(?:\s+\d{5}(?:-\d{4})?)?$/i.test(part);
+  const isCountry = part => /^(USA|US|United States(?: of America)?)$/i.test(part);
+
+  const candidates = parts
+    .map(part => part.replace(/\b(?:OH|Ohio)\s+\d{5}(?:-\d{4})?$/i, '').trim())
+    .filter(part => part && !isPostalCode(part) && !isState(part) && !isCountry(part));
+
+  if (candidates.length >= 2) {
+    return normalizeAwayMunicipality(candidates[candidates.length - 1]);
   }
 
-  return raw.length > 34 ? `${raw.slice(0, 31)}…` : raw;
+  if (candidates.length === 1) {
+    const fallback = normalizeAwayMunicipality(candidates[0]);
+    return fallback.length > 34 ? `${fallback.slice(0, 31)}…` : fallback;
+  }
+
+  return 'Away';
 }
 
 function renderKioskStatusBoard(locations, metrics, gps, noGps, stale) {
