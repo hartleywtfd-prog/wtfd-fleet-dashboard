@@ -124,9 +124,32 @@ function ageMinutes(time) {
 }
 
 function hasEmergencyLights(v) {
-  return Boolean(
-    v && v.emergencyLights === true
-  );
+  if (!v) {
+    return false;
+  }
+
+  const value = v.emergencyLights;
+
+  if (value === true || value === 1) {
+    return true;
+  }
+
+  const normalizedValue = String(
+    value === null || value === undefined
+      ? ''
+      : value
+  )
+    .trim()
+    .toUpperCase();
+
+  return [
+    'TRUE',
+    '1',
+    'YES',
+    'Y',
+    'ON',
+    'ACTIVE'
+  ].includes(normalizedValue);
 }
 
 function getStatus(v) {
@@ -991,7 +1014,6 @@ function renderDashboard(locations) {
   let noGps = 0;
   let stale = 0;
 
-  const bounds = [];
 
   Object.keys(groups).forEach(key => {
     const originalGroup = groups[key];
@@ -1088,10 +1110,6 @@ function renderDashboard(locations) {
           v.unit
         ] = marker;
 
-        bounds.push([
-          displayLat,
-          displayLon
-        ]);
       }
     );
   });
@@ -1239,14 +1257,13 @@ function renderDashboard(locations) {
         .toLocaleTimeString();
   }
 
- /*
- * Keep the map at its configured response-area center and zoom.
- * Distant apparatus remain available in the apparatus list but
- * will not force the map to zoom out.
- */
+  /*
+   * Keep the map at its configured response-area center and zoom.
+   * Distant apparatus remain available in the apparatus list but
+   * will not force the map to zoom out.
+   */
 }
 
-function forceSync() {
 function forceSync() {
   const refresh =
     document.getElementById(
