@@ -1,7 +1,7 @@
 /* ===== User-adjustable dashboard settings ===== */
 const DASHBOARD_CONFIG = {
   defaultCenterLat: 39.6255,
-  defaultCenterLon: -84.1656,
+  defaultCenterLon: -84.1588,
   minimumMapZoom: 13,
   dashboardRefreshMs: 30000,
   active911PollMs: 5000,
