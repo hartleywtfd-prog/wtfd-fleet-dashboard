@@ -1424,6 +1424,8 @@ function renderDashboard(locations) {
 
   renderCommandPanel(metrics);
 
+  renderKioskStatusBoard(locations, metrics, gps, noGps, stale);
+
   const respondingCard =
     document.querySelector(
       '.respondingCard'
@@ -1453,6 +1455,76 @@ function renderDashboard(locations) {
    * Distant apparatus remain available in the apparatus list but
    * will not force the map to zoom out.
    */
+}
+
+
+function renderKioskStatusBoard(locations, metrics, gps, noGps, stale) {
+  if (!IS_KIOSK_MODE) return;
+
+  const responding = locations
+    .filter(v => getStatus(v) === 'responding')
+    .sort((a, b) => String(a.unit || '').localeCompare(String(b.unit || '')));
+
+  const away = locations
+    .filter(v => getStatus(v) === 'away')
+    .sort((a, b) => String(a.unit || '').localeCompare(String(b.unit || '')));
+
+  const respondingList = document.getElementById('kioskRespondingList');
+  if (respondingList) {
+    respondingList.innerHTML = responding.length
+      ? responding.map(v => `
+          <div class="kiosk-unit-row responding">
+            <span>${escapeHtml(String(v.unit || '').toUpperCase())}</span>
+            <strong>${escapeHtml(v.location || 'Responding')}</strong>
+          </div>`).join('')
+      : '<div class="kiosk-empty-state">None</div>';
+  }
+
+  const stationNames = [...new Set(locations
+    .map(v => String(v.homeStation || '').trim())
+    .filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+
+  const stationList = document.getElementById('kioskStationList');
+  if (stationList) {
+    stationList.innerHTML = stationNames.map(station => {
+      const stationUnits = locations.filter(v => String(v.homeStation || '').trim() === station);
+      const present = stationUnits.filter(v => {
+        const status = getStatus(v);
+        return status === 'defined' && String(v.facility || '').trim().toLowerCase() === station.toLowerCase();
+      });
+      const stationNumber = station.match(/\d+/)?.[0] || station;
+      const stateClass = present.length ? 'covered' : 'empty';
+      const detail = present.length
+        ? present.map(v => escapeHtml(v.unit || '')).join(' • ')
+        : 'No units at station';
+      return `
+        <div class="kiosk-station-card ${stateClass}">
+          <div class="kiosk-station-name">Station ${escapeHtml(stationNumber)}</div>
+          <div class="kiosk-station-detail">${detail}</div>
+        </div>`;
+    }).join('');
+  }
+
+  const awayList = document.getElementById('kioskAwayList');
+  if (awayList) {
+    awayList.innerHTML = away.length
+      ? away.slice(0, 8).map(v => `
+          <div class="kiosk-unit-row away">
+            <span>${escapeHtml(String(v.unit || '').toUpperCase())}</span>
+            <strong>${escapeHtml(v.location || v.facility || 'Away')}</strong>
+          </div>`).join('')
+      : '<div class="kiosk-empty-state">None</div>';
+  }
+
+  const health = document.getElementById('kioskHealth');
+  if (health) {
+    health.innerHTML = `
+      <div><span>GPS</span><strong class="good">${gps}</strong></div>
+      <div><span>No GPS</span><strong>${noGps}</strong></div>
+      <div><span>Stale</span><strong class="bad">${stale}</strong></div>
+      <div><span>Available</span><strong class="good">${metrics.available}</strong></div>`;
+  }
 }
 
 function forceSync() {
