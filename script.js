@@ -1384,8 +1384,6 @@ setInterval(
 let active911BaselineReady = false;
 let active911LatestId = '';
 let active911PopupOpen = false;
-let active911DismissTimer = null;
-const ACTIVE911_POPUP_DURATION_MS = 15_000;
 
 function active911SetText(id, value) {
   const element = document.getElementById(id);
@@ -1464,37 +1462,16 @@ function showActive911Alert(alert) {
       : ''
   );
 
-  if (active911DismissTimer) {
-    clearTimeout(active911DismissTimer);
-    active911DismissTimer = null;
-  }
-
   overlay.hidden = false;
-  overlay.setAttribute('aria-hidden', 'false');
   active911PopupOpen = true;
-
-  active911DismissTimer = setTimeout(
-    dismissActive911Alert,
-    ACTIVE911_POPUP_DURATION_MS
-  );
 
   const dismissButton = document.getElementById('active911Dismiss');
   if (dismissButton) dismissButton.focus();
 }
 
 function dismissActive911Alert() {
-  if (active911DismissTimer) {
-    clearTimeout(active911DismissTimer);
-    active911DismissTimer = null;
-  }
-
   const overlay = document.getElementById('active911Overlay');
-
-  if (overlay) {
-    overlay.hidden = true;
-    overlay.setAttribute('aria-hidden', 'true');
-  }
-
+  if (overlay) overlay.hidden = true;
   active911PopupOpen = false;
 }
 
@@ -1530,40 +1507,21 @@ async function checkActive911Alerts() {
   }
 }
 
-function initializeActive911Popup() {
-  const dismissButton =
-    document.getElementById('active911Dismiss');
-  const overlay =
-    document.getElementById('active911Overlay');
+const active911DismissButton =
+  document.getElementById('active911Dismiss');
 
-  if (dismissButton) {
-    dismissButton.onclick = dismissActive911Alert;
-  }
-
-  if (overlay) {
-    overlay.addEventListener('click', event => {
-      if (event.target === overlay) {
-        dismissActive911Alert();
-      }
-    });
-  }
-
-  document.addEventListener('keydown', event => {
-    if (event.key === 'Escape' && active911PopupOpen) {
-      dismissActive911Alert();
-    }
-  });
-
-  checkActive911Alerts();
-  setInterval(checkActive911Alerts, 5000);
-}
-
-if (document.readyState === 'loading') {
-  document.addEventListener(
-    'DOMContentLoaded',
-    initializeActive911Popup,
-    { once: true }
+if (active911DismissButton) {
+  active911DismissButton.addEventListener(
+    'click',
+    dismissActive911Alert
   );
-} else {
-  initializeActive911Popup();
 }
+
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape' && active911PopupOpen) {
+    dismissActive911Alert();
+  }
+});
+
+checkActive911Alerts();
+setInterval(checkActive911Alerts, 5000);
