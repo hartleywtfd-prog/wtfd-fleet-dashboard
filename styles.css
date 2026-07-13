@@ -953,7 +953,7 @@ button:disabled,
 
   to {
     opacity: 1;
-    transform: scale(1.18);
+    transform: scale(1.07);
   }
 }
 
@@ -1153,7 +1153,7 @@ button:disabled,
 .kiosk-health-grid strong.bad { color: #f87171; }
 
 .kiosk-mode .marker-tag {
-  transform: scale(1.22);
+  transform: scale(1.10);
   transform-origin: center;
 }
 .kiosk-mode .map-legend { right: 14px; bottom: 28px; transform: scale(1.08); transform-origin: bottom right; }
@@ -1229,7 +1229,7 @@ button:disabled,
 @media (max-height: 850px) {
   .kiosk-mode .title { font-size: 19px; }
   .kiosk-mode .kiosk-brand-line { font-size: 9px; }
-  .kiosk-mode .marker-tag { transform: scale(1.18); }
+  .kiosk-mode .marker-tag { transform: scale(1.07); }
 }
 
 
@@ -1304,7 +1304,7 @@ button:disabled,
 .kiosk-mode .kiosk-station-units span.prevention { background: #15803d; }
 .kiosk-mode .kiosk-station-units span.other { background: #475569; }
 .kiosk-mode .kiosk-station-empty { font-size: 9px; letter-spacing: .08em; }
-.kiosk-mode .marker-tag { transform: scale(1.30); }
+.kiosk-mode .marker-tag { transform: scale(1.10); }
 .kiosk-mode .map-legend {
   right: 12px;
   bottom: 24px;
@@ -1326,7 +1326,7 @@ button:disabled,
 @keyframes incidentMarkerPulse { 50% { transform: scale(1.12); box-shadow: 0 0 0 12px rgba(220,38,38,.12), 0 5px 14px rgba(0,0,0,.45); } }
 @media (max-height: 850px) {
   .kiosk-mode #sidebar { width: 330px; min-width: 330px; }
-  .kiosk-mode .marker-tag { transform: scale(1.24); }
+  .kiosk-mode .marker-tag { transform: scale(1.07); }
   .kiosk-mode .kiosk-operation-strip { top: 7px; padding: 7px 13px; }
 }
 
@@ -1356,45 +1356,13 @@ button:disabled,
 }
 
 
-/* ===== Version 1.0.1 kiosk marker sizing refinement ===== */
-/* Keep the interactive dashboard unchanged while making TV-mode markers
-   more compact and allowing more road detail to remain visible. */
+/* ===== Version 1.0.2 safe compact kiosk markers ===== */
+/* Size is controlled only by the existing kiosk scale rules above.
+   No additional transform animations are applied to marker elements. */
 .kiosk-mode .marker-tag {
-  transform: scale(1.08);
-  transform-origin: center;
   gap: 3px;
-  border-radius: 7px;
   box-shadow: 0 3px 8px rgba(0, 0, 0, .34);
 }
-.kiosk-mode .marker-engine,
-.kiosk-mode .marker-generic { border-radius: 5px; }
-.kiosk-mode .marker-medic { border-radius: 9px; }
 .kiosk-mode .awayMarker {
-  box-shadow:
-    0 0 0 1px rgba(245, 158, 11, .24),
-    0 3px 8px rgba(0, 0, 0, .34);
-}
-.kiosk-mode .respondingMarker {
-  animation: kioskRespondingMarkerPulse 1s ease-in-out infinite;
-  box-shadow: 0 3px 9px rgba(0, 0, 0, .40);
-}
-@keyframes kioskRespondingMarkerPulse {
-  0%, 100% {
-    transform: scale(1.08);
-    filter: brightness(1);
-    opacity: 1;
-  }
-  50% {
-    transform: scale(1.15);
-    filter: brightness(1.25);
-    opacity: .88;
-  }
-}
-@media (max-height: 850px) {
-  .kiosk-mode .marker-tag { transform: scale(1.05); }
-  .kiosk-mode .respondingMarker { animation-name: kioskRespondingMarkerPulseCompact; }
-}
-@keyframes kioskRespondingMarkerPulseCompact {
-  0%, 100% { transform: scale(1.05); filter: brightness(1); opacity: 1; }
-  50% { transform: scale(1.12); filter: brightness(1.25); opacity: .88; }
+  box-shadow: 0 0 0 1px rgba(245, 158, 11, .24), 0 3px 8px rgba(0, 0, 0, .34);
 }
