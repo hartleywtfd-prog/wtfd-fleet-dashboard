@@ -15,8 +15,27 @@ const DASHBOARD_CONFIG = {
 
   dashboardRefreshMs: 30000,
   active911PollMs: 5000,
-  active911PopupDurationMs: 15000
+  active911PopupDurationMs: 15000,
+
+  // Kiosk-mode settings. Enable by adding ?mode=kiosk to the URL.
+  kioskAutoReloadMs: 6 * 60 * 60 * 1000,
+  kioskHomeResetMs: 10 * 60 * 1000,
+  kioskCursorHideMs: 5000,
+  connectionDelayedMs: 2 * 60 * 1000,
+  connectionLostMs: 5 * 60 * 1000
 };
+
+const DASHBOARD_MODE =
+  new URLSearchParams(window.location.search)
+    .get('mode')
+    ?.toLowerCase() === 'kiosk'
+    ? 'kiosk'
+    : 'interactive';
+
+const IS_KIOSK_MODE = DASHBOARD_MODE === 'kiosk';
+
+document.body.classList.toggle('kiosk-mode', IS_KIOSK_MODE);
+document.documentElement.dataset.dashboardMode = DASHBOARD_MODE;
 
 let map;
 let markers = {};
@@ -25,6 +44,77 @@ let activeBaseLayer = 'street';
 let baseLayers = {};
 let serviceAreaLayer = null;
 let serviceAreaViewApplied = false;
+let homeMapView = null;
+let lastSuccessfulDashboardRefresh = 0;
+let kioskCursorTimer = null;
+
+function setConnectionState(state, message) {
+  const indicator = document.getElementById('connectionStatus');
+  const banner = document.getElementById('connectionWarning');
+
+  if (indicator) {
+    indicator.className = `connected connection-${state}`;
+    indicator.textContent = message;
+  }
+
+  if (banner) {
+    banner.hidden = state !== 'lost';
+    banner.textContent = state === 'lost'
+      ? 'CONNECTION LOST — DISPLAYED DATA MAY BE OUT OF DATE'
+      : '';
+  }
+}
+
+function recordSuccessfulDashboardRefresh() {
+  lastSuccessfulDashboardRefresh = Date.now();
+  setConnectionState('online', '● Samsara Fleet Dashboard');
+}
+
+function saveHomeMapView() {
+  if (!map) return;
+
+  homeMapView = {
+    center: map.getCenter(),
+    zoom: map.getZoom()
+  };
+}
+
+function returnToHomeView() {
+  if (!IS_KIOSK_MODE || !map || !homeMapView) return;
+
+  map.setView(homeMapView.center, homeMapView.zoom, {
+    animate: false
+  });
+}
+
+function configureKioskMap() {
+  if (!IS_KIOSK_MODE || !map) return;
+
+  map.dragging.disable();
+  map.scrollWheelZoom.disable();
+  map.doubleClickZoom.disable();
+  map.boxZoom.disable();
+  map.keyboard.disable();
+  map.touchZoom.disable();
+
+  if (map.tap) {
+    map.tap.disable();
+  }
+}
+
+function showKioskCursorTemporarily() {
+  if (!IS_KIOSK_MODE) return;
+
+  document.body.classList.remove('kiosk-cursor-hidden');
+
+  if (kioskCursorTimer) {
+    clearTimeout(kioskCursorTimer);
+  }
+
+  kioskCursorTimer = setTimeout(() => {
+    document.body.classList.add('kiosk-cursor-hidden');
+  }, DASHBOARD_CONFIG.kioskCursorHideMs);
+}
 
 function apiRequest(action) {
   const url = action === 'sync' ? '/api/sync' : '/api/dashboard';
@@ -99,6 +189,8 @@ function initMap(settings) {
   createBaseLayers();
   baseLayers.street.addTo(map);
 
+  configureKioskMap();
+  saveHomeMapView();
   loadServiceAreaBoundary();
 }
 
@@ -161,6 +253,7 @@ function loadServiceAreaBoundary() {
         });
 
         serviceAreaViewApplied = true;
+        saveHomeMapView();
       }
     })
     .catch(error => {
@@ -1414,6 +1507,8 @@ function loadDashboard() {
       renderDashboard(
         allLocations
       );
+
+      recordSuccessfulDashboardRefresh();
     })
     .catch(error => {
       const refresh =
@@ -1426,6 +1521,11 @@ function loadDashboard() {
           'Error: ' +
           error.message;
       }
+
+      setConnectionState(
+        'delayed',
+        '● Data refresh delayed'
+      );
     });
 }
 
@@ -1573,7 +1673,7 @@ function showActive911Alert(alert) {
   }, DASHBOARD_CONFIG.active911PopupDurationMs);
 
   const dismissButton = document.getElementById('active911Dismiss');
-  if (dismissButton) dismissButton.focus();
+  if (dismissButton && !IS_KIOSK_MODE) dismissButton.focus();
 }
 
 function dismissActive911Alert() {
@@ -1585,6 +1685,8 @@ function dismissActive911Alert() {
     clearTimeout(active911DismissTimer);
     active911DismissTimer = null;
   }
+
+  returnToHomeView();
 }
 
 async function checkActive911Alerts() {
@@ -1640,3 +1742,35 @@ setInterval(
   checkActive911Alerts,
   DASHBOARD_CONFIG.active911PollMs
 );
+
+
+/* Kiosk-mode unattended display safeguards */
+if (IS_KIOSK_MODE) {
+  document.addEventListener('mousemove', showKioskCursorTemporarily);
+  document.addEventListener('mousedown', showKioskCursorTemporarily);
+  document.addEventListener('touchstart', showKioskCursorTemporarily, { passive: true });
+  showKioskCursorTemporarily();
+
+  setInterval(
+    returnToHomeView,
+    DASHBOARD_CONFIG.kioskHomeResetMs
+  );
+
+  setTimeout(() => {
+    window.location.reload();
+  }, DASHBOARD_CONFIG.kioskAutoReloadMs);
+}
+
+setInterval(() => {
+  if (!lastSuccessfulDashboardRefresh) return;
+
+  const age = Date.now() - lastSuccessfulDashboardRefresh;
+
+  if (age >= DASHBOARD_CONFIG.connectionLostMs) {
+    setConnectionState('lost', '● Connection lost');
+  } else if (age >= DASHBOARD_CONFIG.connectionDelayedMs) {
+    setConnectionState('delayed', '● Data delayed');
+  } else {
+    setConnectionState('online', '● Samsara Fleet Dashboard');
+  }
+}, 30000);
