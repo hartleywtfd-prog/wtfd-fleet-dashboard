@@ -1,6 +1,6 @@
 /* ===== User-adjustable dashboard settings ===== */
 const DASHBOARD_CONFIG = {
-  version: '2.6.0',
+  version: '2.7.0',
   // Fallback map view used only if the jurisdiction boundary cannot load.
   defaultCenterLat: 39.62784,
   defaultCenterLon: -84.15996,
@@ -17,7 +17,7 @@ const DASHBOARD_CONFIG = {
   dashboardRefreshMs: 30000,
   active911PollMs: 5000,
   active911PopupDurationMs: 15000,
-  active911IncidentMarkerDurationMs: 5 * 60 * 1000,
+  active911IncidentMarkerDurationMs: 10 * 60 * 1000,
   active911BannerDurationMs: 10 * 60 * 1000,
   active911BannerMaxItems: 5,
   reconnectRetryMs: 5000,

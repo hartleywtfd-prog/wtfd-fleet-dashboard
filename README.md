@@ -1,3 +1,21 @@
+## Version 2.7.0
+
+- Keeps an Active911 incident location marker on the map for 10 minutes on both the standard and kiosk sites.
+- Matches the incident marker duration to the 10-minute rolling incident banner.
+- Makes the marker duration configurable in `dashboard-config.js` using `active911IncidentMarkerDurationMs`.
+- A new incident replaces the prior incident marker and starts a new 10-minute timer.
+- Keeps the 15-second popup, one-time alert tone, and all Fully Kiosk Browser compact-layout improvements.
+
+### Changing the incident marker duration
+
+The default setting is:
+
+```javascript
+active911IncidentMarkerDurationMs: 10 * 60 * 1000
+```
+
+For example, change `10` to `15` to keep the marker for 15 minutes. This setting applies to both the standard and kiosk sites.
+
 ## Version 2.6.0
 
 - Adds a short, royalty-free two-note dispatch chime for new Active911 incidents.
