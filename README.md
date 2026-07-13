@@ -1,4 +1,4 @@
-## Version 2.8.0
+## Version 2.8.1
 
 - Reduces standard and kiosk fleet-data polling from 30 seconds to 10 seconds.
 - Adds a timestamp cache-buster to every dashboard API request.
