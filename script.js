@@ -49,11 +49,11 @@ function createBaseLayers() {
 
 function initMap(settings) {
   const centerLat = Number(
-    settings.dashboardCenterLat || 39.6290
+    settings.dashboardCenterLat || 39.6255
   );
 
   const centerLon = Number(
-    settings.dashboardCenterLon || -84.1680
+    settings.dashboardCenterLon || -84.1750
   );
 
   // Keep the dashboard focused more tightly on the response area.
@@ -1388,6 +1388,8 @@ setInterval(
 let active911BaselineReady = false;
 let active911LatestId = '';
 let active911PopupOpen = false;
+let active911DismissTimer = null;
+const ACTIVE911_AUTO_DISMISS_MS = 30000;
 
 function active911SetText(id, value) {
   const element = document.getElementById(id);
@@ -1469,6 +1471,14 @@ function showActive911Alert(alert) {
   overlay.hidden = false;
   active911PopupOpen = true;
 
+  if (active911DismissTimer) {
+    clearTimeout(active911DismissTimer);
+  }
+
+  active911DismissTimer = setTimeout(() => {
+    dismissActive911Alert();
+  }, ACTIVE911_AUTO_DISMISS_MS);
+
   const dismissButton = document.getElementById('active911Dismiss');
   if (dismissButton) dismissButton.focus();
 }
@@ -1477,6 +1487,11 @@ function dismissActive911Alert() {
   const overlay = document.getElementById('active911Overlay');
   if (overlay) overlay.hidden = true;
   active911PopupOpen = false;
+
+  if (active911DismissTimer) {
+    clearTimeout(active911DismissTimer);
+    active911DismissTimer = null;
+  }
 }
 
 async function checkActive911Alerts() {
