@@ -376,14 +376,14 @@ function loadServiceAreaBoundary() {
             { animate: false }
           );
         } else {
-          // Open the standard dashboard one level closer while retaining the
-          // same fitted center and preventing distant units from changing it.
-          const boostedZoom = Math.min(
+          // Keep the standard dashboard at the natural service-area fit.
+          // Collision fan-out and the tighter framing are kiosk-only features.
+          const standardZoom = Math.min(
             map.getZoom() + Number(DASHBOARD_CONFIG.standardServiceAreaZoomBoost || 0),
             Number(DASHBOARD_CONFIG.standardServiceAreaMaxZoom || 14)
           );
 
-          map.setView(fittedCenter, boostedZoom, { animate: false });
+          map.setView(fittedCenter, standardZoom, { animate: false });
         }
 
         serviceAreaViewApplied = true;
@@ -1334,8 +1334,12 @@ function renderDashboard(locations) {
       );
     });
 
-  const collisionGroups =
-    buildMarkerCollisionGroups(filtered);
+  // Only the unattended kiosk display spreads overlapping marker labels.
+  // The standard dashboard keeps every identifier directly on its true GPS
+  // position and uses the normal marker appearance.
+  const collisionGroups = IS_KIOSK_MODE
+    ? buildMarkerCollisionGroups(filtered)
+    : filtered.map(vehicle => [vehicle]);
   const metrics = buildFleetMetrics(
     locations
   );
