@@ -1682,18 +1682,39 @@ function renderKioskStatusBoard(locations, metrics, gps, noGps, stale) {
       : '<div class="kiosk-empty-state">No Active Incidents</div>';
   }
 
-  const stationNames = [...new Set(locations
-    .map(v => String(v.homeStation || '').trim())
-    .filter(Boolean))]
-    .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  const normalizeStationKey = value => {
+    const text = String(value || '').trim();
+    if (!text) return '';
+    if (/^(?:hq|headquarters)$/i.test(text)) return 'headquarters';
+    const stationNumber = text.match(/(?:station\s*)?(\d+)/i)?.[1];
+    return stationNumber ? `station ${stationNumber}` : text.toLowerCase();
+  };
+
+  /*
+   * Build kiosk station rows from both configured home stations and current
+   * recognized facilities. This keeps a unit visible at its live facility
+   * even when that facility differs from its configured home station.
+   */
+  const stationDisplayNames = new Map();
+  locations.forEach(v => {
+    [v.homeStation, v.facility].forEach(value => {
+      const key = normalizeStationKey(value);
+      if (!key || /^(?:away|unknown)$/i.test(String(value || '').trim())) return;
+      if (!stationDisplayNames.has(key)) {
+        stationDisplayNames.set(key, key === 'headquarters' ? 'Headquarters' : String(value || '').trim());
+      }
+    });
+  });
+
+  const stationNames = [...stationDisplayNames.entries()]
+    .sort((a, b) => a[1].localeCompare(b[1], undefined, { numeric: true }));
 
   const stationList = document.getElementById('kioskStationList');
   if (stationList) {
-    stationList.innerHTML = stationNames.map(station => {
-      const stationUnits = locations.filter(v => String(v.homeStation || '').trim() === station);
-      const present = stationUnits.filter(v => {
-        const status = getStatus(v);
-        return status === 'defined' && String(v.facility || '').trim().toLowerCase() === station.toLowerCase();
+    stationList.innerHTML = stationNames.map(([stationKey, station]) => {
+      const present = locations.filter(v => {
+        const facilityKey = normalizeStationKey(v.facility);
+        return facilityKey && facilityKey === stationKey;
       });
       const stationNumber = station.match(/\d+/)?.[0] || station.replace(/^Station\s*/i, '') || station;
       const stationLabel = /headquarters/i.test(station) ? 'HQ' : stationNumber;

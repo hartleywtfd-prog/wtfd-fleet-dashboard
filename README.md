@@ -1,3 +1,11 @@
+# Version 3.6.2
+
+## 3.6.2 kiosk facility grouping correction
+- Uses v3.6.1 as the base.
+- Groups kiosk station rows by each unit's current recognized facility before its configured home station.
+- Shows responding units in the station row when they are physically at that facility, including Engine 41 at Headquarters.
+- Keeps the standard dashboard unchanged.
+
 # Version 3.6.0
 
 ## 3.6.0 kiosk compatibility update
