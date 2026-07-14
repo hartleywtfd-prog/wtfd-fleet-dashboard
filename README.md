@@ -1,4 +1,8 @@
-# Version 2.9.5
+# Version 2.9.6
+
+- Reduced the width of kiosk apparatus identifiers displayed directly on the map.
+- Removed forced minimum widths from ladder and prevention map markers.
+- Preserved the existing marker height and standard dashboard sizing.
 
 - Reduced the width of apparatus pills in kiosk station cards only.
 - Preserved the standard dashboard layout and map marker sizing.

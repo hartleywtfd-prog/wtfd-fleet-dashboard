@@ -1855,3 +1855,29 @@ body,
     padding-right: 2px;
   }
 }
+
+
+/* ===== Version 2.9.6 narrower kiosk map apparatus identifiers ===== */
+/* Remove forced marker widths while preserving the existing marker height. */
+.kiosk-mode .marker-tag {
+  min-width: 0;
+  width: max-content;
+  padding-left: 4px;
+  padding-right: 4px;
+}
+.kiosk-mode .marker-ladder,
+.kiosk-mode .marker-prevention {
+  min-width: 0;
+}
+@media (max-height: 850px) {
+  .kiosk-mode .marker-tag {
+    min-width: 0;
+    width: max-content;
+    padding-left: 3px;
+    padding-right: 3px;
+  }
+  .kiosk-mode .marker-ladder,
+  .kiosk-mode .marker-prevention {
+    min-width: 0;
+  }
+}
