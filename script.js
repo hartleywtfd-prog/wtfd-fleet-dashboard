@@ -2169,9 +2169,63 @@ function active911FormatTime(value) {
   });
 }
 
+function parseIncidentTimestamp(value) {
+  if (value === null || value === undefined || value === '') return null;
+
+  if (typeof value === 'number' || /^\d+(?:\.\d+)?$/.test(String(value).trim())) {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) return null;
+    // Active911 integrations may provide Unix seconds or JavaScript milliseconds.
+    return numeric < 1e12 ? numeric * 1000 : numeric;
+  }
+
+  const text = String(value).trim();
+  let parsed = new Date(text).getTime();
+
+  // Safari/Silk are less forgiving of SQL-style dates. Treat an unzoned
+  // YYYY-MM-DD HH:mm:ss value as local time rather than UTC.
+  if (!Number.isFinite(parsed)) {
+    const localMatch = text.match(
+      /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?$/
+    );
+    if (localMatch) {
+      const [, year, month, day, hour, minute, second = '0'] = localMatch;
+      parsed = new Date(
+        Number(year),
+        Number(month) - 1,
+        Number(day),
+        Number(hour),
+        Number(minute),
+        Number(second)
+      ).getTime();
+    }
+  }
+
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 function incidentReceivedTime(alert) {
-  const parsed = new Date(alert?.received || '').getTime();
-  return Number.isFinite(parsed) ? parsed : Date.now();
+  const candidates = [
+    alert?.received,
+    alert?.receivedAt,
+    alert?.received_at,
+    alert?.timestamp,
+    alert?.createdAt,
+    alert?.created_at
+  ];
+
+  const now = Date.now();
+  for (const candidate of candidates) {
+    const parsed = parseIncidentTimestamp(candidate);
+    if (!Number.isFinite(parsed)) continue;
+
+    // A future timestamp normally indicates a missing/incorrect timezone.
+    // Start the elapsed timer when this browser first saw the incident.
+    if (parsed > now + 30 * 1000) return now;
+    return parsed;
+  }
+
+  return now;
 }
 
 function incidentAgeText(timestamp) {
