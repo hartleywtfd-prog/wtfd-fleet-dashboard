@@ -1,6 +1,6 @@
 /* ===== User-adjustable dashboard settings ===== */
 const DASHBOARD_CONFIG = {
-  version: '3.6.1',
+  version: '3.7.0',
   // Fallback map view used only if the jurisdiction boundary cannot load.
   defaultCenterLat: 39.62784,
   defaultCenterLon: -84.15996,
@@ -101,6 +101,10 @@ let activeIncidentAlert = null;
 let currentRespondingUnits = [];
 let lastRefreshDisplayTimer = null;
 let activeIncidents = [];
+// Preserve one stable start time per incident across repeated Active911 polls.
+// Without this cache, an invalid/future source timestamp can reset to Date.now()
+// on every poll, leaving the elapsed timer near 0:00 and preventing expiration.
+const incidentStartTimes = new Map();
 let reconnectRetryTimer = null;
 let preferredAutomaticLayer = '';
 let lastDashboardSettings = {};
@@ -2251,8 +2255,17 @@ function incidentElapsedText(timestamp) {
 function addIncidentToBanner(alert) {
   if (!alert) return;
   const key = incidentKey(alert) || String(Date.now());
+
+  // Active911 may return the same alert on every poll. Calculate its start time
+  // only once so a fallback time is not reset every five seconds.
+  let timestamp = incidentStartTimes.get(key);
+  if (!Number.isFinite(timestamp)) {
+    timestamp = incidentReceivedTime(alert);
+    incidentStartTimes.set(key, timestamp);
+  }
+
   activeIncidents = activeIncidents.filter(item => item.key !== key);
-  activeIncidents.unshift({ key, alert, timestamp: incidentReceivedTime(alert) });
+  activeIncidents.unshift({ key, alert, timestamp });
   activeIncidents = activeIncidents.slice(0, DASHBOARD_CONFIG.active911BannerMaxItems);
   renderIncidentBanner();
 }

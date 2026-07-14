@@ -1,3 +1,12 @@
+# Version 3.7.0
+
+## Consolidated incident timer and release identification correction
+- Uses v3.6.3 as the base and retains all marker, kiosk, Silk, and facility-grouping updates.
+- Keeps one stable start time for each Active911 incident across repeated API polls.
+- Prevents invalid or future-dated source timestamps from resetting the elapsed timer to 0:00.
+- Ensures the same stable timestamp controls both the elapsed counter and 10-minute ribbon expiration.
+- Updates the visible footer and browser cache-buster values to v3.7.0.
+
 # Version 3.6.3
 
 ## 3.6.3 kiosk facility grouping correction
