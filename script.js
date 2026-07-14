@@ -866,7 +866,7 @@ function shortLabel(v) {
   return unit.substring(0, 5);
 }
 
-function markerIcon(v, status) {
+function markerIcon(v, status, pixelOffset = [0, 0]) {
   let statusClass = '';
 
   if (status === 'responding') {
@@ -895,7 +895,13 @@ function markerIcon(v, status) {
       </div>
     `,
     iconSize: [102, 46],
-    iconAnchor: [51, 23]
+    // Offset only the rendered icon. The marker's LatLng remains the
+    // apparatus's real GPS coordinate, so visual separation can never
+    // move a unit outside the jurisdiction or alter popup navigation.
+    iconAnchor: [
+      51 - Number(pixelOffset[0] || 0),
+      23 - Number(pixelOffset[1] || 0)
+    ]
   });
 }
 
@@ -954,52 +960,114 @@ function timeAgo(time) {
   return hours + ' hr ago';
 }
 
-function groupKey(v) {
-  if (
-    v.facility &&
-    v.facility !== 'Away' &&
-    v.facility !== 'Unknown'
-  ) {
-    return 'FACILITY:' + v.facility;
-  }
+/*
+ * Build visual collision groups using the marker positions at the kiosk's
+ * fixed map zoom. This groups only apparatus whose 102 x 46 marker tags
+ * would materially overlap on screen. GPS coordinates are never changed.
+ */
+function buildMarkerCollisionGroups(locations) {
+  const pending = locations.map((vehicle, originalIndex) => ({
+    vehicle,
+    originalIndex,
+    point: map.latLngToContainerPoint([
+      Number(vehicle.lat),
+      Number(vehicle.lon)
+    ])
+  }));
 
-  return (
-    'GPS:' +
-    Number(v.lat).toFixed(4) +
-    ',' +
-    Number(v.lon).toFixed(4)
-  );
-}
+  const groups = [];
+  const visited = new Set();
 
-function buildGroups(locations) {
-  const groups = {};
+  pending.forEach((item, itemIndex) => {
+    if (visited.has(itemIndex)) return;
 
-  locations.forEach(v => {
-    const key = groupKey(v);
+    const groupIndexes = [];
+    const queue = [itemIndex];
+    visited.add(itemIndex);
 
-    if (!groups[key]) {
-      groups[key] = [];
+    while (queue.length) {
+      const currentIndex = queue.shift();
+      const current = pending[currentIndex];
+      groupIndexes.push(currentIndex);
+
+      pending.forEach((candidate, candidateIndex) => {
+        if (visited.has(candidateIndex)) return;
+
+        const horizontalGap = Math.abs(
+          current.point.x - candidate.point.x
+        );
+        const verticalGap = Math.abs(
+          current.point.y - candidate.point.y
+        );
+
+        // Keep the threshold narrower than the marker itself so nearby
+        // apparatus on separate roads are not unnecessarily spread apart.
+        if (horizontalGap < 78 && verticalGap < 34) {
+          visited.add(candidateIndex);
+          queue.push(candidateIndex);
+        }
+      });
     }
 
-    groups[key].push(v);
+    groups.push(
+      groupIndexes.map(index => pending[index].vehicle)
+    );
   });
 
   return groups;
 }
 
-function getGroupAnchor(group) {
-  let lat = 0;
-  let lon = 0;
+function markerLayoutOffsets(total) {
+  if (total <= 1) return [[0, 0]];
 
-  group.forEach(v => {
-    lat += Number(v.lat);
-    lon += Number(v.lon);
-  });
+  // Marker tags are 102 x 46 pixels. These center-to-center spacings leave
+  // a small, readable gap while keeping the cluster close to its GPS point.
+  const xGap = 110;
+  const yGap = 54;
 
-  return [
-    lat / group.length,
-    lon / group.length
-  ];
+  if (total === 2) {
+    return [
+      [-xGap / 2, 0],
+      [xGap / 2, 0]
+    ];
+  }
+
+  if (total === 3) {
+    return [
+      [0, -yGap / 2],
+      [-xGap / 2, yGap / 2],
+      [xGap / 2, yGap / 2]
+    ];
+  }
+
+  if (total === 4) {
+    return [
+      [-xGap / 2, -yGap / 2],
+      [xGap / 2, -yGap / 2],
+      [-xGap / 2, yGap / 2],
+      [xGap / 2, yGap / 2]
+    ];
+  }
+
+  const columns = total <= 6 ? 3 : 4;
+  const rows = Math.ceil(total / columns);
+  const offsets = [];
+
+  for (let index = 0; index < total; index++) {
+    const row = Math.floor(index / columns);
+    const itemsInRow = Math.min(
+      columns,
+      total - row * columns
+    );
+    const column = index % columns;
+
+    offsets.push([
+      (column - (itemsInRow - 1) / 2) * xGap,
+      (row - (rows - 1) / 2) * yGap
+    ]);
+  }
+
+  return offsets;
 }
 
 function statusPriority(status) {
@@ -1030,154 +1098,21 @@ function sortGroupForLayout(group) {
     const sA = statusPriority(getStatus(a));
     const sB = statusPriority(getStatus(b));
 
-    if (sA !== sB) {
-      return sA - sB;
-    }
+    if (sA !== sB) return sA - sB;
 
-    const tA =
-      typePriority[
-        String(a.type || '').toLowerCase()
-      ] || 99;
+    const tA = typePriority[
+      String(a.type || '').toLowerCase()
+    ] || 99;
+    const tB = typePriority[
+      String(b.type || '').toLowerCase()
+    ] || 99;
 
-    const tB =
-      typePriority[
-        String(b.type || '').toLowerCase()
-      ] || 99;
+    if (tA !== tB) return tA - tB;
 
-    if (tA !== tB) {
-      return tA - tB;
-    }
-
-    return String(
-      a.unit || ''
-    ).localeCompare(
+    return String(a.unit || '').localeCompare(
       String(b.unit || '')
     );
   });
-}
-
-/*
- * Parking-grid layout for facilities.
- * The highest-priority unit occupies the first slot.
- * Shared facilities spread into a compact bay-style grid.
- */
-function getFacilityParkingOffset(
-  anchorLat,
-  anchorLon,
-  index,
-  total
-) {
-  if (total <= 1) {
-    return [anchorLat, anchorLon];
-  }
-
-  const columns =
-    total <= 4 ? 2 : 3;
-
-  const row = Math.floor(
-    index / columns
-  );
-
-  const col = index % columns;
-
-  const rows = Math.ceil(
-    total / columns
-  );
-
-  const latSpacing = 0.00058;
-  const lonSpacing = 0.00088;
-
-  const colOffset =
-    col - (columns - 1) / 2;
-
-  const rowOffset =
-    row - (rows - 1) / 2;
-
-  return [
-    anchorLat - rowOffset * latSpacing,
-    anchorLon + colOffset * lonSpacing
-  ];
-}
-
-function getGpsFanOffset(
-  anchorLat,
-  anchorLon,
-  index,
-  total
-) {
-  if (total <= 1 || index === 0) {
-    return [anchorLat, anchorLon];
-  }
-
-  const adjustedIndex = index - 1;
-  const firstRingCapacity = 6;
-
-  const ring =
-    adjustedIndex < firstRingCapacity
-      ? 1
-      : 2;
-
-  const ringIndex =
-    ring === 1
-      ? adjustedIndex
-      : adjustedIndex -
-        firstRingCapacity;
-
-  const ringCount =
-    ring === 1
-      ? Math.min(
-          total - 1,
-          firstRingCapacity
-        )
-      : Math.max(
-          total - 1 -
-          firstRingCapacity,
-          1
-        );
-
-  const angle =
-    -Math.PI / 2 +
-    (2 * Math.PI * ringIndex) /
-      ringCount;
-
-  const latSpacing =
-    ring === 1 ? 0.00062 : 0.00103;
-
-  const lonSpacing =
-    ring === 1 ? 0.00088 : 0.00146;
-
-  return [
-    anchorLat +
-      Math.sin(angle) *
-        latSpacing,
-    anchorLon +
-      Math.cos(angle) *
-        lonSpacing
-  ];
-}
-
-function getDisplayPosition(
-  key,
-  anchorLat,
-  anchorLon,
-  index,
-  total
-) {
-  if (key.startsWith('FACILITY:')) {
-    return getFacilityParkingOffset(
-      anchorLat,
-      anchorLon,
-      index,
-      total
-    );
-  }
-
-  return getGpsFanOffset(
-    anchorLat,
-    anchorLon,
-    index,
-    total
-  );
 }
 
 function clearMarkers() {
@@ -1399,7 +1334,8 @@ function renderDashboard(locations) {
       );
     });
 
-  const groups = buildGroups(filtered);
+  const collisionGroups =
+    buildMarkerCollisionGroups(filtered);
   const metrics = buildFleetMetrics(
     locations
   );
@@ -1409,111 +1345,82 @@ function renderDashboard(locations) {
   let stale = 0;
 
 
-  Object.keys(groups).forEach(key => {
-    const originalGroup = groups[key];
-
-    const layoutGroup =
-      sortGroupForLayout(
-        originalGroup
-      );
-
-    const [anchorLat, anchorLon] =
-      getGroupAnchor(
-        originalGroup
-      );
-
-    layoutGroup.forEach(
-      (v, index) => {
-        const status = getStatus(v);
-
-        const [
-          displayLat,
-          displayLon
-        ] = getDisplayPosition(
-          key,
-          anchorLat,
-          anchorLon,
-          index,
-          layoutGroup.length
-        );
-
-        const gpsStatus = String(
-          v.gpsStatus || ''
-        ).toLowerCase();
-
-        if (gpsStatus === 'gps') {
-          gps++;
-        }
-
-        if (gpsStatus === 'no gps') {
-          noGps++;
-        }
-
-        if (status === 'stale') {
-          stale++;
-        }
-
-        try {
-          const marker = L.marker(
-            [
-              displayLat,
-              displayLon
-            ],
-            {
-              icon: markerIcon(
-                v,
-                status
-              ),
-              zIndexOffset:
-                markerZIndex(
-                  v,
-                  status
-                )
-            }
-          ).addTo(map);
-
-          const emergencyText =
-            hasEmergencyLights(v)
-              ? '<span class="popup-alert">ACTIVE</span>'
-              : 'Off';
-
-          marker.bindPopup(`
-            <div class="popup-title">
-              <span class="popup-svg">
-                ${apparatusSvg(v)}
-              </span>
-              <strong>${escapeHtml(v.unit)}</strong>
-            </div>
-            <br>
-            <strong>Status:</strong> ${escapeHtml(statusText(status, v))}<br>
-            <strong>Emergency Lights:</strong> ${emergencyText}<br>
-            <strong>Facility:</strong> ${escapeHtml(v.facility || 'Away')}<br>
-            <strong>Location:</strong> ${escapeHtml(v.location || 'Unknown')}<br>
-            <strong>Home Station:</strong> ${escapeHtml(v.homeStation || '')}<br>
-            <strong>Speed:</strong> ${Number(v.speed || 0).toFixed(1)} mph<br>
-            <strong>Updated:</strong> ${escapeHtml(timeAgo(v.lastUpdate))}<br><br>
-            ${
-              v.mapLink
-                ? `<a href="${escapeHtml(v.mapLink)}" target="_blank" rel="noopener noreferrer">Open in Google Maps</a>`
-                : ''
-            }
-          `);
-
-          nextMarkers[
-            v.rawName +
-            '-' +
-            v.unit
-          ] = marker;
-        } catch (error) {
-          markerBuildErrors.push({
-            unit: v.unit || v.rawName || 'Unknown unit',
-            error
-          });
-          console.error('Unable to render vehicle marker:', v, error);
-        }
-
-      }
+  collisionGroups.forEach(originalGroup => {
+    const layoutGroup = sortGroupForLayout(
+      originalGroup
     );
+    const offsets = markerLayoutOffsets(
+      layoutGroup.length
+    );
+
+    layoutGroup.forEach((v, index) => {
+      const status = getStatus(v);
+      const pixelOffset = offsets[index] || [0, 0];
+
+      const gpsStatus = String(
+        v.gpsStatus || ''
+      ).toLowerCase();
+
+      if (gpsStatus === 'gps') gps++;
+      if (gpsStatus === 'no gps') noGps++;
+      if (status === 'stale') stale++;
+
+      try {
+        const marker = L.marker(
+          [Number(v.lat), Number(v.lon)],
+          {
+            icon: markerIcon(
+              v,
+              status,
+              pixelOffset
+            ),
+            zIndexOffset:
+              markerZIndex(v, status)
+          }
+        ).addTo(map);
+
+        const emergencyText =
+          hasEmergencyLights(v)
+            ? '<span class="popup-alert">ACTIVE</span>'
+            : 'Off';
+
+        marker.bindPopup(`
+          <div class="popup-title">
+            <span class="popup-svg">
+              ${apparatusSvg(v)}
+            </span>
+            <strong>${escapeHtml(v.unit)}</strong>
+          </div>
+          <br>
+          <strong>Status:</strong> ${escapeHtml(statusText(status, v))}<br>
+          <strong>Emergency Lights:</strong> ${emergencyText}<br>
+          <strong>Facility:</strong> ${escapeHtml(v.facility || 'Away')}<br>
+          <strong>Location:</strong> ${escapeHtml(v.location || 'Unknown')}<br>
+          <strong>Home Station:</strong> ${escapeHtml(v.homeStation || '')}<br>
+          <strong>Speed:</strong> ${Number(v.speed || 0).toFixed(1)} mph<br>
+          <strong>Updated:</strong> ${escapeHtml(timeAgo(v.lastUpdate))}<br><br>
+          ${
+            v.mapLink
+              ? `<a href="${escapeHtml(v.mapLink)}" target="_blank" rel="noopener noreferrer">Open in Google Maps</a>`
+              : ''
+          }
+        `);
+
+        nextMarkers[
+          v.rawName + '-' + v.unit
+        ] = marker;
+      } catch (error) {
+        markerBuildErrors.push({
+          unit: v.unit || v.rawName || 'Unknown unit',
+          error
+        });
+        console.error(
+          'Unable to render vehicle marker:',
+          v,
+          error
+        );
+      }
+    });
   });
 
   // Replace the live marker set only after the new set has been built.
