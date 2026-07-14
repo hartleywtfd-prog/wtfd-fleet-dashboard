@@ -17,7 +17,8 @@ const DASHBOARD_CONFIG = {
   standardServiceAreaZoomBoost: 1,
   standardServiceAreaMaxZoom: 14,
   // Kiosk-only framing: one level tighter with a slight eastward center shift.
-  kioskServiceAreaZoomBoost: 1,
+  kioskServiceAreaZoomBoost: 0,
+  kioskServiceAreaFitPadding: 50,
   kioskServiceAreaMaxZoom: 14,
   kioskServiceAreaCenterShiftLon: 0.006,
 
@@ -347,9 +348,13 @@ function loadServiceAreaBoundary() {
         !serviceAreaViewApplied &&
         bounds.isValid()
       ) {
+        const serviceAreaFitPadding = IS_KIOSK_MODE
+          ? Number(DASHBOARD_CONFIG.kioskServiceAreaFitPadding || 50)
+          : 30;
+
         map.fitBounds(bounds, {
-          paddingTopLeft: [30, 30],
-          paddingBottomRight: [30, 30],
+          paddingTopLeft: [serviceAreaFitPadding, serviceAreaFitPadding],
+          paddingBottomRight: [serviceAreaFitPadding, serviceAreaFitPadding],
           maxZoom: DASHBOARD_CONFIG.serviceAreaMaxZoom,
           animate: false
         });

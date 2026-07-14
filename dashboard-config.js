@@ -25,7 +25,8 @@ window.WTFD_DASHBOARD_CONFIG = {
   standardServiceAreaMaxZoom: 14,
 
   // Kiosk-only service-area framing.
-  kioskServiceAreaZoomBoost: 1,
+  kioskServiceAreaZoomBoost: 0,
+  kioskServiceAreaFitPadding: 50,
   kioskServiceAreaMaxZoom: 14,
   kioskServiceAreaCenterShiftLon: 0.006
 };
