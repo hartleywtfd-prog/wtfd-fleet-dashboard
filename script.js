@@ -1,6 +1,6 @@
 /* ===== User-adjustable dashboard settings ===== */
 const DASHBOARD_CONFIG = {
-  version: '2.9.2',
+  version: '2.9.3',
   // Fallback map view used only if the jurisdiction boundary cannot load.
   defaultCenterLat: 39.62784,
   defaultCenterLon: -84.15996,
@@ -214,6 +214,25 @@ function apiRequest(action) {
     return response.json();
   });
 }
+
+
+function clearLegacyDarkThemeState() {
+  document.documentElement.classList.remove('dark-mode', 'night-mode', 'map-dark');
+  document.body.classList.remove('dark-mode', 'night-mode', 'map-dark');
+
+  [
+    'mapTheme',
+    'map-theme',
+    'preferredMapLayer',
+    'preferred-map-layer',
+    'dashboardTheme',
+    'dashboard-theme'
+  ].forEach(key => {
+    try { localStorage.removeItem(key); } catch (_) {}
+  });
+}
+
+clearLegacyDarkThemeState();
 
 function createBaseLayers() {
   baseLayers = {
