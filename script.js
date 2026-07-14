@@ -1,6 +1,6 @@
 /* ===== User-adjustable dashboard settings ===== */
 const DASHBOARD_CONFIG = {
-  version: '3.4.0',
+  version: '3.5.0',
   // Fallback map view used only if the jurisdiction boundary cannot load.
   defaultCenterLat: 39.62784,
   defaultCenterLon: -84.15996,
@@ -1037,30 +1037,35 @@ function buildMarkerCollisionGroups(locations) {
 function markerLayoutOffsets(total) {
   if (total <= 1) return [[0, 0]];
 
-  // Keep clustered apparatus close to the true point. Vertical stacking uses
-  // far less geographic-looking displacement than the previous wide fan-out.
-  const verticalGap = IS_KIOSK_MODE ? 38 : 40;
+  // Compact fan-out patterns keep every label visible without making an
+  // apparatus appear to be on a different road or outside the jurisdiction.
+  // The true Leaflet marker and popup remain anchored to the GPS coordinate;
+  // only the label is displaced and connected back to that point.
+  const x = IS_KIOSK_MODE ? 43 : 46;
+  const y = IS_KIOSK_MODE ? 34 : 36;
 
-  if (total <= 4) {
-    const startY = -((total - 1) * verticalGap) / 2;
-    return Array.from({ length: total }, (_, index) => [
-      0,
-      startY + index * verticalGap
-    ]);
-  }
+  const patterns = {
+    2: [[-x, 0], [x, 0]],
+    3: [[0, -y], [-x, y * 0.7], [x, y * 0.7]],
+    4: [[-x, -y], [x, -y], [-x, y], [x, y]],
+    5: [[0, -y * 1.25], [-x, -y * 0.25], [x, -y * 0.25], [-x, y], [x, y]],
+    6: [[-x, -y], [x, -y], [-x, 0], [x, 0], [-x, y], [x, y]]
+  };
 
-  // Larger station groups use two compact columns. Offsets are deliberately
-  // capped so a label never appears a long distance from the apparatus.
-  const columnGap = IS_KIOSK_MODE ? 46 : 48;
-  const rows = Math.ceil(total / 2);
+  if (patterns[total]) return patterns[total];
+
+  // Seven or more labels use a compact three-column grid. This is uncommon,
+  // but prevents any label from being completely hidden in a dense station.
+  const columns = 3;
+  const rows = Math.ceil(total / columns);
   const offsets = [];
 
   for (let index = 0; index < total; index++) {
-    const column = index % 2;
-    const row = Math.floor(index / 2);
+    const column = index % columns;
+    const row = Math.floor(index / columns);
     offsets.push([
-      column === 0 ? -columnGap : columnGap,
-      (row - (rows - 1) / 2) * verticalGap
+      (column - 1) * x,
+      (row - (rows - 1) / 2) * y
     ]);
   }
 
@@ -2340,6 +2345,20 @@ if (IS_KIOSK_MODE) {
     window.location.reload();
   }, DASHBOARD_CONFIG.kioskAutoReloadMs);
 }
+
+// Recover promptly when a kiosk regains connectivity or the browser becomes
+// visible again after the display device wakes. The normal polling intervals
+// remain in place, so these are safe one-time refresh requests.
+window.addEventListener('online', () => {
+  loadDashboard();
+  checkActive911Alerts();
+});
+
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'visible') return;
+  loadDashboard();
+  checkActive911Alerts();
+});
 
 setInterval(() => {
   if (!lastSuccessfulDashboardRefresh) return;

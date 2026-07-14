@@ -1184,7 +1184,7 @@ button:disabled,
 .kiosk-health-grid strong { display: block; margin-top: 3px; color: #fff; font-size: 19px; }
 .kiosk-health-grid strong.good { color: #4ade80; }
 .kiosk-health-grid strong.bad { color: #f87171; }
-.kiosk-mode .map-legend { right: 14px; bottom: 28px; transform: scale(1.08); transform-origin: bottom right; }
+.kiosk-mode .map-legend { right: 16px; bottom: 30px; transform: scale(1.18); transform-origin: bottom right; }
 .kiosk-mode .leaflet-container { cursor: none !important; }
 
 @media (max-height: 850px) {

@@ -1,3 +1,13 @@
+# Version 3.5.0
+
+- Replaces vertical marker stacking with a compact fan-out pattern for 2–6 apparatus at the same or nearly identical coordinates.
+- Uses a compact three-column layout for unusually large apparatus clusters.
+- Keeps every marker and popup anchored to its true GPS coordinate and draws connector lines to displaced labels.
+- Enlarges the kiosk status legend for across-the-room readability.
+- Keeps GPS age formatting consistent, including values such as `GPS 4h 49m old` and `GPS 1d 3h old`.
+- Immediately refreshes fleet and Active911 data when connectivity returns or the display wakes from a hidden state.
+- Preserves all current standard-dashboard and kiosk features from v3.4.0.
+
 # Version 3.4.0
 
 - Reduced the width of kiosk apparatus identifiers displayed directly on the map.
