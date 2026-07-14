@@ -1,6 +1,7 @@
-# WTFD Fleet Dashboard v2.9.2
+# WTFD Fleet Dashboard v2.9.3
+- Added versioned CSS/JavaScript URLs and Cloudflare no-cache headers to prevent Fully Kiosk from retaining the former dark map.
 
-## v2.9.2 light-map readability update
+## v2.9.3 light-map readability update
 
 - Standard and kiosk displays now always start with the light Street basemap.
 - Removed the Dark map option and automatic nighttime dark-theme switching.
