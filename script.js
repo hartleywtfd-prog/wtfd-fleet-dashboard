@@ -1,6 +1,6 @@
 /* ===== User-adjustable dashboard settings ===== */
 const DASHBOARD_CONFIG = {
-  version: '3.0.0',
+  version: '2.9.6',
   // Fallback map view used only if the jurisdiction boundary cannot load.
   defaultCenterLat: 39.62784,
   defaultCenterLon: -84.15996,
@@ -72,7 +72,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
 let map;
 let markers = {};
-let kioskMarkerTails = [];
 let allLocations = [];
 let activeBaseLayer = 'street';
 let baseLayers = {};
@@ -1157,55 +1156,6 @@ function getGpsFanOffset(
   ];
 }
 
-function getKioskPixelDisplayPosition(
-  anchorLat,
-  anchorLon,
-  index,
-  total,
-  isFacility
-) {
-  if (!map || total <= 1) {
-    return [anchorLat, anchorLon];
-  }
-
-  const anchorPoint = map.latLngToLayerPoint(
-    L.latLng(anchorLat, anchorLon)
-  );
-
-  let offsetX = 0;
-  let offsetY = 0;
-
-  if (isFacility) {
-    const columns = total <= 4 ? 2 : 3;
-    const rows = Math.ceil(total / columns);
-    const row = Math.floor(index / columns);
-    const col = index % columns;
-    offsetX = (col - (columns - 1) / 2) * 82;
-    offsetY = (row - (rows - 1) / 2) * 48;
-  } else {
-    const firstRingCapacity = 8;
-    const ring = Math.floor(index / firstRingCapacity);
-    const ringIndex = index % firstRingCapacity;
-    const ringCount = Math.min(
-      firstRingCapacity,
-      total - ring * firstRingCapacity
-    );
-    const radiusX = 68 + ring * 62;
-    const radiusY = 48 + ring * 42;
-    const angle =
-      -Math.PI / 2 +
-      (2 * Math.PI * ringIndex) / ringCount;
-    offsetX = Math.cos(angle) * radiusX;
-    offsetY = Math.sin(angle) * radiusY;
-  }
-
-  const displayLatLng = map.layerPointToLatLng(
-    anchorPoint.add(L.point(offsetX, offsetY))
-  );
-
-  return [displayLatLng.lat, displayLatLng.lng];
-}
-
 function getDisplayPosition(
   key,
   anchorLat,
@@ -1213,16 +1163,6 @@ function getDisplayPosition(
   index,
   total
 ) {
-  if (IS_KIOSK_MODE && total > 1) {
-    return getKioskPixelDisplayPosition(
-      anchorLat,
-      anchorLon,
-      index,
-      total,
-      key.startsWith('FACILITY:')
-    );
-  }
-
   if (key.startsWith('FACILITY:')) {
     return getFacilityParkingOffset(
       anchorLat,
@@ -1240,50 +1180,7 @@ function getDisplayPosition(
   );
 }
 
-function clearKioskMarkerTails() {
-  kioskMarkerTails.forEach(layer => {
-    if (map && map.hasLayer(layer)) map.removeLayer(layer);
-  });
-  kioskMarkerTails = [];
-}
-
-function addKioskMarkerTail(anchorLat, anchorLon, displayLat, displayLon) {
-  if (!IS_KIOSK_MODE || !map) return;
-
-  const tail = L.polyline(
-    [
-      [anchorLat, anchorLon],
-      [displayLat, displayLon]
-    ],
-    {
-      className: 'kiosk-marker-tail',
-      color: '#ffffff',
-      weight: 2,
-      opacity: 0.82,
-      dashArray: '5 4',
-      interactive: false
-    }
-  ).addTo(map);
-
-  const anchor = L.circleMarker(
-    [anchorLat, anchorLon],
-    {
-      className: 'kiosk-marker-anchor',
-      radius: 4,
-      color: '#ffffff',
-      weight: 2,
-      fillColor: '#0f172a',
-      fillOpacity: 1,
-      interactive: false
-    }
-  ).addTo(map);
-
-  if (tail.bringToBack) tail.bringToBack();
-  kioskMarkerTails.push(tail, anchor);
-}
-
 function clearMarkers() {
-  clearKioskMarkerTails();
   Object.values(markers).forEach(
     marker => map.removeLayer(marker)
   );
@@ -1443,7 +1340,6 @@ function renderCommandPanel(metrics) {
 }
 
 function renderDashboard(locations) {
-  clearKioskMarkerTails();
   const nextMarkers = {};
   const markerBuildErrors = [];
 
@@ -1558,15 +1454,6 @@ function renderDashboard(locations) {
         }
 
         try {
-          if (IS_KIOSK_MODE && layoutGroup.length > 1) {
-            addKioskMarkerTail(
-              anchorLat,
-              anchorLon,
-              displayLat,
-              displayLon
-            );
-          }
-
           const marker = L.marker(
             [
               displayLat,
