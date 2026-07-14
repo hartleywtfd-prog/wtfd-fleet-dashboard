@@ -1,4 +1,4 @@
-# Version 3.3.0
+# Version 3.4.0
 
 - Reduced the width of kiosk apparatus identifiers displayed directly on the map.
 - Removed forced minimum widths from ladder and prevention map markers.
