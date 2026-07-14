@@ -2022,3 +2022,59 @@ body,
   .kiosk-mode .kiosk-health-grid span { font-size: 8px; }
   .kiosk-mode .kiosk-health-grid strong { font-size: 17px; }
 }
+
+/* ===== Version 3.6.0 Silk / TV kiosk viewport compatibility ===== */
+/* Keep browser text autosizing from enlarging the ribbon independently. */
+html,
+body {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* Silk can report a shorter usable viewport than desktop Chromium. Let the
+   kiosk ribbon scroll as a safety net instead of clipping its lower sections. */
+.kiosk-mode #sidebar {
+  box-sizing: border-box;
+  height: 100vh;
+  height: 100dvh;
+  max-height: 100vh;
+  max-height: 100dvh;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.kiosk-mode #sidebar::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+/* Do not force the board into the remaining flex height; allow the sidebar
+   itself to contain every section and scroll only when the TV viewport needs it. */
+.kiosk-mode .kiosk-status-board {
+  flex: 0 0 auto;
+  min-height: auto;
+  overflow: visible;
+}
+
+/* Keep the map and ribbon aligned to the same visible top and bottom edges. */
+.kiosk-mode #app,
+.kiosk-mode #map,
+.kiosk-mode .leaflet-container {
+  height: 100vh;
+  height: 100dvh;
+  max-height: 100vh;
+  max-height: 100dvh;
+}
+
+/* Recover a little vertical room on TV browsers without undoing the larger,
+   across-the-room typography introduced in 3.4.0. */
+@media (max-height: 900px) {
+  .kiosk-mode .brand { padding-top: 6px; padding-bottom: 6px; }
+  .kiosk-mode .clockPanel { padding-top: 6px; padding-bottom: 5px; }
+  .kiosk-mode .summary { padding-top: 5px; padding-bottom: 5px; }
+  .kiosk-mode .kiosk-status-board { gap: 4px; padding-bottom: 4px; }
+  .kiosk-mode .kiosk-board-section { padding-top: 5px; padding-bottom: 5px; }
+  .kiosk-mode .kiosk-station-grid { gap: 4px; }
+}

@@ -1,4 +1,13 @@
-# Version 3.5.0
+# Version 3.6.0
+
+## 3.6.0 kiosk compatibility update
+- Uses the latest 3.5.0 project as its base.
+- Prevents Amazon Silk text autosizing from distorting the kiosk ribbon.
+- Allows the kiosk ribbon to scroll independently when the usable TV viewport is shorter than expected.
+- Prevents the Stations, Units Away, System Health, and version sections from being clipped.
+- Retains the larger kiosk typography and leaves the standard dashboard unchanged.
+- Uses `100dvh` with a `100vh` fallback and keeps the map aligned with the ribbon.
+
 
 - Replaces vertical marker stacking with a compact fan-out pattern for 2–6 apparatus at the same or nearly identical coordinates.
 - Uses a compact three-column layout for unusually large apparatus clusters.
