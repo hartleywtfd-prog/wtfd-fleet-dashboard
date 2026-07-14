@@ -22,7 +22,7 @@ window.WTFD_DASHBOARD_CONFIG = {
 
   // Standard dashboard uses the natural jurisdiction-boundary fit.
   standardServiceAreaZoomBoost: 0,
-  standardServiceAreaMaxZoom: 14,
+  standardServiceAreaMaxZoom: 13,
 
   // Kiosk-only service-area framing.
   kioskServiceAreaZoomBoost: 0,

@@ -1,6 +1,6 @@
 /* ===== User-adjustable dashboard settings ===== */
 const DASHBOARD_CONFIG = {
-  version: '2.9.6',
+  version: '3.3.0',
   // Fallback map view used only if the jurisdiction boundary cannot load.
   defaultCenterLat: 39.62784,
   defaultCenterLon: -84.15996,
@@ -13,9 +13,9 @@ const DASHBOARD_CONFIG = {
     '?where=1%3D1&outFields=*&returnGeometry=true&outSR=4326&f=geojson',
   fitMapToServiceArea: true,
   serviceAreaMaxZoom: 13,
-  // Standard dashboard framing: one level closer after fitting the boundary.
-  standardServiceAreaZoomBoost: 1,
-  standardServiceAreaMaxZoom: 14,
+  // Standard dashboard framing: use the natural jurisdiction-boundary fit.
+  standardServiceAreaZoomBoost: 0,
+  standardServiceAreaMaxZoom: 13,
   // Kiosk-only framing: one level tighter with a slight eastward center shift.
   kioskServiceAreaZoomBoost: 0,
   kioskServiceAreaFitPadding: 50,
@@ -293,6 +293,17 @@ function initMap(settings) {
   activeBaseLayer = 'street';
 
   configureKioskMap();
+
+  // Recalculate compact overlap layouts immediately when the user changes
+  // zoom. A short debounce prevents repeated redraws during animated zooms.
+  let markerLayoutTimer = null;
+  map.on('zoomend', () => {
+    clearTimeout(markerLayoutTimer);
+    markerLayoutTimer = setTimeout(() => {
+      if (allLocations && allLocations.length) renderDashboard(allLocations);
+    }, 60);
+  });
+
   saveHomeMapView();
   loadServiceAreaBoundary();
 }
@@ -376,14 +387,14 @@ function loadServiceAreaBoundary() {
             { animate: false }
           );
         } else {
-          // Keep the standard dashboard at the natural service-area fit.
-          // Collision fan-out and the tighter framing are kiosk-only features.
-          const standardZoom = Math.min(
+          // Keep the standard dashboard at the natural jurisdiction-boundary fit
+          // while preventing distant apparatus from changing the framing.
+          const boostedZoom = Math.min(
             map.getZoom() + Number(DASHBOARD_CONFIG.standardServiceAreaZoomBoost || 0),
             Number(DASHBOARD_CONFIG.standardServiceAreaMaxZoom || 14)
           );
 
-          map.setView(fittedCenter, standardZoom, { animate: false });
+          map.setView(fittedCenter, boostedZoom, { animate: false });
         }
 
         serviceAreaViewApplied = true;
@@ -880,27 +891,39 @@ function markerIcon(v, status, pixelOffset = [0, 0]) {
   }
 
   const shapeClass = markerShapeClass(v);
+  const width = IS_KIOSK_MODE ? 86 : 90;
+  const height = IS_KIOSK_MODE ? 36 : 38;
+  const dx = Number(pixelOffset[0] || 0);
+  const dy = Number(pixelOffset[1] || 0);
+  const connectorLength = Math.sqrt(dx * dx + dy * dy);
+  const connectorAngle = Math.atan2(-dy, -dx) * 180 / Math.PI;
+  const displacedClass = connectorLength > 1 ? ' marker-displaced' : '';
 
   return L.divIcon({
     className: '',
     html: `
       <div
-        class="marker-tag${shapeClass}${statusClass}"
-        style="background:${markerColor(v, status)}"
+        class="marker-shell${displacedClass}"
+        style="--marker-dx:${dx}px;--marker-dy:${dy}px;--connector-length:${connectorLength}px;--connector-angle:${connectorAngle}deg"
       >
-        <span class="marker-svg">
-          ${apparatusSvg(v)}
-        </span>
-        <span class="marker-label">${shortLabel(v)}</span>
+        <span class="marker-connector" aria-hidden="true"></span>
+        <div
+          class="marker-tag${shapeClass}${statusClass}"
+          style="background:${markerColor(v, status)}"
+        >
+          <span class="marker-svg">
+            ${apparatusSvg(v)}
+          </span>
+          <span class="marker-label">${shortLabel(v)}</span>
+        </div>
       </div>
     `,
-    iconSize: [102, 46],
-    // Offset only the rendered icon. The marker's LatLng remains the
-    // apparatus's real GPS coordinate, so visual separation can never
-    // move a unit outside the jurisdiction or alter popup navigation.
+    iconSize: [width, height],
+    // Only the rendered label is offset. The Leaflet marker and popup remain
+    // attached to the apparatus's true GPS coordinate.
     iconAnchor: [
-      51 - Number(pixelOffset[0] || 0),
-      23 - Number(pixelOffset[1] || 0)
+      width / 2 - dx,
+      height / 2 - dy
     ]
   });
 }
@@ -961,9 +984,9 @@ function timeAgo(time) {
 }
 
 /*
- * Build visual collision groups using the marker positions at the kiosk's
- * fixed map zoom. This groups only apparatus whose 102 x 46 marker tags
- * would materially overlap on screen. GPS coordinates are never changed.
+ * Group only apparatus whose true GPS points are essentially on top of one
+ * another. This avoids the old wide fan-out that separated nearby apparatus
+ * even when they were on different roads or different parts of a station.
  */
 function buildMarkerCollisionGroups(locations) {
   const pending = locations.map((vehicle, originalIndex) => ({
@@ -977,6 +1000,8 @@ function buildMarkerCollisionGroups(locations) {
 
   const groups = [];
   const visited = new Set();
+  const thresholdX = IS_KIOSK_MODE ? 22 : 16;
+  const thresholdY = IS_KIOSK_MODE ? 18 : 14;
 
   pending.forEach((item, itemIndex) => {
     if (visited.has(itemIndex)) return;
@@ -993,25 +1018,17 @@ function buildMarkerCollisionGroups(locations) {
       pending.forEach((candidate, candidateIndex) => {
         if (visited.has(candidateIndex)) return;
 
-        const horizontalGap = Math.abs(
-          current.point.x - candidate.point.x
-        );
-        const verticalGap = Math.abs(
-          current.point.y - candidate.point.y
-        );
+        const horizontalGap = Math.abs(current.point.x - candidate.point.x);
+        const verticalGap = Math.abs(current.point.y - candidate.point.y);
 
-        // Keep the threshold narrower than the marker itself so nearby
-        // apparatus on separate roads are not unnecessarily spread apart.
-        if (horizontalGap < 78 && verticalGap < 34) {
+        if (horizontalGap <= thresholdX && verticalGap <= thresholdY) {
           visited.add(candidateIndex);
           queue.push(candidateIndex);
         }
       });
     }
 
-    groups.push(
-      groupIndexes.map(index => pending[index].vehicle)
-    );
+    groups.push(groupIndexes.map(index => pending[index].vehicle));
   });
 
   return groups;
@@ -1020,50 +1037,30 @@ function buildMarkerCollisionGroups(locations) {
 function markerLayoutOffsets(total) {
   if (total <= 1) return [[0, 0]];
 
-  // Marker tags are 102 x 46 pixels. These center-to-center spacings leave
-  // a small, readable gap while keeping the cluster close to its GPS point.
-  const xGap = 110;
-  const yGap = 54;
+  // Keep clustered apparatus close to the true point. Vertical stacking uses
+  // far less geographic-looking displacement than the previous wide fan-out.
+  const verticalGap = IS_KIOSK_MODE ? 38 : 40;
 
-  if (total === 2) {
-    return [
-      [-xGap / 2, 0],
-      [xGap / 2, 0]
-    ];
+  if (total <= 4) {
+    const startY = -((total - 1) * verticalGap) / 2;
+    return Array.from({ length: total }, (_, index) => [
+      0,
+      startY + index * verticalGap
+    ]);
   }
 
-  if (total === 3) {
-    return [
-      [0, -yGap / 2],
-      [-xGap / 2, yGap / 2],
-      [xGap / 2, yGap / 2]
-    ];
-  }
-
-  if (total === 4) {
-    return [
-      [-xGap / 2, -yGap / 2],
-      [xGap / 2, -yGap / 2],
-      [-xGap / 2, yGap / 2],
-      [xGap / 2, yGap / 2]
-    ];
-  }
-
-  const columns = total <= 6 ? 3 : 4;
-  const rows = Math.ceil(total / columns);
+  // Larger station groups use two compact columns. Offsets are deliberately
+  // capped so a label never appears a long distance from the apparatus.
+  const columnGap = IS_KIOSK_MODE ? 46 : 48;
+  const rows = Math.ceil(total / 2);
   const offsets = [];
 
   for (let index = 0; index < total; index++) {
-    const row = Math.floor(index / columns);
-    const itemsInRow = Math.min(
-      columns,
-      total - row * columns
-    );
-    const column = index % columns;
-
+    const column = index % 2;
+    const row = Math.floor(index / 2);
     offsets.push([
-      (column - (itemsInRow - 1) / 2) * xGap,
-      (row - (rows - 1) / 2) * yGap
+      column === 0 ? -columnGap : columnGap,
+      (row - (rows - 1) / 2) * verticalGap
     ]);
   }
 
@@ -1334,12 +1331,8 @@ function renderDashboard(locations) {
       );
     });
 
-  // Only the unattended kiosk display spreads overlapping marker labels.
-  // The standard dashboard keeps every identifier directly on its true GPS
-  // position and uses the normal marker appearance.
-  const collisionGroups = IS_KIOSK_MODE
-    ? buildMarkerCollisionGroups(filtered)
-    : filtered.map(vehicle => [vehicle]);
+  const collisionGroups =
+    buildMarkerCollisionGroups(filtered);
   const metrics = buildFleetMetrics(
     locations
   );
