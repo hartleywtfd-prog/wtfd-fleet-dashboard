@@ -150,3 +150,7 @@ Replace the repository contents with these files, commit, and allow Cloudflare P
 - Reloads kiosk mode after 12 consecutive dashboard failures while preserving the existing periodic kiosk reload.
 - Adds stronger visual treatment for stale GPS cards and markers.
 - Keeps the 10-second dashboard polling interval and no-cache API behavior.
+
+## Version 3.1.0 – Collision-safe apparatus markers
+
+Apparatus sharing the same station, facility, or rounded GPS location are now arranged in a compact screen-pixel grid. Each Leaflet marker remains at its true GPS latitude and longitude; only the visible identifier is offset. Thin connector lines point back to the actual GPS location. This prevents E43/M43-style stacking without moving units outside the jurisdiction as the map zoom changes.
