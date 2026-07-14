@@ -1,3 +1,8 @@
+# Version 2.9.5
+
+- Reduced the width of apparatus pills in kiosk station cards only.
+- Preserved the standard dashboard layout and map marker sizing.
+
 # WTFD Fleet Dashboard v2.9.4
 
 ## v2.9.4 standard-dashboard map framing update

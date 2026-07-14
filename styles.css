@@ -1840,3 +1840,18 @@ body,
   right: 12px;
   font-size: 13px;
 }
+
+
+/* ===== Version 2.9.5 narrower kiosk apparatus pills ===== */
+.kiosk-mode .kiosk-station-units span {
+  min-width: 20px;
+  padding-left: 3px;
+  padding-right: 3px;
+}
+@media (max-height: 720px) {
+  .kiosk-mode .kiosk-station-units span {
+    min-width: 18px;
+    padding-left: 2px;
+    padding-right: 2px;
+  }
+}
