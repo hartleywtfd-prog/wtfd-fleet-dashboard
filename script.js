@@ -875,6 +875,10 @@ function shortLabel(v) {
   const match = unit.match(/\d+/);
   const number = match ? match[0] : '';
 
+  // Safety units may be classified as Battalion/Command in UnitConfig,
+  // but their map identifier must follow the configured unit name.
+  if (/^safety\b/i.test(unit)) return 'S' + number;
+
   const type = String(
     v.type || ''
   ).toLowerCase();
