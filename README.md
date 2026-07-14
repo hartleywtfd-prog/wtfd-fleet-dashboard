@@ -1,5 +1,13 @@
-# WTFD Fleet Dashboard v2.9.3
-- Added versioned CSS/JavaScript URLs and Cloudflare no-cache headers to prevent Fully Kiosk from retaining the former dark map.
+# WTFD Fleet Dashboard v2.9.4
+
+## v2.9.4 standard-dashboard map framing update
+
+- Standard dashboard opens one zoom level closer after fitting the service-area boundary.
+- Standard dashboard keeps the same map center.
+- Kiosk framing remains unchanged.
+- Distant units still do not force the map to zoom outward.
+- All v2.9.3 light-map, cache-control, reliability, Active911, and sound features are preserved.
+
 
 ## v2.9.3 light-map readability update
 

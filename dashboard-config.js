@@ -20,6 +20,10 @@ window.WTFD_DASHBOARD_CONFIG = {
   connectionLostMs: 90000,
   kioskReloadAfterFailures: 12,
 
+  // Standard dashboard opens one level closer than the boundary fit.
+  standardServiceAreaZoomBoost: 1,
+  standardServiceAreaMaxZoom: 14,
+
   // Kiosk-only service-area framing.
   kioskServiceAreaZoomBoost: 1,
   kioskServiceAreaMaxZoom: 14,
