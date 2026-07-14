@@ -2187,3 +2187,35 @@ body {
   flex: 0 0 18px;
   height: 18px;
 }
+
+
+/* ===== Version 3.7.1 kiosk facility-row alignment =====
+   Allow each kiosk station/facility name to use only the width it needs.
+   This keeps long names such as "Fire Maintenance" on one line while
+   preserving maximum apparatus-pill space on short rows such as HQ/41/42. */
+.kiosk-mode .kiosk-station-card,
+.silk-browser.kiosk-mode .kiosk-station-card {
+  grid-template-columns: max-content minmax(0, 1fr);
+  column-gap: 7px;
+}
+.kiosk-mode .kiosk-station-name,
+.silk-browser.kiosk-mode .kiosk-station-name {
+  min-width: 0;
+  white-space: nowrap;
+  flex-wrap: nowrap;
+  line-height: 1;
+}
+.kiosk-mode .kiosk-station-name small,
+.silk-browser.kiosk-mode .kiosk-station-name small {
+  flex: 0 0 auto;
+}
+.kiosk-mode .kiosk-station-detail,
+.silk-browser.kiosk-mode .kiosk-station-detail {
+  min-width: 0;
+  overflow: hidden;
+}
+.kiosk-mode .kiosk-station-units,
+.silk-browser.kiosk-mode .kiosk-station-units {
+  min-width: 0;
+  overflow: hidden;
+}
