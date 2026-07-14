@@ -2078,3 +2078,112 @@ body {
   .kiosk-mode .kiosk-board-section { padding-top: 5px; padding-bottom: 5px; }
   .kiosk-mode .kiosk-station-grid { gap: 4px; }
 }
+
+
+/* ===== Version 3.6.1 Amazon Silk kiosk fit + remote scrolling ===== */
+/* Silk commonly applies a larger effective page scale on Fire TV. Compact only
+   the kiosk ribbon enough to keep every operational section visible at 1080p. */
+.silk-browser.kiosk-mode #sidebar {
+  width: 350px;
+  min-width: 350px;
+  height: 100vh;
+  max-height: 100vh;
+  overflow-y: scroll !important;
+  overflow-x: hidden !important;
+  outline: none;
+  scroll-behavior: smooth;
+  touch-action: pan-y;
+}
+
+.silk-browser.kiosk-mode .brand {
+  padding: 6px 9px;
+  gap: 8px;
+}
+.silk-browser.kiosk-mode .logo { width: 47px; height: 47px; }
+.silk-browser.kiosk-mode .title { font-size: 17px; }
+.silk-browser.kiosk-mode .subtitle { font-size: 10px; }
+.silk-browser.kiosk-mode .kiosk-brand-line { margin-top: 2px; }
+.silk-browser.kiosk-mode .kiosk-brand-line span { font-size: 8px; }
+.silk-browser.kiosk-mode .kiosk-brand-line strong { font-size: 7px; }
+
+.silk-browser.kiosk-mode .clockPanel { padding: 6px 9px 5px; }
+.silk-browser.kiosk-mode #clock { font-size: 30px; }
+.silk-browser.kiosk-mode #clockDate { margin-top: 2px; font-size: 9px; }
+.silk-browser.kiosk-mode #lastRefresh { margin-top: 3px; }
+.silk-browser.kiosk-mode #lastRefresh > span { font-size: 7px; }
+.silk-browser.kiosk-mode #lastRefresh > strong { font-size: 9px; }
+
+.silk-browser.kiosk-mode .summary {
+  gap: 4px;
+  padding: 5px 7px;
+}
+.silk-browser.kiosk-mode .card {
+  min-height: 40px;
+  padding: 4px 1px;
+  font-size: 8px;
+}
+.silk-browser.kiosk-mode .card span {
+  margin-top: 2px;
+  font-size: 22px;
+}
+.silk-browser.kiosk-mode .summary .gpsIssueCard { font-size: 8px; }
+
+.silk-browser.kiosk-mode .kiosk-status-board {
+  display: grid;
+  grid-template-rows: auto auto auto auto;
+  flex: 0 0 auto;
+  gap: 4px;
+  padding: 0 7px 5px;
+  overflow: visible;
+}
+.silk-browser.kiosk-mode .kiosk-board-section {
+  padding: 5px;
+  border-radius: 7px;
+}
+.silk-browser.kiosk-mode .kiosk-section-title {
+  margin-bottom: 3px;
+  font-size: 10px;
+}
+.silk-browser.kiosk-mode .kiosk-board-list,
+.silk-browser.kiosk-mode .kiosk-station-grid { gap: 3px; }
+.silk-browser.kiosk-mode .kiosk-empty-state {
+  min-height: 24px;
+  padding: 4px;
+  font-size: 11px;
+}
+.silk-browser.kiosk-mode .kiosk-unit-row {
+  min-height: 29px;
+  padding: 3px 6px;
+}
+.silk-browser.kiosk-mode .kiosk-unit-row span { font-size: 13px; }
+.silk-browser.kiosk-mode .kiosk-unit-row strong { font-size: 9px; }
+.silk-browser.kiosk-mode .kiosk-station-card {
+  min-height: 31px;
+  padding: 3px 5px;
+}
+.silk-browser.kiosk-mode .kiosk-station-name { font-size: 14px; }
+.silk-browser.kiosk-mode .kiosk-station-name small { font-size: 9px; }
+.silk-browser.kiosk-mode .kiosk-station-units { gap: 3px; }
+.silk-browser.kiosk-mode .kiosk-station-units span {
+  padding: 0 5px;
+  font-size: 8px;
+  line-height: 16px;
+}
+.silk-browser.kiosk-mode .kiosk-station-empty { font-size: 12px; }
+.silk-browser.kiosk-mode .kiosk-health-grid { gap: 3px; }
+.silk-browser.kiosk-mode .kiosk-health-grid > div { padding: 4px 1px; }
+.silk-browser.kiosk-mode .kiosk-health-grid span { font-size: 7px; }
+.silk-browser.kiosk-mode .kiosk-health-grid strong { font-size: 15px; }
+.silk-browser.kiosk-mode .dashboard-version {
+  flex: 0 0 auto;
+  padding: 2px 7px 5px;
+  font-size: 7px;
+}
+
+/* Keep the final section reachable above Fire TV overscan even when scrolling. */
+.silk-browser.kiosk-mode #sidebar::after {
+  content: '';
+  display: block;
+  flex: 0 0 18px;
+  height: 18px;
+}

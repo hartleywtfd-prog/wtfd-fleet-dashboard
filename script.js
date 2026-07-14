@@ -1,6 +1,6 @@
 /* ===== User-adjustable dashboard settings ===== */
 const DASHBOARD_CONFIG = {
-  version: '3.6.0',
+  version: '3.6.1',
   // Fallback map view used only if the jurisdiction boundary cannot load.
   defaultCenterLat: 39.62784,
   defaultCenterLon: -84.15996,
@@ -63,7 +63,21 @@ const DASHBOARD_MODE =
 const IS_KIOSK_MODE = DASHBOARD_MODE === 'kiosk';
 
 document.body.classList.toggle('kiosk-mode', IS_KIOSK_MODE);
+const IS_AMAZON_SILK = /Silk\//i.test(navigator.userAgent || '');
+document.body.classList.toggle('silk-browser', IS_AMAZON_SILK);
 document.documentElement.dataset.dashboardMode = DASHBOARD_MODE;
+
+// Amazon Silk does not consistently route Fire TV remote scrolling to nested
+// overflow containers unless the container can receive focus.
+if (IS_KIOSK_MODE && IS_AMAZON_SILK) {
+  window.addEventListener('load', () => {
+    const sidebar = document.getElementById('sidebar');
+    if (!sidebar) return;
+    sidebar.tabIndex = 0;
+    sidebar.setAttribute('aria-label', 'Command display status ribbon');
+    try { sidebar.focus({ preventScroll: true }); } catch (_) { sidebar.focus(); }
+  });
+}
 
 document.addEventListener('DOMContentLoaded', () => {
   const version = document.getElementById('dashboardVersion');
