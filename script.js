@@ -866,7 +866,7 @@ function shortLabel(v) {
   return unit.substring(0, 5);
 }
 
-function markerIcon(v, status, visualOffset = [0, 0]) {
+function markerIcon(v, status) {
   let statusClass = '';
 
   if (status === 'responding') {
@@ -880,37 +880,22 @@ function markerIcon(v, status, visualOffset = [0, 0]) {
   }
 
   const shapeClass = markerShapeClass(v);
-  const offsetX = Number(visualOffset[0] || 0);
-  const offsetY = Number(visualOffset[1] || 0);
-  const connectorLength = Math.hypot(offsetX, offsetY);
-  const connectorAngle = Math.atan2(offsetY, offsetX) * 180 / Math.PI;
-  const hasOffset = connectorLength > 1;
 
   return L.divIcon({
     className: '',
     html: `
-      <div class="marker-visual-shell">
-        ${hasOffset ? `
-          <span
-            class="marker-connector"
-            style="width:${connectorLength.toFixed(1)}px;transform:rotate(${connectorAngle.toFixed(2)}deg)"
-            aria-hidden="true"
-          ></span>
-        ` : ''}
-        <div
-          class="marker-tag${shapeClass}${statusClass}"
-          style="background:${markerColor(v, status)};--marker-offset-x:${offsetX}px;--marker-offset-y:${offsetY}px"
-        >
-          <span class="marker-svg">
-            ${apparatusSvg(v)}
-          </span>
-          <span class="marker-label">${shortLabel(v)}</span>
-        </div>
+      <div
+        class="marker-tag${shapeClass}${statusClass}"
+        style="background:${markerColor(v, status)}"
+      >
+        <span class="marker-svg">
+          ${apparatusSvg(v)}
+        </span>
+        <span class="marker-label">${shortLabel(v)}</span>
       </div>
     `,
     iconSize: [102, 46],
-    iconAnchor: [51, 23],
-    popupAnchor: [offsetX, offsetY - 20]
+    iconAnchor: [51, 23]
   });
 }
 
@@ -1072,37 +1057,127 @@ function sortGroupForLayout(group) {
 }
 
 /*
- * Collision-safe visual layout for apparatus sharing a location.
- * The Leaflet marker remains at the unit's true GPS coordinates. Only
- * the marker label is shifted in screen pixels, so zooming or panning
- * cannot place a unit outside the jurisdiction.
+ * Parking-grid layout for facilities.
+ * The highest-priority unit occupies the first slot.
+ * Shared facilities spread into a compact bay-style grid.
  */
-function getMarkerVisualOffset(index, total) {
-  const layouts = {
-    1: [[0, 0]],
-    2: [[-58, 0], [58, 0]],
-    3: [[0, -32], [-58, 28], [58, 28]],
-    4: [[-58, -27], [58, -27], [-58, 27], [58, 27]],
-    5: [[0, -54], [-58, 0], [58, 0], [-58, 54], [58, 54]],
-    6: [[-58, -54], [58, -54], [-58, 0], [58, 0], [-58, 54], [58, 54]]
-  };
-
-  if (layouts[total]) {
-    return layouts[total][index] || [0, 0];
+function getFacilityParkingOffset(
+  anchorLat,
+  anchorLon,
+  index,
+  total
+) {
+  if (total <= 1) {
+    return [anchorLat, anchorLon];
   }
 
-  // Larger groups use a centered three-column parking grid. Horizontal
-  // spacing exceeds the full standard marker width, guaranteeing that
-  // every apparatus identifier remains independently visible.
-  const columns = 3;
-  const rows = Math.ceil(total / columns);
-  const row = Math.floor(index / columns);
-  const col = index % columns;
-  const itemsInRow = Math.min(columns, total - row * columns);
-  const x = (col - (itemsInRow - 1) / 2) * 108;
-  const y = (row - (rows - 1) / 2) * 54;
+  const columns =
+    total <= 4 ? 2 : 3;
 
-  return [x, y];
+  const row = Math.floor(
+    index / columns
+  );
+
+  const col = index % columns;
+
+  const rows = Math.ceil(
+    total / columns
+  );
+
+  const latSpacing = 0.00058;
+  const lonSpacing = 0.00088;
+
+  const colOffset =
+    col - (columns - 1) / 2;
+
+  const rowOffset =
+    row - (rows - 1) / 2;
+
+  return [
+    anchorLat - rowOffset * latSpacing,
+    anchorLon + colOffset * lonSpacing
+  ];
+}
+
+function getGpsFanOffset(
+  anchorLat,
+  anchorLon,
+  index,
+  total
+) {
+  if (total <= 1 || index === 0) {
+    return [anchorLat, anchorLon];
+  }
+
+  const adjustedIndex = index - 1;
+  const firstRingCapacity = 6;
+
+  const ring =
+    adjustedIndex < firstRingCapacity
+      ? 1
+      : 2;
+
+  const ringIndex =
+    ring === 1
+      ? adjustedIndex
+      : adjustedIndex -
+        firstRingCapacity;
+
+  const ringCount =
+    ring === 1
+      ? Math.min(
+          total - 1,
+          firstRingCapacity
+        )
+      : Math.max(
+          total - 1 -
+          firstRingCapacity,
+          1
+        );
+
+  const angle =
+    -Math.PI / 2 +
+    (2 * Math.PI * ringIndex) /
+      ringCount;
+
+  const latSpacing =
+    ring === 1 ? 0.00062 : 0.00103;
+
+  const lonSpacing =
+    ring === 1 ? 0.00088 : 0.00146;
+
+  return [
+    anchorLat +
+      Math.sin(angle) *
+        latSpacing,
+    anchorLon +
+      Math.cos(angle) *
+        lonSpacing
+  ];
+}
+
+function getDisplayPosition(
+  key,
+  anchorLat,
+  anchorLon,
+  index,
+  total
+) {
+  if (key.startsWith('FACILITY:')) {
+    return getFacilityParkingOffset(
+      anchorLat,
+      anchorLon,
+      index,
+      total
+    );
+  }
+
+  return getGpsFanOffset(
+    anchorLat,
+    anchorLon,
+    index,
+    total
+  );
 }
 
 function clearMarkers() {
@@ -1342,10 +1417,22 @@ function renderDashboard(locations) {
         originalGroup
       );
 
+    const [anchorLat, anchorLon] =
+      getGroupAnchor(
+        originalGroup
+      );
+
     layoutGroup.forEach(
       (v, index) => {
         const status = getStatus(v);
-        const visualOffset = getMarkerVisualOffset(
+
+        const [
+          displayLat,
+          displayLon
+        ] = getDisplayPosition(
+          key,
+          anchorLat,
+          anchorLon,
           index,
           layoutGroup.length
         );
@@ -1369,14 +1456,13 @@ function renderDashboard(locations) {
         try {
           const marker = L.marker(
             [
-              Number(v.lat),
-              Number(v.lon)
+              displayLat,
+              displayLon
             ],
             {
               icon: markerIcon(
                 v,
-                status,
-                visualOffset
+                status
               ),
               zIndexOffset:
                 markerZIndex(
