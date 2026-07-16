@@ -1729,8 +1729,18 @@ function renderKioskStatusBoard(locations, metrics, gps, noGps, stale) {
   currentRespondingUnits = responding.map(v => v.unit || v.displayName || 'Responding unit');
   updateKioskOperationStrip();
 
+  /*
+   * The kiosk away roster should follow the live Facility assignment, not
+   * only the visual movement status. A unit can be moving, stale, or have a
+   * GPS warning while its Facility is still "Away". Keep active responders
+   * in the responding section, but include every other unit assigned Away.
+   */
   const away = locations
-    .filter(v => getStatus(v) === 'away')
+    .filter(v => {
+      const status = getStatus(v);
+      const facility = String(v.facility || '').trim().toLowerCase();
+      return status !== 'responding' && (facility === 'away' || status === 'away');
+    })
     .sort((a, b) => String(a.unit || '').localeCompare(String(b.unit || '')));
 
   const respondingList = document.getElementById('kioskRespondingList');
