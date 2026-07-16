@@ -2327,22 +2327,22 @@ body {
 }
 
 
-/* ===== Version 4.0.2 optimized apparatus icon system =====
+/* ===== Version 4.1.0 purpose-built apparatus icon system =====
    The icon identifies apparatus function while the pill color continues to
    communicate live operational status. */
 .marker-engine .marker-svg,
 .marker-ladder .marker-svg,
 .marker-medic .marker-svg,
 .marker-prevention .marker-svg {
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
 }
 .marker-engine .marker-svg svg,
 .marker-ladder .marker-svg svg,
 .marker-medic .marker-svg svg,
 .marker-prevention .marker-svg svg {
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
   overflow: visible;
 }
 
@@ -2354,8 +2354,8 @@ body {
   gap: 3px;
 }
 .kiosk-mode .kiosk-station-units .kiosk-pill-icon {
-  width: 13px;
-  height: 13px;
+  width: 12px;
+  height: 12px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -2363,8 +2363,8 @@ body {
   color: currentColor;
 }
 .kiosk-mode .kiosk-station-units .kiosk-pill-icon svg {
-  width: 13px;
-  height: 13px;
+  width: 12px;
+  height: 12px;
   display: block;
   overflow: visible;
 }
@@ -2384,3 +2384,16 @@ body {
     height: 11px;
   }
 }
+
+
+/* v4.1.0 icon contrast helpers */
+.marker-tag { --pill-bg: currentColor; }
+.marker-tag.marker-responding { --pill-bg: #dc2626; }
+.marker-tag.marker-engine { --pill-bg: #d32f2f; }
+.marker-tag.marker-medic { --pill-bg: #2563eb; }
+.marker-tag.marker-ladder { --pill-bg: #991b1b; }
+.marker-tag.marker-prevention { --pill-bg: #15803d; }
+.marker-tag.marker-moving { --pill-bg: #2563eb; }
+.marker-tag.marker-nogps { --pill-bg: #64748b; }
+.marker-tag.marker-stale { --pill-bg: #dc2626; }
+.marker-tag.marker-offline { --pill-bg: #6b7280; }

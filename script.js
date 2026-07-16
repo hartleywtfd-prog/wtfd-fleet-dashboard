@@ -1,6 +1,6 @@
 /* ===== User-adjustable dashboard settings ===== */
 const DASHBOARD_CONFIG = {
-  version: '4.0.2',
+  version: '4.1.0',
   // Fallback map view used only if the jurisdiction boundary cannot load.
   defaultCenterLat: 39.62784,
   defaultCenterLon: -84.15996,
@@ -672,7 +672,8 @@ function statusText(status, v) {
 
 function apparatusSvg(v) {
   const type = String(v.type || '').toLowerCase();
-  const identity = unitIdentityClass(v);
+  const identity = unitIdentityClass(v).trim();
+  const name = String(v.unit || '').trim().toLowerCase();
 
   const common = `
     viewBox="0 0 64 64"
@@ -681,66 +682,108 @@ function apparatusSvg(v) {
   `;
 
   /*
-   * All symbols below are intentionally simplified and optically balanced
-   * for the 12–20 px sizes used by map and kiosk pills.
+   * Purpose-built symbols for small map and kiosk pills. The icon identifies
+   * the unit family while the pill color continues to show operational state.
    */
 
-  /* Command identity units use a bold shield with an enlarged cross. */
-  if (identity) {
+  /* Chief 40, 41, and 42 use the same shield with two command chevrons. */
+  if (identity === 'unit-chief-gold') {
     return `
       <svg ${common}>
-        <path d="M32 4 L56 13 V31 C56 44 47 54 32 60 C17 54 8 44 8 31 V13 Z"
-          fill="none" stroke="currentColor" stroke-width="5.5" stroke-linejoin="round"/>
-        <path d="M28 17 H36 V27 H46 V35 H36 V45 H28 V35 H18 V27 H28 Z"
+        <path d="M32 4 L55 13 V31 C55 44 47 54 32 60 C17 54 9 44 9 31 V13 Z"
+          fill="none" stroke="currentColor" stroke-width="5" stroke-linejoin="round"/>
+        <path d="M18 34 L32 22 L46 34 L40 40 L32 33 L24 40 Z"
+          fill="currentColor"/>
+        <path d="M20 45 L32 35 L44 45 L38 50 L32 45 L26 50 Z"
           fill="currentColor"/>
       </svg>
     `;
   }
 
-  /* Engines and ladders share a solid, low-detail Maltese cross. */
-  if (type === 'engine' || type === 'ladder') {
+  /* Battalion 40 keeps its established shield with double command bars. */
+  if (identity === 'unit-battalion-40') {
     return `
       <svg ${common}>
-        <path d="M24 5 C27 11 29 16 32 20 C35 16 37 11 40 5 C47 7 53 11 58 16 C53 20 48 24 44 27 C49 29 54 32 60 36 C58 43 54 49 48 54 C42 49 37 45 32 42 C27 45 22 49 16 54 C10 49 6 43 4 36 C10 32 15 29 20 27 C16 24 11 20 6 16 C11 11 17 7 24 5 Z"
+        <path d="M32 4 L55 13 V31 C55 44 47 54 32 60 C17 54 9 44 9 31 V13 Z"
+          fill="none" stroke="currentColor" stroke-width="5" stroke-linejoin="round"/>
+        <path d="M21 19 H28 V45 H21 Z M36 19 H43 V45 H36 Z"
           fill="currentColor"/>
       </svg>
     `;
   }
 
-  /* Medic units use a bold six-arm EMS star optimized for small labels. */
+  /* Training and Safety share the command shield, differentiated by letter. */
+  if (identity === 'unit-black-gold') {
+    const letter = name.startsWith('training') ? 'T' : 'S';
+    return `
+      <svg ${common}>
+        <path d="M32 4 L55 13 V31 C55 44 47 54 32 60 C17 54 9 44 9 31 V13 Z"
+          fill="none" stroke="currentColor" stroke-width="5" stroke-linejoin="round"/>
+        <text x="32" y="43" text-anchor="middle" font-size="31" font-weight="900"
+          font-family="Arial, Helvetica, sans-serif" fill="currentColor">${letter}</text>
+      </svg>
+    `;
+  }
+
+  /* Engines use a compact fire-engine silhouette. */
+  if (type === 'engine') {
+    return `
+      <svg ${common}>
+        <path d="M4 25 H37 V18 H48 L58 29 V45 H4 Z" fill="currentColor"/>
+        <rect x="8" y="14" width="31" height="6" rx="2" fill="currentColor"/>
+        <rect x="12" y="9" width="5" height="8" rx="1" fill="currentColor"/>
+        <rect x="20" y="9" width="5" height="8" rx="1" fill="currentColor"/>
+        <rect x="28" y="9" width="5" height="8" rx="1" fill="currentColor"/>
+        <path d="M43 22 H48 L54 29 H43 Z" fill="currentColor"/>
+        <circle cx="16" cy="47" r="7" fill="currentColor"/>
+        <circle cx="48" cy="47" r="7" fill="currentColor"/>
+      </svg>
+    `;
+  }
+
+  /* Ladder units use a visibly longer aerial-ladder truck silhouette. */
+  if (type === 'ladder') {
+    return `
+      <svg ${common}>
+        <path d="M3 27 H39 V20 H49 L59 30 V45 H3 Z" fill="currentColor"/>
+        <path d="M7 10 H48 V16 H7 Z" fill="currentColor"/>
+        <path d="M10 5 H13 V20 H10 Z M20 5 H23 V20 H20 Z M30 5 H33 V20 H30 Z M40 5 H43 V20 H40 Z"
+          fill="currentColor"/>
+        <path d="M44 24 H49 L55 30 H44 Z" fill="currentColor"/>
+        <circle cx="15" cy="47" r="7" fill="currentColor"/>
+        <circle cx="49" cy="47" r="7" fill="currentColor"/>
+      </svg>
+    `;
+  }
+
+  /* Medic units use a compact ambulance silhouette with a clear medical cross. */
   if (type === 'medic') {
     return `
       <svg ${common}>
-        <path d="M27 3 H37 V20 L52 11 L57 20 L42 29 H60 V39 H42 L57 48 L52 57 L37 48 V61 H27 V48 L12 57 L7 48 L22 39 H4 V29 H22 L7 20 L12 11 L27 20 Z"
-          fill="currentColor"/>
+        <path fill="currentColor" fill-rule="evenodd" d="
+          M4 18 H39 V24 H49 L59 34 V46 H4 Z
+          M18 22 H24 V28 H30 V34 H24 V40 H18 V34 H12 V28 H18 Z
+        "/>
+        <path d="M44 27 H49 L55 34 H44 Z" fill="currentColor"/>
+        <circle cx="16" cy="48" r="7" fill="currentColor"/>
+        <circle cx="49" cy="48" r="7" fill="currentColor"/>
       </svg>
     `;
   }
 
-  /* CRRD / Prevention and Fire Marshal use a bold shield and large check. */
+  /* Prevention / CRRD and Marshal use the shield with a bold check. */
   if (type === 'crrd') {
     return `
       <svg ${common}>
-        <path d="M32 4 L56 13 V31 C56 44 47 54 32 60 C17 54 8 44 8 31 V13 Z"
-          fill="none" stroke="currentColor" stroke-width="5.5" stroke-linejoin="round"/>
-        <path d="M17 31 L27 41 L48 20"
+        <path d="M32 4 L55 13 V31 C55 44 47 54 32 60 C17 54 9 44 9 31 V13 Z"
+          fill="none" stroke="currentColor" stroke-width="5" stroke-linejoin="round"/>
+        <path d="M18 31 L28 41 L47 21"
           fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
     `;
   }
 
-  /* Non-identity command vehicles retain the SUV silhouette. */
-  if (type === 'chief' || type === 'battalion') {
-    return `
-      <svg ${common}>
-        <path d="M6 38 L13 23 H40 L50 30 H57 L62 38 V48 H6 Z" fill="currentColor"/>
-        <circle cx="18" cy="50" r="5" fill="currentColor"/>
-        <circle cx="50" cy="50" r="5" fill="currentColor"/>
-        <rect x="23" y="16" width="17" height="4" rx="2" fill="currentColor"/>
-      </svg>
-    `;
-  }
-
+  /* Other command/support vehicles retain a simple SUV silhouette. */
   return `
     <svg ${common}>
       <path d="M6 38 L13 23 H40 L50 30 H57 L62 38 V48 H6 Z" fill="currentColor"/>
