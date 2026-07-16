@@ -1,6 +1,6 @@
 /* ===== User-adjustable dashboard settings ===== */
 const DASHBOARD_CONFIG = {
-  version: '3.7.1',
+  version: '3.8.0',
   // Fallback map view used only if the jurisdiction boundary cannot load.
   defaultCenterLat: 39.62784,
   defaultCenterLon: -84.15996,
@@ -807,6 +807,40 @@ function markerShapeClass(v) {
   return ' marker-generic';
 }
 
+
+function unitIdentityClass(v) {
+  const name = String(v.unit || '').trim().toLowerCase();
+
+  if (/^battalion\s*40\b/.test(name)) return ' unit-battalion-40';
+  if (/^chief\s*(40|41|42)\b/.test(name)) return ' unit-chief-gold';
+  if (/^(training|safety)\s*40\b/.test(name)) return ' unit-black-gold';
+
+  return '';
+}
+
+function unitIdentityColors(v, status) {
+  /* Operational exceptions remain unmistakable. */
+  if (status === 'responding' || status === 'stale') {
+    return { background: '#dc2626', foreground: '#ffffff', border: '#ffffff' };
+  }
+  if (status === 'nogps' || status === 'offline') {
+    return { background: '#64748b', foreground: '#ffffff', border: '#ffffff' };
+  }
+
+  const identity = unitIdentityClass(v);
+  if (identity === ' unit-battalion-40') {
+    return { background: '#d4a900', foreground: '#000000', border: '#8a6a00' };
+  }
+  if (identity === ' unit-chief-gold') {
+    return { background: '#d4a900', foreground: '#ffffff', border: '#ffffff' };
+  }
+  if (identity === ' unit-black-gold') {
+    return { background: '#050505', foreground: '#d4a900', border: '#d4a900' };
+  }
+
+  return null;
+}
+
 function markerColor(v, status) {
   /*
    * Critical operational statuses override apparatus type.
@@ -826,6 +860,9 @@ function markerColor(v, status) {
   if (status === 'offline') {
     return '#6b7280';
   }
+
+  const identityColors = unitIdentityColors(v, status);
+  if (identityColors) return identityColors.background;
 
   const type = String(
     v.type || ''
@@ -919,6 +956,8 @@ function markerIcon(v, status, pixelOffset = [0, 0]) {
   }
 
   const shapeClass = markerShapeClass(v);
+  const identityClass = unitIdentityClass(v);
+  const identityColors = unitIdentityColors(v, status);
   const width = IS_KIOSK_MODE ? 86 : 90;
   const height = IS_KIOSK_MODE ? 36 : 38;
   const dx = Number(pixelOffset[0] || 0);
@@ -936,8 +975,8 @@ function markerIcon(v, status, pixelOffset = [0, 0]) {
       >
         <span class="marker-connector" aria-hidden="true"></span>
         <div
-          class="marker-tag${shapeClass}${statusClass}"
-          style="background:${markerColor(v, status)}"
+          class="marker-tag${shapeClass}${identityClass}${statusClass}"
+          style="background:${markerColor(v, status)};color:${identityColors?.foreground || '#ffffff'};border-color:${identityColors?.border || '#ffffff'}"
         >
           <span class="marker-svg">
             ${apparatusSvg(v)}
@@ -1617,6 +1656,9 @@ function renderDashboard(locations) {
 
 
 function kioskUnitTypeClass(v) {
+  const identity = unitIdentityClass(v).trim();
+  if (identity) return identity;
+
   const type = String(v.type || '').toLowerCase();
   if (type === 'engine' || type === 'ladder') return 'fire';
   if (type === 'medic') return 'medic';

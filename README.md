@@ -1,3 +1,11 @@
+# Version 3.8.0
+
+- Adds dedicated command-unit pill colors on both the standard map and kiosk station rows.
+- Battalion 40: gold pill with black lettering.
+- Chief 40, Chief 41, and Chief 42: gold pill with white lettering.
+- Training 40 and Safety 40: black pill with gold lettering and border.
+- Preserves red responding/stale and gray no-GPS/offline overrides for operational clarity.
+
 # Version 3.7.1
 
 ## Consolidated incident timer and release identification correction

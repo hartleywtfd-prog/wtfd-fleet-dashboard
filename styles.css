@@ -2219,3 +2219,47 @@ body {
   min-width: 0;
   overflow: hidden;
 }
+
+
+/* ===== Version 3.8.0 command-unit pill identities =====
+   These identity colors apply to normal, moving, and away display states.
+   Responding, stale, no-GPS, and offline statuses still use their operational
+   alert colors so critical conditions remain immediately visible. */
+.marker-tag.unit-battalion-40 {
+  background: #d4a900;
+  color: #000000;
+  border-color: #8a6a00;
+  text-shadow: 0 1px 1px rgba(255, 255, 255, .25);
+}
+.marker-tag.unit-chief-gold {
+  background: #d4a900;
+  color: #ffffff;
+  border-color: #ffffff;
+}
+.marker-tag.unit-black-gold {
+  background: #050505;
+  color: #d4a900;
+  border-color: #d4a900;
+  text-shadow: none;
+}
+.marker-tag.unit-battalion-40 .marker-svg,
+.marker-tag.unit-chief-gold .marker-svg,
+.marker-tag.unit-black-gold .marker-svg {
+  color: currentColor;
+}
+
+.kiosk-mode .kiosk-station-units span.unit-battalion-40 {
+  background: #d4a900;
+  color: #000000;
+  border: 1px solid #8a6a00;
+}
+.kiosk-mode .kiosk-station-units span.unit-chief-gold {
+  background: #d4a900;
+  color: #ffffff;
+  border: 1px solid rgba(255,255,255,.8);
+}
+.kiosk-mode .kiosk-station-units span.unit-black-gold {
+  background: #050505;
+  color: #d4a900;
+  border: 1px solid #d4a900;
+}
