@@ -692,27 +692,22 @@ function apparatusSvg(v) {
     `;
   }
 
-  /* Engines and ladders share a traditional Maltese-cross fire symbol. */
+  /* Engines and ladders share a simplified Maltese cross. */
   if (type === 'engine' || type === 'ladder') {
     return `
       <svg ${common}>
-        <path d="M28 4 H44 L47 13 L57 8 L66 18 L58 27 L68 34 L59 44 L48 39 L44 47 H28 L24 39 L13 44 L4 34 L14 27 L6 18 L15 8 L25 13 Z"
-          fill="none" stroke="currentColor" stroke-width="5" stroke-linejoin="round"/>
-        <circle cx="36" cy="26" r="10" fill="none" stroke="currentColor" stroke-width="4"/>
+        <path d="M36 4 L43 16 L56 9 L63 21 L51 28 L63 35 L56 47 L43 40 L36 52 L29 40 L16 47 L9 35 L21 28 L9 21 L16 9 L29 16 Z"
+          fill="currentColor"/>
       </svg>
     `;
   }
 
-  /* Medic units use a simplified Star of Life with central medical staff. */
+  /* Medic units use a bold simplified Star of Life. */
   if (type === 'medic') {
     return `
       <svg ${common}>
-        <path d="M32 3 H40 L41 16 L52 9 L57 15 L47 25 L61 29 L59 37 L45 34 L45 47 H27 L27 34 L13 37 L11 29 L25 25 L15 15 L20 9 L31 16 Z"
-          fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/>
-        <path d="M36 12 V39" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
-        <path d="M36 20 C44 21 43 27 36 28 C29 29 29 35 37 36"
-          fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
-        <circle cx="36" cy="10" r="3" fill="currentColor"/>
+        <path d="M32 2 H40 V18 L54 10 L58 17 L46 24 H62 V32 H46 L58 39 L54 46 L40 38 V54 H32 V38 L18 46 L14 39 L26 32 H10 V24 H26 L14 17 L18 10 L32 18 Z"
+          fill="currentColor"/>
       </svg>
     `;
   }
