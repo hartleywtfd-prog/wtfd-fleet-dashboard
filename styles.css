@@ -560,7 +560,7 @@ button:disabled,
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 3px;
+  gap: 5px;
   font-size: 16px;
   font-weight: 900;
   box-shadow: 0 3px 8px rgba(0, 0, 0, .38);
@@ -2301,7 +2301,7 @@ body {
 .kiosk-mode .kiosk-station-units span.unit-black-gold {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
+  gap: 4px;
 }
 .kiosk-mode .kiosk-station-units span.unit-battalion-40::before,
 .kiosk-mode .kiosk-station-units span.unit-chief-gold::before,
@@ -2327,22 +2327,22 @@ body {
 }
 
 
-/* ===== Version 4.0.0 apparatus icon system =====
+/* ===== Version 4.0.2 optimized apparatus icon system =====
    The icon identifies apparatus function while the pill color continues to
    communicate live operational status. */
 .marker-engine .marker-svg,
 .marker-ladder .marker-svg,
 .marker-medic .marker-svg,
 .marker-prevention .marker-svg {
-  width: 19px;
-  height: 19px;
+  width: 20px;
+  height: 20px;
 }
 .marker-engine .marker-svg svg,
 .marker-ladder .marker-svg svg,
 .marker-medic .marker-svg svg,
 .marker-prevention .marker-svg svg {
-  width: 19px;
-  height: 19px;
+  width: 20px;
+  height: 20px;
   overflow: visible;
 }
 
@@ -2354,8 +2354,8 @@ body {
   gap: 3px;
 }
 .kiosk-mode .kiosk-station-units .kiosk-pill-icon {
-  width: 12px;
-  height: 12px;
+  width: 13px;
+  height: 13px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -2363,8 +2363,8 @@ body {
   color: currentColor;
 }
 .kiosk-mode .kiosk-station-units .kiosk-pill-icon svg {
-  width: 12px;
-  height: 12px;
+  width: 13px;
+  height: 13px;
   display: block;
   overflow: visible;
 }

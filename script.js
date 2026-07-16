@@ -1,6 +1,6 @@
 /* ===== User-adjustable dashboard settings ===== */
 const DASHBOARD_CONFIG = {
-  version: '4.0.0',
+  version: '4.0.2',
   // Fallback map view used only if the jurisdiction boundary cannot load.
   defaultCenterLat: 39.62784,
   defaultCenterLon: -84.15996,
@@ -675,51 +675,56 @@ function apparatusSvg(v) {
   const identity = unitIdentityClass(v);
 
   const common = `
-    viewBox="0 0 72 48"
+    viewBox="0 0 64 64"
     aria-hidden="true"
     focusable="false"
   `;
 
-  /* Command identity units use the shield-and-cross symbol. */
+  /*
+   * All symbols below are intentionally simplified and optically balanced
+   * for the 12–20 px sizes used by map and kiosk pills.
+   */
+
+  /* Command identity units use a bold shield with an enlarged cross. */
   if (identity) {
     return `
       <svg ${common}>
-        <path d="M36 3 L61 12 V27 C61 36 51 43 36 47 C21 43 11 36 11 27 V12 Z"
-          fill="none" stroke="currentColor" stroke-width="5" stroke-linejoin="round"/>
-        <rect x="32" y="14" width="8" height="22" rx="1.5" fill="currentColor"/>
-        <rect x="25" y="21" width="22" height="8" rx="1.5" fill="currentColor"/>
+        <path d="M32 4 L56 13 V31 C56 44 47 54 32 60 C17 54 8 44 8 31 V13 Z"
+          fill="none" stroke="currentColor" stroke-width="5.5" stroke-linejoin="round"/>
+        <path d="M28 17 H36 V27 H46 V35 H36 V45 H28 V35 H18 V27 H28 Z"
+          fill="currentColor"/>
       </svg>
     `;
   }
 
-  /* Engines and ladders share a simplified Maltese cross. */
+  /* Engines and ladders share a solid, low-detail Maltese cross. */
   if (type === 'engine' || type === 'ladder') {
     return `
       <svg ${common}>
-        <path d="M36 4 L43 16 L56 9 L63 21 L51 28 L63 35 L56 47 L43 40 L36 52 L29 40 L16 47 L9 35 L21 28 L9 21 L16 9 L29 16 Z"
+        <path d="M24 5 C27 11 29 16 32 20 C35 16 37 11 40 5 C47 7 53 11 58 16 C53 20 48 24 44 27 C49 29 54 32 60 36 C58 43 54 49 48 54 C42 49 37 45 32 42 C27 45 22 49 16 54 C10 49 6 43 4 36 C10 32 15 29 20 27 C16 24 11 20 6 16 C11 11 17 7 24 5 Z"
           fill="currentColor"/>
       </svg>
     `;
   }
 
-  /* Medic units use a bold simplified Star of Life. */
+  /* Medic units use a bold six-arm EMS star optimized for small labels. */
   if (type === 'medic') {
     return `
       <svg ${common}>
-        <path d="M32 2 H40 V18 L54 10 L58 17 L46 24 H62 V32 H46 L58 39 L54 46 L40 38 V54 H32 V38 L18 46 L14 39 L26 32 H10 V24 H26 L14 17 L18 10 L32 18 Z"
+        <path d="M27 3 H37 V20 L52 11 L57 20 L42 29 H60 V39 H42 L57 48 L52 57 L37 48 V61 H27 V48 L12 57 L7 48 L22 39 H4 V29 H22 L7 20 L12 11 L27 20 Z"
           fill="currentColor"/>
       </svg>
     `;
   }
 
-  /* CRRD / Prevention and Fire Marshal use a shield with a check mark. */
+  /* CRRD / Prevention and Fire Marshal use a bold shield and large check. */
   if (type === 'crrd') {
     return `
       <svg ${common}>
-        <path d="M36 3 L61 12 V27 C61 36 51 43 36 47 C21 43 11 36 11 27 V12 Z"
-          fill="none" stroke="currentColor" stroke-width="5" stroke-linejoin="round"/>
-        <path d="M22 26 L31 35 L51 16"
-          fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M32 4 L56 13 V31 C56 44 47 54 32 60 C17 54 8 44 8 31 V13 Z"
+          fill="none" stroke="currentColor" stroke-width="5.5" stroke-linejoin="round"/>
+        <path d="M17 31 L27 41 L48 20"
+          fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
     `;
   }
@@ -728,21 +733,19 @@ function apparatusSvg(v) {
   if (type === 'chief' || type === 'battalion') {
     return `
       <svg ${common}>
-        <path d="M8 30 L15 18 H45 L55 24 H62 L68 31 V38 H8 Z" fill="currentColor"/>
-        <circle cx="20" cy="40" r="5" fill="currentColor"/>
-        <circle cx="56" cy="40" r="5" fill="currentColor"/>
-        <rect x="24" y="12" width="18" height="4" rx="2" fill="currentColor"/>
-        <path d="M18 20 H31 V28 H14 Z" fill="#0f172a"/>
-        <path d="M33 20 H44 L51 28 H33 Z" fill="#0f172a"/>
+        <path d="M6 38 L13 23 H40 L50 30 H57 L62 38 V48 H6 Z" fill="currentColor"/>
+        <circle cx="18" cy="50" r="5" fill="currentColor"/>
+        <circle cx="50" cy="50" r="5" fill="currentColor"/>
+        <rect x="23" y="16" width="17" height="4" rx="2" fill="currentColor"/>
       </svg>
     `;
   }
 
   return `
     <svg ${common}>
-      <path d="M8 30 L15 18 H45 L55 24 H62 L68 31 V38 H8 Z" fill="currentColor"/>
-      <circle cx="20" cy="40" r="5" fill="currentColor"/>
-      <circle cx="56" cy="40" r="5" fill="currentColor"/>
+      <path d="M6 38 L13 23 H40 L50 30 H57 L62 38 V48 H6 Z" fill="currentColor"/>
+      <circle cx="18" cy="50" r="5" fill="currentColor"/>
+      <circle cx="50" cy="50" r="5" fill="currentColor"/>
     </svg>
   `;
 }
