@@ -2325,3 +2325,62 @@ body {
 .kiosk-mode .kiosk-station-units span.unit-black-gold {
   background: linear-gradient(180deg, #151515 0%, #050505 62%, #000000 100%);
 }
+
+
+/* ===== Version 4.0.0 apparatus icon system =====
+   The icon identifies apparatus function while the pill color continues to
+   communicate live operational status. */
+.marker-engine .marker-svg,
+.marker-ladder .marker-svg,
+.marker-medic .marker-svg,
+.marker-prevention .marker-svg {
+  width: 19px;
+  height: 19px;
+}
+.marker-engine .marker-svg svg,
+.marker-ladder .marker-svg svg,
+.marker-medic .marker-svg svg,
+.marker-prevention .marker-svg svg {
+  width: 19px;
+  height: 19px;
+  overflow: visible;
+}
+
+/* Compact apparatus symbols in the kiosk station board. */
+.kiosk-mode .kiosk-station-units span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+}
+.kiosk-mode .kiosk-station-units .kiosk-pill-icon {
+  width: 12px;
+  height: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  color: currentColor;
+}
+.kiosk-mode .kiosk-station-units .kiosk-pill-icon svg {
+  width: 12px;
+  height: 12px;
+  display: block;
+  overflow: visible;
+}
+
+/* The real SVG is now present, so suppress the older CSS-drawn command badge. */
+.kiosk-mode .kiosk-station-units span.unit-battalion-40::before,
+.kiosk-mode .kiosk-station-units span.unit-chief-gold::before,
+.kiosk-mode .kiosk-station-units span.unit-black-gold::before {
+  content: none;
+  display: none;
+}
+
+@media (max-height: 800px) {
+  .kiosk-mode .kiosk-station-units .kiosk-pill-icon,
+  .kiosk-mode .kiosk-station-units .kiosk-pill-icon svg {
+    width: 11px;
+    height: 11px;
+  }
+}

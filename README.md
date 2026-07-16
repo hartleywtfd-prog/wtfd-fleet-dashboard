@@ -1,3 +1,14 @@
+# Version 4.0.0
+
+## Apparatus icon system
+
+- Engines and ladders now use a Maltese cross.
+- Medic units now use a Star of Life.
+- Prevention/CRRD and Marshal units now use a shield with a check mark.
+- Existing command shield styling remains in place.
+- Icons appear on the standard map, apparatus list, kiosk map, and kiosk station pills.
+- Operational status colors still take priority, including red when responding.
+
 # Version 3.9.0
 
 - Replaced the vehicle icon on Chief 40/41/42, Battalion 40, Training 40, and Safety 40 with the selected shield-and-cross icon.

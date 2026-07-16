@@ -1,6 +1,6 @@
 /* ===== User-adjustable dashboard settings ===== */
 const DASHBOARD_CONFIG = {
-  version: '3.9.0',
+  version: '4.0.0',
   // Fallback map view used only if the jurisdiction boundary cannot load.
   defaultCenterLat: 39.62784,
   defaultCenterLon: -84.15996,
@@ -671,9 +671,7 @@ function statusText(status, v) {
 }
 
 function apparatusSvg(v) {
-  const type = String(
-    v.type || ''
-  ).toLowerCase();
+  const type = String(v.type || '').toLowerCase();
   const identity = unitIdentityClass(v);
 
   const common = `
@@ -682,7 +680,7 @@ function apparatusSvg(v) {
     focusable="false"
   `;
 
-  /* Command identity units use the same shield-and-cross symbol. */
+  /* Command identity units use the shield-and-cross symbol. */
   if (identity) {
     return `
       <svg ${common}>
@@ -694,74 +692,45 @@ function apparatusSvg(v) {
     `;
   }
 
-  /*
-   * Engine: unmistakable pumper silhouette with square body,
-   * cab, pump panel, roof lights, and dual rear wheel cue.
-   */
-  if (type === 'engine') {
+  /* Engines and ladders share a traditional Maltese-cross fire symbol. */
+  if (type === 'engine' || type === 'ladder') {
     return `
       <svg ${common}>
-        <rect x="5" y="18" width="43" height="20" rx="3" fill="currentColor"/>
-        <path d="M48 23 H60 L67 30 V38 H48 Z" fill="currentColor"/>
-        <rect x="10" y="12" width="30" height="6" rx="2" fill="currentColor"/>
-        <rect x="15" y="8" width="20" height="3" rx="1.5" fill="currentColor"/>
-        <rect x="25" y="21" width="10" height="13" rx="1" fill="#0f172a"/>
-        <circle cx="18" cy="40" r="5" fill="currentColor"/>
-        <circle cx="40" cy="40" r="5" fill="currentColor"/>
-        <circle cx="59" cy="40" r="5" fill="currentColor"/>
-        <rect x="53" y="26" width="8" height="6" rx="1" fill="#0f172a"/>
-        <rect x="8" y="22" width="11" height="3" rx="1" fill="#ffffff" opacity=".9"/>
-        <rect x="8" y="28" width="11" height="3" rx="1" fill="#ffffff" opacity=".9"/>
+        <path d="M28 4 H44 L47 13 L57 8 L66 18 L58 27 L68 34 L59 44 L48 39 L44 47 H28 L24 39 L13 44 L4 34 L14 27 L6 18 L15 8 L25 13 Z"
+          fill="none" stroke="currentColor" stroke-width="5" stroke-linejoin="round"/>
+        <circle cx="36" cy="26" r="10" fill="none" stroke="currentColor" stroke-width="4"/>
       </svg>
     `;
   }
 
-  /*
-   * Medic: box-style ambulance with prominent medical cross.
-   */
+  /* Medic units use a simplified Star of Life with central medical staff. */
   if (type === 'medic') {
     return `
       <svg ${common}>
-        <rect x="5" y="15" width="47" height="23" rx="4" fill="currentColor"/>
-        <path d="M52 23 H62 L68 30 V38 H52 Z" fill="currentColor"/>
-        <circle cx="18" cy="40" r="5" fill="currentColor"/>
-        <circle cx="47" cy="40" r="5" fill="currentColor"/>
-        <circle cx="61" cy="40" r="5" fill="currentColor"/>
-        <rect x="25" y="19" width="7" height="15" fill="#ffffff"/>
-        <rect x="21" y="23" width="15" height="7" fill="#ffffff"/>
-        <rect x="56" y="26" width="7" height="6" rx="1" fill="#0f172a"/>
-        <rect x="10" y="11" width="14" height="3" rx="1.5" fill="currentColor"/>
+        <path d="M32 3 H40 L41 16 L52 9 L57 15 L47 25 L61 29 L59 37 L45 34 L45 47 H27 L27 34 L13 37 L11 29 L25 25 L15 15 L20 9 L31 16 Z"
+          fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/>
+        <path d="M36 12 V39" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+        <path d="M36 20 C44 21 43 27 36 28 C29 29 29 35 37 36"
+          fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+        <circle cx="36" cy="10" r="3" fill="currentColor"/>
       </svg>
     `;
   }
 
-  /*
-   * Ladder: long aerial ladder and turntable are visually distinct.
-   */
-  if (type === 'ladder') {
+  /* CRRD / Prevention and Fire Marshal use a shield with a check mark. */
+  if (type === 'crrd') {
     return `
       <svg ${common}>
-        <rect x="5" y="23" width="49" height="15" rx="3" fill="currentColor"/>
-        <path d="M54 27 H63 L68 32 V38 H54 Z" fill="currentColor"/>
-        <circle cx="17" cy="40" r="5" fill="currentColor"/>
-        <circle cx="43" cy="40" r="5" fill="currentColor"/>
-        <circle cx="61" cy="40" r="5" fill="currentColor"/>
-        <circle cx="34" cy="23" r="4" fill="#ffffff"/>
-        <path d="M12 16 L58 5 L60 10 L14 21 Z" fill="currentColor"/>
-        <path d="M16 16.5 L56 7" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round"/>
-        <path d="M22 15 L24 19 M31 13 L33 17 M40 11 L42 15 M49 9 L51 13"
-          stroke="#ffffff" stroke-width="1.6" stroke-linecap="round"/>
+        <path d="M36 3 L61 12 V27 C61 36 51 43 36 47 C21 43 11 36 11 27 V12 Z"
+          fill="none" stroke="currentColor" stroke-width="5" stroke-linejoin="round"/>
+        <path d="M22 26 L31 35 L51 16"
+          fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
     `;
   }
 
-  /*
-   * Command: Tahoe/SUV profile with light bar.
-   */
-  if (
-    type === 'chief' ||
-    type === 'battalion'
-  ) {
+  /* Non-identity command vehicles retain the SUV silhouette. */
+  if (type === 'chief' || type === 'battalion') {
     return `
       <svg ${common}>
         <path d="M8 30 L15 18 H45 L55 24 H62 L68 31 V38 H8 Z" fill="currentColor"/>
@@ -770,23 +739,6 @@ function apparatusSvg(v) {
         <rect x="24" y="12" width="18" height="4" rx="2" fill="currentColor"/>
         <path d="M18 20 H31 V28 H14 Z" fill="#0f172a"/>
         <path d="M33 20 H44 L51 28 H33 Z" fill="#0f172a"/>
-        <rect x="59" y="29" width="5" height="3" rx="1" fill="#ffffff"/>
-      </svg>
-    `;
-  }
-
-  /*
-   * CRRD / Prevention: pickup silhouette to distinguish it from command.
-   */
-  if (type === 'crrd') {
-    return `
-      <svg ${common}>
-        <path d="M7 29 L14 19 H36 L45 25 H62 L68 31 V38 H7 Z" fill="currentColor"/>
-        <circle cx="19" cy="40" r="5" fill="currentColor"/>
-        <circle cx="57" cy="40" r="5" fill="currentColor"/>
-        <path d="M17 21 H29 V28 H13 Z" fill="#0f172a"/>
-        <path d="M31 21 H36 L42 28 H31 Z" fill="#0f172a"/>
-        <rect x="46" y="27" width="15" height="3" rx="1" fill="#ffffff" opacity=".9"/>
       </svg>
     `;
   }
@@ -1790,7 +1742,7 @@ function renderKioskStatusBoard(locations, metrics, gps, noGps, stale) {
       const stateClass = present.length ? 'covered' : 'empty';
       const detail = present.length
         ? `<div class="kiosk-station-units">${present.map(v =>
-            `<span class="${kioskUnitTypeClass(v)}">${escapeHtml(shortLabel(v))}</span>`
+            `<span class="${kioskUnitTypeClass(v)}"><span class="kiosk-pill-icon" aria-hidden="true">${apparatusSvg(v)}</span>${escapeHtml(shortLabel(v))}</span>`
           ).join('')}</div>`
         : '<div class="kiosk-station-empty" aria-label="No units at station">—</div>';
       return `
