@@ -2263,3 +2263,65 @@ body {
   color: #d4a900;
   border: 1px solid #d4a900;
 }
+
+
+/* ===== Version 3.9.0 shield command identities =====
+   Chief 40/41/42, Battalion 40, Training 40, and Safety 40 share the
+   shield-and-cross icon selected for command/support recognition. */
+.marker-tag.unit-battalion-40,
+.marker-tag.unit-chief-gold {
+  background: linear-gradient(180deg, #f2c94c 0%, #d4a900 48%, #b88900 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.75),
+    inset 0 -1px 0 rgba(74,52,0,.28),
+    0 3px 9px rgba(0,0,0,.42);
+}
+.marker-tag.unit-black-gold {
+  background: linear-gradient(180deg, #151515 0%, #050505 62%, #000000 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.10),
+    0 3px 9px rgba(0,0,0,.48);
+}
+.marker-tag.unit-battalion-40 .marker-svg,
+.marker-tag.unit-chief-gold .marker-svg,
+.marker-tag.unit-black-gold .marker-svg {
+  width: 18px;
+  height: 18px;
+}
+.marker-tag.unit-battalion-40 .marker-svg svg,
+.marker-tag.unit-chief-gold .marker-svg svg,
+.marker-tag.unit-black-gold .marker-svg svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* Add the same shield symbol to compact kiosk station pills. */
+.kiosk-mode .kiosk-station-units span.unit-battalion-40,
+.kiosk-mode .kiosk-station-units span.unit-chief-gold,
+.kiosk-mode .kiosk-station-units span.unit-black-gold {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.kiosk-mode .kiosk-station-units span.unit-battalion-40::before,
+.kiosk-mode .kiosk-station-units span.unit-chief-gold::before,
+.kiosk-mode .kiosk-station-units span.unit-black-gold::before {
+  content: "✚";
+  width: 11px;
+  height: 13px;
+  display: inline-grid;
+  place-items: center;
+  border: 1.5px solid currentColor;
+  border-radius: 45% 45% 55% 55%;
+  font-size: 8px;
+  line-height: 1;
+  font-weight: 1000;
+  flex: 0 0 auto;
+}
+.kiosk-mode .kiosk-station-units span.unit-battalion-40,
+.kiosk-mode .kiosk-station-units span.unit-chief-gold {
+  background: linear-gradient(180deg, #f2c94c 0%, #d4a900 48%, #b88900 100%);
+}
+.kiosk-mode .kiosk-station-units span.unit-black-gold {
+  background: linear-gradient(180deg, #151515 0%, #050505 62%, #000000 100%);
+}

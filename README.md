@@ -1,3 +1,11 @@
+# Version 3.9.0
+
+- Replaced the vehicle icon on Chief 40/41/42, Battalion 40, Training 40, and Safety 40 with the selected shield-and-cross icon.
+- Added a metallic gold treatment to Chief and Battalion map pills.
+- Added a refined black-and-gold treatment to Training and Safety map pills.
+- Added matching shield cues to the compact kiosk station pills.
+- Preserved operational status overrides for responding, stale GPS, no GPS, and offline units.
+
 # Version 3.8.0
 
 - Adds dedicated command-unit pill colors on both the standard map and kiosk station rows.

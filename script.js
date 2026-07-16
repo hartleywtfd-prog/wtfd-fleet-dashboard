@@ -1,6 +1,6 @@
 /* ===== User-adjustable dashboard settings ===== */
 const DASHBOARD_CONFIG = {
-  version: '3.8.0',
+  version: '3.9.0',
   // Fallback map view used only if the jurisdiction boundary cannot load.
   defaultCenterLat: 39.62784,
   defaultCenterLon: -84.15996,
@@ -674,12 +674,25 @@ function apparatusSvg(v) {
   const type = String(
     v.type || ''
   ).toLowerCase();
+  const identity = unitIdentityClass(v);
 
   const common = `
     viewBox="0 0 72 48"
     aria-hidden="true"
     focusable="false"
   `;
+
+  /* Command identity units use the same shield-and-cross symbol. */
+  if (identity) {
+    return `
+      <svg ${common}>
+        <path d="M36 3 L61 12 V27 C61 36 51 43 36 47 C21 43 11 36 11 27 V12 Z"
+          fill="none" stroke="currentColor" stroke-width="5" stroke-linejoin="round"/>
+        <rect x="32" y="14" width="8" height="22" rx="1.5" fill="currentColor"/>
+        <rect x="25" y="21" width="22" height="8" rx="1.5" fill="currentColor"/>
+      </svg>
+    `;
+  }
 
   /*
    * Engine: unmistakable pumper silhouette with square body,
@@ -829,10 +842,10 @@ function unitIdentityColors(v, status) {
 
   const identity = unitIdentityClass(v);
   if (identity === ' unit-battalion-40') {
-    return { background: '#d4a900', foreground: '#000000', border: '#8a6a00' };
+    return { background: 'linear-gradient(180deg,#f2c94c 0%,#d4a900 48%,#b88900 100%)', foreground: '#000000', border: '#6f5400' };
   }
   if (identity === ' unit-chief-gold') {
-    return { background: '#d4a900', foreground: '#ffffff', border: '#ffffff' };
+    return { background: 'linear-gradient(180deg,#f2c94c 0%,#d4a900 48%,#b88900 100%)', foreground: '#ffffff', border: '#ffffff' };
   }
   if (identity === ' unit-black-gold') {
     return { background: '#050505', foreground: '#d4a900', border: '#d4a900' };
