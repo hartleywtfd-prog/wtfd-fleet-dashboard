@@ -1783,7 +1783,7 @@ function renderKioskStatusBoard(locations, metrics, gps, noGps, stale) {
       const stateClass = present.length ? 'covered' : 'empty';
       const detail = present.length
         ? `<div class="kiosk-station-units">${present.map(v =>
-            `<span class="${kioskUnitTypeClass(v)}"><span class="kiosk-pill-icon" aria-hidden="true">${apparatusSvg(v)}</span>${escapeHtml(shortLabel(v))}</span>`
+            `<span class="${kioskUnitTypeClass(v)}">${escapeHtml(shortLabel(v))}</span>`
           ).join('')}</div>`
         : '<div class="kiosk-station-empty" aria-label="No units at station">—</div>';
       return `
