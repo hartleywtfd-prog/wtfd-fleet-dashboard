@@ -871,29 +871,35 @@ function markerColor(v, status) {
 }
 
 function shortLabel(v) {
-  const unit = String(v.unit || '');
+  const unit = String(v.unit || '').trim();
   const match = unit.match(/\d+/);
   const number = match ? match[0] : '';
+  const normalizedUnit = unit.toLowerCase();
 
-  // Safety units may be classified as Battalion/Command in UnitConfig,
-  // but their map identifier must follow the configured unit name.
-  if (/^safety\b/i.test(unit)) return 'S' + number;
+  /*
+   * The map pill must follow the configured unit name, not the apparatus
+   * type. A command vehicle can be typed as Chief/Battalion for styling,
+   * but "Battalion 40" must still render B40 and "Chief 40" must render C40.
+   */
+  if (/^medic\b/.test(normalizedUnit)) return 'M' + number;
+  if (/^engine\b/.test(normalizedUnit)) return 'E' + number;
+  if (/^(ladder|truck)\b/.test(normalizedUnit)) return 'L' + number;
+  if (/^battalion\b/.test(normalizedUnit)) return 'B' + number;
+  if (/^chief\b/.test(normalizedUnit)) return 'C' + number;
+  if (/^training\b/.test(normalizedUnit)) return 'T' + number;
+  if (/^safety\b/.test(normalizedUnit)) return 'S' + number;
+  if (/^prevention\b/.test(normalizedUnit)) return 'P' + number;
+  if (/^(fire\s*)?marshal\b/.test(normalizedUnit)) return 'FM' + number;
 
-  const type = String(
-    v.type || ''
-  ).toLowerCase();
-
-  if (type === 'medic') return 'M' + number;
-  if (type === 'engine') return 'E' + number;
-  if (type === 'ladder') return 'L' + number;
-  if (type === 'battalion') return 'B' + number;
-  if (type === 'chief') return 'C' + number;
-
-  if (type === 'crrd') {
-    return unit
-      .replace('Prevention ', 'P')
-      .replace('Marshal ', 'FM')
-      .substring(0, 5);
+  // Fall back to type only when the configured unit name has no known prefix.
+  const type = String(v.type || '').toLowerCase();
+  if (number) {
+    if (type === 'medic') return 'M' + number;
+    if (type === 'engine') return 'E' + number;
+    if (type === 'ladder') return 'L' + number;
+    if (type === 'battalion') return 'B' + number;
+    if (type === 'chief') return 'C' + number;
+    if (type === 'crrd') return 'P' + number;
   }
 
   return unit.substring(0, 5);
