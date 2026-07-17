@@ -605,6 +605,23 @@ function getStatus(v) {
   return 'away';
 }
 
+function shouldShowKioskMapMarker(v) {
+  if (!IS_KIOSK_MODE) return true;
+
+  const unit = String(v.unit || '').trim().toLowerCase();
+  const isSelectedPreventionUnit =
+    /^prevention\s*(41|42|43|44)\b/.test(unit) ||
+    /^(fire\s*)?marshal\s*40\b/.test(unit);
+
+  if (!isSelectedPreventionUnit) return true;
+
+  const facility = String(v.facility || '').trim().toLowerCase();
+  const isAway = facility === 'away' || getStatus(v) === 'away';
+  const isMoving = Number(v.speed || 0) >= 5;
+
+  return isAway || isMoving;
+}
+
 function statusText(status, v) {
   const facility = String(
     v.facility || ''
@@ -1409,8 +1426,9 @@ function renderDashboard(locations) {
       );
     });
 
+  const markerLocations = filtered.filter(shouldShowKioskMapMarker);
   const collisionGroups =
-    buildMarkerCollisionGroups(filtered);
+    buildMarkerCollisionGroups(markerLocations);
   const metrics = buildFleetMetrics(
     locations
   );
@@ -1419,6 +1437,12 @@ function renderDashboard(locations) {
   let noGps = 0;
   let stale = 0;
 
+  locations.forEach(v => {
+    const gpsStatus = String(v.gpsStatus || '').toLowerCase();
+    if (gpsStatus === 'gps') gps++;
+    if (gpsStatus === 'no gps') noGps++;
+    if (getStatus(v) === 'stale') stale++;
+  });
 
   collisionGroups.forEach(originalGroup => {
     const layoutGroup = sortGroupForLayout(
@@ -1431,14 +1455,6 @@ function renderDashboard(locations) {
     layoutGroup.forEach((v, index) => {
       const status = getStatus(v);
       const pixelOffset = offsets[index] || [0, 0];
-
-      const gpsStatus = String(
-        v.gpsStatus || ''
-      ).toLowerCase();
-
-      if (gpsStatus === 'gps') gps++;
-      if (gpsStatus === 'no gps') noGps++;
-      if (status === 'stale') stale++;
 
       try {
         const marker = L.marker(

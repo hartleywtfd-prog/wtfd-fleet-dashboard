@@ -1,3 +1,10 @@
+# Version 4.1.6
+
+- Kiosk map hides Prevention 41–44 and Marshal 40 while they are parked.
+- Those units reappear on the kiosk map when assigned Away or moving at 5 mph or faster.
+- Units remain visible in the kiosk station and Away rosters.
+- Standard dashboard map behavior is unchanged.
+
 # Version 4.1.5
 
 - Removed the eight-unit limit from the kiosk Away roster.
