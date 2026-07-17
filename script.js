@@ -1807,7 +1807,7 @@ function renderKioskStatusBoard(locations, metrics, gps, noGps, stale) {
   const awayList = document.getElementById('kioskAwayList');
   if (awayList) {
     awayList.innerHTML = away.length
-      ? away.slice(0, 8).map(v => `
+      ? away.map(v => `
           <div class="kiosk-unit-row away">
             <span>${escapeHtml(String(v.unit || '').toUpperCase())}</span>
             <strong title="${escapeHtml(v.location || v.facility || 'Away')}">${escapeHtml(conciseAwayLocation(v))}</strong>

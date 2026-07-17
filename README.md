@@ -1,3 +1,9 @@
+# Version 4.1.5
+
+- Removed the eight-unit limit from the kiosk Away roster.
+- Displays all away units in a compact three-column grid so they remain visible on the TV.
+- Preserves full unit names while hiding secondary location text in the compact kiosk roster.
+
 # Version 4.1.4
 
 - Corrected the oversized ribbon in Fully Kiosk Browser.
