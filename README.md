@@ -1,3 +1,10 @@
+# Version 4.1.4
+
+- Corrected the oversized ribbon in Fully Kiosk Browser.
+- Reduced the kiosk ribbon to 290px to restore map space.
+- Compacted kiosk-only vertical spacing so Station 45 and the complete lower status board remain visible.
+- Standard dashboard sizing is unchanged.
+
 # Version 4.0.0
 
 ## Apparatus icon system

@@ -2397,3 +2397,87 @@ body {
 .marker-tag.marker-nogps { --pill-bg: #64748b; }
 .marker-tag.marker-stale { --pill-bg: #dc2626; }
 .marker-tag.marker-offline { --pill-bg: #6b7280; }
+
+/* ===== Version 4.1.4 Fully Kiosk ribbon fit =====
+   Keep the status ribbon near one third of the TV viewport and fit the complete
+   operational board without changing the standard dashboard. */
+.kiosk-mode #sidebar {
+  width: 290px;
+  min-width: 290px;
+}
+.kiosk-mode .brand {
+  padding: 4px 7px;
+  gap: 6px;
+}
+.kiosk-mode .logo {
+  width: 40px;
+  height: 40px;
+}
+.kiosk-mode .title { font-size: 15px; }
+.kiosk-mode .subtitle { font-size: 9px; }
+.kiosk-mode .clockPanel { padding: 4px 7px 3px; }
+.kiosk-mode #clock { font-size: 27px; }
+.kiosk-mode #clockDate { margin-top: 0; }
+.kiosk-mode #lastRefresh { margin-top: 1px; }
+.kiosk-mode .summary {
+  gap: 3px;
+  padding: 3px 5px;
+}
+.kiosk-mode .card {
+  min-height: 34px;
+  padding: 3px 1px;
+  font-size: 7px;
+}
+.kiosk-mode .card span {
+  margin-top: 1px;
+  font-size: 19px;
+}
+.kiosk-mode .kiosk-status-board {
+  gap: 3px;
+  padding: 0 5px 3px;
+}
+.kiosk-mode .kiosk-board-section { padding: 4px; }
+.kiosk-mode .kiosk-section-title {
+  margin-bottom: 2px;
+  font-size: 9px;
+}
+.kiosk-mode .kiosk-empty-state {
+  min-height: 17px;
+  padding: 1px 3px;
+  font-size: 10px;
+  line-height: 15px;
+}
+.kiosk-mode .kiosk-station-grid { gap: 2px; }
+.kiosk-mode .kiosk-station-card {
+  min-height: 23px;
+  padding: 1px 4px;
+  column-gap: 5px;
+}
+.kiosk-mode .kiosk-station-name { font-size: 12px; }
+.kiosk-mode .kiosk-station-name small {
+  min-width: 15px;
+  height: 15px;
+  font-size: 8px;
+}
+.kiosk-mode .kiosk-station-units { gap: 2px; }
+.kiosk-mode .kiosk-station-units span {
+  min-width: 0;
+  padding: 0 3px;
+  gap: 2px;
+  font-size: 7px;
+  line-height: 14px;
+}
+.kiosk-mode .kiosk-station-units .kiosk-pill-icon,
+.kiosk-mode .kiosk-station-units .kiosk-pill-icon svg {
+  width: 9px;
+  height: 9px;
+}
+.kiosk-mode .kiosk-health-grid > div { padding: 3px 1px; }
+.kiosk-mode .kiosk-health-grid strong { font-size: 13px; }
+.kiosk-mode .kiosk-health-section { margin-top: 0; }
+.kiosk-mode .kiosk-health-grid span { font-size: 6px; }
+.kiosk-mode .dashboard-version { padding-bottom: 2px; }
+.kiosk-mode #sidebar::after {
+  height: 6px;
+  flex-basis: 6px;
+}
