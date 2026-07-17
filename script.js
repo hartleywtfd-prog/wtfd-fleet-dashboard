@@ -609,11 +609,12 @@ function shouldShowKioskMapMarker(v) {
   if (!IS_KIOSK_MODE) return true;
 
   const unit = String(v.unit || '').trim().toLowerCase();
-  const isSelectedPreventionUnit =
+  const isKioskMovementOnlyUnit =
     /^prevention\s*(41|42|43|44)\b/.test(unit) ||
-    /^(fire\s*)?marshal\s*40\b/.test(unit);
+    /^(fire\s*)?marshal\s*40\b/.test(unit) ||
+    /^chief\s*(40|41|42)\b/.test(unit);
 
-  if (!isSelectedPreventionUnit) return true;
+  if (!isKioskMovementOnlyUnit) return true;
 
   const facility = String(v.facility || '').trim().toLowerCase();
   const isAway = facility === 'away' || getStatus(v) === 'away';

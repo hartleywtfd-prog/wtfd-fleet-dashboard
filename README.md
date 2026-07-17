@@ -1,3 +1,9 @@
+# Version 4.1.7
+
+- Extended the kiosk movement-only map filter to Chief 40, Chief 41, and Chief 42.
+- These chief units remain hidden while parked and reappear when Away or moving at 5 mph or faster.
+- Standard dashboard map behavior is unchanged.
+
 # Version 4.1.6
 
 - Kiosk map hides Prevention 41–44 and Marshal 40 while they are parked.
