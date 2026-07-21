@@ -1,3 +1,9 @@
+# Version 4.1.8
+
+- Corrected the runtime dashboard version so the footer displays the current release.
+- Synchronized the stylesheet and script cache-buster values with the release version.
+- Preserved the approved apparatus-pill sizing and compact marker fan-out behavior.
+
 # Version 4.1.7
 
 - Extended the kiosk movement-only map filter to Chief 40, Chief 41, and Chief 42.
