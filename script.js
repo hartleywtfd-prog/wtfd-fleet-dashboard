@@ -1,6 +1,6 @@
 /* ===== User-adjustable dashboard settings ===== */
 const DASHBOARD_CONFIG = {
-  version: '4.1.8',
+  version: '4.1.9',
   // Fallback map view used only if the jurisdiction boundary cannot load.
   defaultCenterLat: 39.62784,
   defaultCenterLon: -84.15996,
@@ -612,7 +612,8 @@ function shouldShowKioskMapMarker(v) {
   const isKioskMovementOnlyUnit =
     /^prevention\s*(41|42|43|44)\b/.test(unit) ||
     /^(fire\s*)?marshal\s*40\b/.test(unit) ||
-    /^chief\s*(40|41|42)\b/.test(unit);
+    /^chief\s*(40|41|42)\b/.test(unit) ||
+    /^(safety|training)\s*40\b/.test(unit);
 
   if (!isKioskMovementOnlyUnit) return true;
 

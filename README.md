@@ -1,3 +1,10 @@
+# Version 4.1.9
+
+- Extended the kiosk movement-only map filter to Safety 40 and Training 40.
+- These units remain in kiosk station and Away rosters while hidden from the kiosk map when parked.
+- Safety 40 and Training 40 reappear on the kiosk map when assigned Away or moving at 5 mph or faster.
+- Standard dashboard behavior is unchanged.
+
 # Version 4.1.8
 
 - Corrected the runtime dashboard version so the footer displays the current release.
