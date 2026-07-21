@@ -1,6 +1,6 @@
 /* ===== User-adjustable dashboard settings ===== */
 const DASHBOARD_CONFIG = {
-  version: '4.1.9',
+  version: '4.2.0',
   // Fallback map view used only if the jurisdiction boundary cannot load.
   defaultCenterLat: 39.62784,
   defaultCenterLon: -84.15996,
@@ -605,23 +605,41 @@ function getStatus(v) {
   return 'away';
 }
 
-function shouldShowKioskMapMarker(v) {
-  if (!IS_KIOSK_MODE) return true;
-
+function shouldShowMapMarker(v) {
   const unit = String(v.unit || '').trim().toLowerCase();
-  const isKioskMovementOnlyUnit =
+  const isAdministrativeCommandUnit =
     /^prevention\s*(41|42|43|44)\b/.test(unit) ||
     /^(fire\s*)?marshal\s*40\b/.test(unit) ||
     /^chief\s*(40|41|42)\b/.test(unit) ||
     /^(safety|training)\s*40\b/.test(unit);
 
-  if (!isKioskMovementOnlyUnit) return true;
+  if (!isAdministrativeCommandUnit) return true;
 
   const facility = String(v.facility || '').trim().toLowerCase();
-  const isAway = facility === 'away' || getStatus(v) === 'away';
+  const status = getStatus(v);
+  const isAway = facility === 'away' || status === 'away';
   const isMoving = Number(v.speed || 0) >= 5;
+  const isResponding = status === 'responding';
 
-  return isAway || isMoving;
+  // Preserve the existing kiosk rule: these vehicles appear on its map only
+  // when operationally relevant. They remain available in kiosk rosters.
+  if (IS_KIOSK_MODE) {
+    return isAway || isMoving;
+  }
+
+  // On the standard map, reduce only the Headquarters cluster. Units remain
+  // visible at every other facility and reappear immediately when Away,
+  // moving, or responding.
+  const isAtHeadquarters =
+    facility.includes('headquarters') ||
+    facility === 'hq';
+
+  return (
+    !isAtHeadquarters ||
+    isAway ||
+    isMoving ||
+    isResponding
+  );
 }
 
 function statusText(status, v) {
@@ -1428,7 +1446,7 @@ function renderDashboard(locations) {
       );
     });
 
-  const markerLocations = filtered.filter(shouldShowKioskMapMarker);
+  const markerLocations = filtered.filter(shouldShowMapMarker);
   const collisionGroups =
     buildMarkerCollisionGroups(markerLocations);
   const metrics = buildFleetMetrics(

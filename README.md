@@ -1,3 +1,11 @@
+# Version 4.2.0
+
+- Applies the Headquarters administrative-marker filter to the standard map.
+- Hides Prevention 41–44, Marshal 40, Chief 40–42, Safety 40, and Training 40 only while parked at Headquarters.
+- Restores those markers immediately when Away, moving, responding, or located at another facility.
+- Leaves Battalion 40 and all frontline apparatus visible.
+- Preserves the existing kiosk movement-only filter and all roster entries.
+
 # Version 4.1.9
 
 - Extended the kiosk movement-only map filter to Safety 40 and Training 40.
