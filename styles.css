@@ -280,13 +280,14 @@ button:hover,
   line-height: 1.45;
 }
 
-.popup-health strong { color: #0f172a; }
-.popup-health a { color: #1d4ed8; font-weight: 900; }
+.leaflet-popup-content .popup-health,
+.leaflet-popup-content .popup-health * { color: #0f172a !important; }
+.leaflet-popup-content .popup-health a { color: #1d4ed8 !important; font-weight: 900; }
 
 .popup-health-status { font-weight: 900; }
-.popup-health-status.good { color: #15803d; }
-.popup-health-status.warn { color: #b45309; }
-.popup-health-status.bad { color: #b91c1c; }
+.leaflet-popup-content .popup-health-status.good { color: #15803d !important; }
+.leaflet-popup-content .popup-health-status.warn { color: #b45309 !important; }
+.leaflet-popup-content .popup-health-status.bad { color: #b91c1c !important; }
 
 button:disabled,
 #forceSync:disabled {

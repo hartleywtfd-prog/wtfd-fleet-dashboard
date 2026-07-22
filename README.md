@@ -1,3 +1,8 @@
+# Version 4.3.2
+
+- Forces readable dark text inside the light Fleet Health card after Leaflet popup styling is applied.
+- Retains green, amber, and red health states and the blue diagnostics link.
+
 # Version 4.3.1
 
 - Corrects Fleet Health popup-card contrast on the regular dashboard.
