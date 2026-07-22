@@ -1,3 +1,10 @@
+# Version 4.2.1
+
+- Removes Area and Sector lines from the Active911 Details display.
+- Gives the kiosk Details card more width and substantially more vertical room.
+- Keeps the dispatched-units card visible while prioritizing the incident narrative.
+- Leaves the standard dashboard layout and all other alert behavior unchanged.
+
 # Version 4.2.0
 
 - Applies the Headquarters administrative-marker filter to the standard map.

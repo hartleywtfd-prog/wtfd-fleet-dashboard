@@ -1,6 +1,6 @@
 /* ===== User-adjustable dashboard settings ===== */
 const DASHBOARD_CONFIG = {
-  version: '4.2.0',
+  version: '4.2.1',
   // Fallback map view used only if the jurisdiction boundary cannot load.
   defaultCenterLat: 39.62784,
   defaultCenterLon: -84.15996,
@@ -2262,6 +2262,15 @@ function active911SetOptional(id, value) {
   element.textContent = hasValue ? value : '';
 }
 
+function active911DisplayDetails(value) {
+  return String(value || '')
+    .split(/\r?\n/)
+    .filter(line => !/^\s*(?:area|sector)\s*:/i.test(line))
+    .join('\n')
+    .replace(/^\s+|\s+$/g, '')
+    .replace(/\n{3,}/g, '\n\n');
+}
+
 function active911FormatTime(value) {
   if (!value) return '';
 
@@ -2433,13 +2442,14 @@ function showActive911Alert(alert) {
   );
 
   active911SetOptional('active911Units', alert.units);
-  active911SetOptional('active911Details', alert.details);
+  const displayDetails = active911DisplayDetails(alert.details);
+  active911SetOptional('active911Details', displayDetails);
 
   const unitsCard = document.getElementById('active911UnitsCard');
   const detailsCard = document.getElementById('active911DetailsCard');
 
   if (unitsCard) unitsCard.hidden = !String(alert.units || '').trim();
-  if (detailsCard) detailsCard.hidden = !String(alert.details || '').trim();
+  if (detailsCard) detailsCard.hidden = !displayDetails;
 
   active911SetText(
     'active911Received',

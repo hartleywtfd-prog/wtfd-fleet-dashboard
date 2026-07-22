@@ -1061,7 +1061,23 @@ button:disabled,
 }
 
 .kiosk-mode .active911-panel {
+  width: min(1000px, 96vw);
+  max-height: 94vh;
   pointer-events: none;
+}
+
+.kiosk-mode .active911-grid {
+  grid-template-columns: minmax(0, .7fr) minmax(0, 1.3fr);
+}
+
+.kiosk-mode .active911-info-card {
+  min-height: 190px;
+  max-height: min(32vh, 300px);
+}
+
+.kiosk-mode #active911Details {
+  font-size: clamp(14px, 1.35vw, 19px);
+  line-height: 1.2;
 }
 
 .kiosk-mode #map,
