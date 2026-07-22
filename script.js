@@ -1,6 +1,6 @@
 /* ===== User-adjustable dashboard settings ===== */
 const DASHBOARD_CONFIG = {
-  version: '4.4.0',
+  version: '4.4.1',
   // Fallback map view used only if the jurisdiction boundary cannot load.
   defaultCenterLat: 39.62784,
   defaultCenterLon: -84.15996,
@@ -2302,6 +2302,7 @@ let active911PopupOpen = false;
 let active911DismissTimer = null;
 let active911Audio = null;
 let pendingActive911Sound = false;
+let active911AudioRetryTimer = null;
 const ACTIVE911_LAST_SEEN_KEY = 'wtfd-last-seen-active911-id';
 
 function getActive911Audio() {
@@ -2312,6 +2313,7 @@ function getActive911Audio() {
   if (!active911Audio) {
     active911Audio = new Audio(DASHBOARD_CONFIG.alertSoundUrl);
     active911Audio.preload = 'auto';
+    active911Audio.load();
   }
 
   active911Audio.volume = Math.min(
@@ -2361,6 +2363,20 @@ async function playActive911Sound(alert) {
   }
 }
 
+function retryActive911SoundDuringPopup(alert) {
+  if (active911AudioRetryTimer) clearInterval(active911AudioRetryTimer);
+  let attempts = 0;
+  active911AudioRetryTimer = setInterval(() => {
+    attempts++;
+    if (!pendingActive911Sound || attempts >= 10 || !active911PopupOpen) {
+      clearInterval(active911AudioRetryTimer);
+      active911AudioRetryTimer = null;
+      return;
+    }
+    playActive911Sound(alert);
+  }, 1000);
+}
+
 function retryPendingActive911Sound() {
   if (!pendingActive911Sound || !activeIncidentAlert) return;
   playActive911Sound(activeIncidentAlert);
@@ -2390,7 +2406,7 @@ function active911SetOptional(id, value) {
 function active911DisplayDetails(value) {
   return String(value || '')
     .split(/\r?\n/)
-    .filter(line => !/^\s*(?:area|sector)\s*:/i.test(line))
+    .filter(line => !/^\s*(?:area|sector|beat)\s*:/i.test(line))
     .join('\n')
     .replace(/^\s+|\s+$/g, '')
     .replace(/\n{3,}/g, '\n\n');
@@ -2614,6 +2630,7 @@ function showActive911Alert(alert) {
   showTemporaryIncidentMarker(alert);
   addIncidentToBanner(alert);
   playActive911Sound(alert);
+  retryActive911SoundDuringPopup(alert);
 
   if (active911DismissTimer) {
     clearTimeout(active911DismissTimer);
@@ -2631,6 +2648,11 @@ function dismissActive911Alert() {
   const overlay = document.getElementById('active911Overlay');
   if (overlay) overlay.hidden = true;
   active911PopupOpen = false;
+
+  if (active911AudioRetryTimer) {
+    clearInterval(active911AudioRetryTimer);
+    active911AudioRetryTimer = null;
+  }
 
   if (active911DismissTimer) {
     clearTimeout(active911DismissTimer);

@@ -149,7 +149,7 @@ function timestampValue(alert) {
 function normalizeAlert(alert) {
   const details = String(alert.details || '')
     .split(/\r?\n/)
-    .filter(line => !/^\s*(?:area|sector)\s*:/i.test(line))
+    .filter(line => !/^\s*(?:area|sector|beat)\s*:/i.test(line))
     .join('\n')
     .replace(/^\s+|\s+$/g, '')
     .replace(/\n{3,}/g, '\n\n');

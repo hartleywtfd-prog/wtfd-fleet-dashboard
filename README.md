@@ -1,3 +1,10 @@
+# Version 4.4.1
+
+- Removes Beat from Active911 Details along with Area and Sector.
+- Preloads the included alert chime and raises its configured volume to 100%.
+- Automatically retries blocked sound playback once per second while the 15-second popup remains visible.
+- Preserves one successful sound per incident so a displayed call does not repeatedly chime.
+
 # Version 4.4.0
 
 - Prevents a new Active911 call from being silently treated as the startup baseline after a kiosk or page reload.

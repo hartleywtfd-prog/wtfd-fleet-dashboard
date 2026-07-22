@@ -7,7 +7,7 @@
 window.WTFD_DASHBOARD_CONFIG = {
   alertSoundEnabled: true,
   alertSoundUrl: 'sounds/dispatch-chime.wav',
-  alertSoundVolume: 0.75,
+  alertSoundVolume: 1.0,
   alertSoundPlayOncePerIncident: true,
 
   active911PopupDurationMs: 15000,
