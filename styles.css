@@ -276,8 +276,12 @@ button:hover,
   border: 1px solid #cbd5e1;
   border-radius: 7px;
   background: #f8fafc;
+  color: #0f172a;
   line-height: 1.45;
 }
+
+.popup-health strong { color: #0f172a; }
+.popup-health a { color: #1d4ed8; font-weight: 900; }
 
 .popup-health-status { font-weight: 900; }
 .popup-health-status.good { color: #15803d; }

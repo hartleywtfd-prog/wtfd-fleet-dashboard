@@ -1,3 +1,9 @@
+# Version 4.3.1
+
+- Corrects Fleet Health popup-card contrast on the regular dashboard.
+- Uses dark labels and values with a high-contrast blue diagnostics link.
+- Leaves all integration behavior and kiosk mode unchanged.
+
 # Version 4.3.0
 
 - Integrates the regular operational dashboard with WTFD Fleet Health.
