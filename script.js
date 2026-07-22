@@ -1,6 +1,6 @@
 /* ===== User-adjustable dashboard settings ===== */
 const DASHBOARD_CONFIG = {
-  version: '4.4.2',
+  version: '4.4.3',
   // Fallback map view used only if the jurisdiction boundary cannot load.
   defaultCenterLat: 39.62784,
   defaultCenterLon: -84.15996,
@@ -29,6 +29,7 @@ const DASHBOARD_CONFIG = {
   active911BannerDurationMs: 10 * 60 * 1000,
   active911BannerMaxItems: 5,
   active911StartupPopupMaxAgeMs: 2 * 60 * 1000,
+  active911TimeZone: 'America/New_York',
   reconnectRetryMs: 5000,
   cacheKey: 'wtfd-dashboard-cache-v2',
   kioskIncidentFocusMs: 15000,
@@ -2448,7 +2449,8 @@ function active911FormatTime(value) {
     day: 'numeric',
     hour: 'numeric',
     minute: '2-digit',
-    second: '2-digit'
+    second: '2-digit',
+    timeZone: DASHBOARD_CONFIG.active911TimeZone
   });
 }
 

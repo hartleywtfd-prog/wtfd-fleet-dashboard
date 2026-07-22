@@ -1,3 +1,9 @@
+# Version 4.4.3
+
+- Forces Active911 Received times to America/New_York instead of relying on the kiosk device timezone.
+- Automatically observes Eastern Standard Time and Eastern Daylight Time.
+- Corrects Fire TV devices configured or reported as UTC while leaving timestamp parsing and alert-age logic intact.
+
 # Version 4.4.2
 
 - Corrects Active911 Received times that appeared four hours ahead.

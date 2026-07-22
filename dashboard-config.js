@@ -18,6 +18,8 @@ window.WTFD_DASHBOARD_CONFIG = {
   active911PollMs: 5000,
   // Show an unseen current call after a kiosk/page reload when it is still new.
   active911StartupPopupMaxAgeMs: 2 * 60 * 1000,
+  // Do not rely on the Fire TV/browser timezone for Received times.
+  active911TimeZone: 'America/New_York',
   connectionDelayedMs: 30000,
   connectionLostMs: 90000,
   kioskReloadAfterFailures: 12,
