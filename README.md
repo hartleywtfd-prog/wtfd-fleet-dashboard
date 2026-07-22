@@ -1,3 +1,11 @@
+# Version 4.3.0
+
+- Integrates the regular operational dashboard with WTFD Fleet Health.
+- Adds a Fleet Health button beside the regular-site controls.
+- Adds health status, fuel, battery voltage, active faults, update age, and a full-diagnostics link to apparatus map popups.
+- Matches vehicles by their F-number and refreshes health data once per minute.
+- Leaves kiosk mode unchanged and does not request Fleet Health data in kiosk mode.
+
 # Version 4.2.1
 
 - Removes Area and Sector lines from the Active911 Details display.

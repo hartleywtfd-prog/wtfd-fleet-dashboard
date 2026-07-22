@@ -1,6 +1,6 @@
 /* ===== User-adjustable dashboard settings ===== */
 const DASHBOARD_CONFIG = {
-  version: '4.2.1',
+  version: '4.3.0',
   // Fallback map view used only if the jurisdiction boundary cannot load.
   defaultCenterLat: 39.62784,
   defaultCenterLon: -84.15996,
@@ -45,7 +45,12 @@ const DASHBOARD_CONFIG = {
   alertSoundUrl: 'sounds/dispatch-chime.wav',
   alertSoundVolume: 0.75,
   alertSoundPlayOncePerIncident: true,
-  alertSoundStorageKey: 'wtfd-last-audible-active911-id'
+  alertSoundStorageKey: 'wtfd-last-audible-active911-id',
+
+  // Regular-site Fleet Health integration. Kiosk mode does not request it.
+  fleetHealthDashboardUrl: 'https://wtfd-fleet-health.pages.dev/',
+  fleetHealthApiUrl: 'https://wtfd-fleet-health.pages.dev/api/fleet-health',
+  fleetHealthRefreshMs: 60 * 1000
 };
 
 Object.assign(
@@ -114,6 +119,8 @@ let nextReconnectAttemptAt = 0;
 let reconnectCountdownTimer = null;
 let previousConnectionState = 'online';
 let recoveryToastTimer = null;
+let fleetHealthByApparatus = new Map();
+let fleetHealthRequestInFlight = false;
 
 function showRecoveryToast() {
   const toast = document.getElementById('connectionRestoredToast');
@@ -1271,6 +1278,119 @@ function escapeHtml(value) {
     .replaceAll("'", '&#039;');
 }
 
+function latestFleetHealthStat(stat) {
+  if (!stat) return null;
+  if (!Array.isArray(stat)) return stat;
+  return stat.reduce((newest, item) => (
+    !newest || new Date(item?.time || 0) > new Date(newest?.time || 0)
+      ? item
+      : newest
+  ), null);
+}
+
+function fleetHealthValue(stat) {
+  const latest = latestFleetHealthStat(stat);
+  return latest && typeof latest === 'object' && 'value' in latest
+    ? latest.value
+    : null;
+}
+
+function fleetHealthFaultCount(vehicle) {
+  const fault = latestFleetHealthStat(vehicle?.stats?.faultCodes);
+  if (!fault) return 0;
+  const obd = fault.obdii || fault.value?.obdii || {};
+  const j1939 = fault.j1939 || fault.value?.j1939 || {};
+  const codes = [];
+  if (obd.checkEngineLightIsOn) codes.push('check-engine');
+  (obd.diagnosticTroubleCodes || []).forEach(group => {
+    ['confirmedDtcs', 'pendingDtcs', 'permanentDtcs'].forEach(key => {
+      (group[key] || []).forEach(code => codes.push(
+        typeof code === 'string' ? code : (code.dtcShortCode || code.code || key)
+      ));
+    });
+  });
+  (j1939.diagnosticTroubleCodes || []).forEach(code => codes.push(
+    `${code.spnId ?? ''}-${code.fmiId ?? ''}-${code.txId ?? ''}`
+  ));
+  return new Set(codes).size;
+}
+
+function fleetHealthTelemetryTime(vehicle) {
+  return Object.values(vehicle?.stats || {})
+    .map(stat => latestFleetHealthStat(stat)?.time)
+    .filter(Boolean)
+    .sort()
+    .at(-1) || null;
+}
+
+function fleetHealthSummary(vehicle) {
+  if (!vehicle) return null;
+  const fuel = fleetHealthValue(vehicle.stats?.fuelPercents);
+  const batteryMv = fleetHealthValue(vehicle.stats?.batteryMilliVolts);
+  const battery = batteryMv == null ? null : Number(batteryMv) / 1000;
+  const engine = String(fleetHealthValue(vehicle.stats?.engineStates) || 'Unknown');
+  const faults = fleetHealthFaultCount(vehicle);
+  let label = 'Normal';
+  let tone = 'good';
+  if (faults > 0) {
+    label = 'Active Fault';
+    tone = 'bad';
+  } else if (fuel != null && Number(fuel) < 60) {
+    label = 'Low Fuel';
+    tone = 'warn';
+  } else if (battery != null && engine.toLowerCase() === 'off' && battery < 12) {
+    label = 'Low Battery';
+    tone = 'warn';
+  }
+  return { fuel, battery, faults, label, tone, updated: fleetHealthTelemetryTime(vehicle) };
+}
+
+function fleetHealthLink(apparatusNumber = '') {
+  const base = DASHBOARD_CONFIG.fleetHealthDashboardUrl;
+  return apparatusNumber
+    ? `${base}?vehicle=${encodeURIComponent(apparatusNumber)}`
+    : base;
+}
+
+function fleetHealthPopupHtml(location) {
+  if (IS_KIOSK_MODE) return '';
+  const apparatusNumber = extractFNumber(location.rawName, location.apparatusNumber);
+  const health = fleetHealthSummary(fleetHealthByApparatus.get(apparatusNumber));
+  const link = fleetHealthLink(apparatusNumber);
+  if (!health) {
+    return `<div class="popup-health"><strong>Fleet Health:</strong> Loading…<br><a href="${escapeHtml(link)}" target="_blank" rel="noopener noreferrer">View Full Diagnostics</a></div>`;
+  }
+  return `<div class="popup-health">
+    <strong>Fleet Health:</strong> <span class="popup-health-status ${health.tone}">${escapeHtml(health.label)}</span><br>
+    <strong>Fuel:</strong> ${health.fuel == null ? 'Not reported' : `${Math.round(Number(health.fuel))}%`}<br>
+    <strong>Battery:</strong> ${health.battery == null ? 'Not reported' : `${health.battery.toFixed(1)} V`}<br>
+    <strong>Active Faults:</strong> ${health.faults}<br>
+    <strong>Health Updated:</strong> ${escapeHtml(timeAgo(health.updated))}<br>
+    <a href="${escapeHtml(link)}" target="_blank" rel="noopener noreferrer">View Full Diagnostics</a>
+  </div>`;
+}
+
+async function loadFleetHealth() {
+  if (IS_KIOSK_MODE || fleetHealthRequestInFlight) return;
+  fleetHealthRequestInFlight = true;
+  try {
+    const response = await fetch(`${DASHBOARD_CONFIG.fleetHealthApiUrl}?t=${Date.now()}`, { cache: 'no-store' });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const data = await response.json();
+    const next = new Map();
+    (data.vehicles || []).forEach(vehicle => {
+      const apparatusNumber = extractFNumber(vehicle.name, '');
+      if (apparatusNumber) next.set(apparatusNumber, vehicle);
+    });
+    fleetHealthByApparatus = next;
+    if (allLocations.length) renderDashboard(allLocations);
+  } catch (error) {
+    console.warn('Unable to load Fleet Health data:', error);
+  } finally {
+    fleetHealthRequestInFlight = false;
+  }
+}
+
 function buildFleetMetrics(locations) {
   const metrics = {
     engines: 0,
@@ -1510,6 +1630,7 @@ function renderDashboard(locations) {
           <strong>Home Station:</strong> ${escapeHtml(v.homeStation || '')}<br>
           <strong>Speed:</strong> ${Number(v.speed || 0).toFixed(1)} mph<br>
           <strong>Updated:</strong> ${escapeHtml(timeAgo(v.lastUpdate))}<br><br>
+          ${fleetHealthPopupHtml(v)}
           ${
             v.mapLink
               ? `<a href="${escapeHtml(v.mapLink)}" target="_blank" rel="noopener noreferrer">Open in Google Maps</a>`
@@ -2049,10 +2170,12 @@ document
   });
 
 loadDashboard();
+loadFleetHealth();
 setInterval(
   loadDashboard,
   DASHBOARD_CONFIG.dashboardRefreshMs
 );
+setInterval(loadFleetHealth, DASHBOARD_CONFIG.fleetHealthRefreshMs);
 
 function normalizeIncidentCoordinate(value) {
   const number = Number(value);

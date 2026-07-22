@@ -250,7 +250,8 @@ body {
 }
 
 button,
-#forceSync {
+#forceSync,
+#fleetHealthLink {
   padding: 8px 10px;
   border-radius: 6px;
   border: 1px solid #cbd5e1;
@@ -260,12 +261,28 @@ button,
   font-size: 12px;
   cursor: pointer;
   white-space: nowrap;
+  text-decoration: none;
 }
 
 button:hover,
-#forceSync:hover {
+#forceSync:hover,
+#fleetHealthLink:hover {
   background: #e2e8f0;
 }
+
+.popup-health {
+  margin: 8px 0;
+  padding: 8px 9px;
+  border: 1px solid #cbd5e1;
+  border-radius: 7px;
+  background: #f8fafc;
+  line-height: 1.45;
+}
+
+.popup-health-status { font-weight: 900; }
+.popup-health-status.good { color: #15803d; }
+.popup-health-status.warn { color: #b45309; }
+.popup-health-status.bad { color: #b91c1c; }
 
 button:disabled,
 #forceSync:disabled {
