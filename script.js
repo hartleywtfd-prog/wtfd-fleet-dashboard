@@ -1,6 +1,6 @@
 /* ===== User-adjustable dashboard settings ===== */
 const DASHBOARD_CONFIG = {
-  version: '4.4.1',
+  version: '4.4.2',
   // Fallback map view used only if the jurisdiction boundary cannot load.
   defaultCenterLat: 39.62784,
   defaultCenterLon: -84.15996,
@@ -2439,7 +2439,8 @@ function rememberActive911Id(id) {
 function active911FormatTime(value) {
   if (!value) return '';
 
-  const date = new Date(value);
+  const parsed = parseIncidentTimestamp(value);
+  const date = new Date(parsed);
   if (Number.isNaN(date.getTime())) return value;
 
   return date.toLocaleString([], {
@@ -2462,25 +2463,26 @@ function parseIncidentTimestamp(value) {
   }
 
   const text = String(value).trim();
-  let parsed = new Date(text).getTime();
+  const unzonedMatch = text.match(
+    /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?(?:\.(\d{1,3}))?$/
+  );
+  let parsed;
 
-  // Safari/Silk are less forgiving of SQL-style dates. Treat an unzoned
-  // YYYY-MM-DD HH:mm:ss value as local time rather than UTC.
-  if (!Number.isFinite(parsed)) {
-    const localMatch = text.match(
-      /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?$/
+  // Active911 supplies UTC timestamps without a Z/offset. Parse those fields
+  // explicitly as UTC, then let the browser format them in the kiosk timezone.
+  if (unzonedMatch) {
+    const [, year, month, day, hour, minute, second = '0', fraction = '0'] = unzonedMatch;
+    parsed = Date.UTC(
+      Number(year),
+      Number(month) - 1,
+      Number(day),
+      Number(hour),
+      Number(minute),
+      Number(second),
+      Number(fraction.padEnd(3, '0'))
     );
-    if (localMatch) {
-      const [, year, month, day, hour, minute, second = '0'] = localMatch;
-      parsed = new Date(
-        Number(year),
-        Number(month) - 1,
-        Number(day),
-        Number(hour),
-        Number(minute),
-        Number(second)
-      ).getTime();
-    }
+  } else {
+    parsed = new Date(text).getTime();
   }
 
   return Number.isFinite(parsed) ? parsed : null;

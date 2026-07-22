@@ -1,3 +1,9 @@
+# Version 4.4.2
+
+- Corrects Active911 Received times that appeared four hours ahead.
+- Treats unzoned Active911 date/time values as UTC and displays them in the device's local Eastern time.
+- Applies the same correction to alert age, startup detection, and rolling-incident elapsed time.
+
 # Version 4.4.1
 
 - Removes Beat from Active911 Details along with Area and Sector.
