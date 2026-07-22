@@ -1093,13 +1093,25 @@ button:disabled,
 }
 
 .kiosk-mode .active911-info-card {
-  min-height: 190px;
-  max-height: min(32vh, 300px);
+  min-height: 230px;
+  height: min(42vh, 400px);
+  max-height: min(42vh, 400px);
+  overflow: hidden;
 }
 
 .kiosk-mode #active911Details {
   font-size: clamp(14px, 1.35vw, 19px);
   line-height: 1.2;
+}
+
+.kiosk-mode #active911Details.compact {
+  font-size: clamp(12px, 1.12vw, 16px);
+  line-height: 1.12;
+}
+
+.kiosk-mode #active911Details.dense {
+  font-size: clamp(10px, .95vw, 14px);
+  line-height: 1.08;
 }
 
 .kiosk-mode #map,

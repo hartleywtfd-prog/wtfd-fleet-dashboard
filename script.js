@@ -1,6 +1,6 @@
 /* ===== User-adjustable dashboard settings ===== */
 const DASHBOARD_CONFIG = {
-  version: '4.3.2',
+  version: '4.4.0',
   // Fallback map view used only if the jurisdiction boundary cannot load.
   defaultCenterLat: 39.62784,
   defaultCenterLon: -84.15996,
@@ -28,6 +28,7 @@ const DASHBOARD_CONFIG = {
   active911IncidentMarkerDurationMs: 10 * 60 * 1000,
   active911BannerDurationMs: 10 * 60 * 1000,
   active911BannerMaxItems: 5,
+  active911StartupPopupMaxAgeMs: 2 * 60 * 1000,
   reconnectRetryMs: 5000,
   cacheKey: 'wtfd-dashboard-cache-v2',
   kioskIncidentFocusMs: 15000,
@@ -2301,6 +2302,7 @@ let active911PopupOpen = false;
 let active911DismissTimer = null;
 let active911Audio = null;
 let pendingActive911Sound = false;
+const ACTIVE911_LAST_SEEN_KEY = 'wtfd-last-seen-active911-id';
 
 function getActive911Audio() {
   if (!DASHBOARD_CONFIG.alertSoundEnabled || !DASHBOARD_CONFIG.alertSoundUrl) {
@@ -2392,6 +2394,30 @@ function active911DisplayDetails(value) {
     .join('\n')
     .replace(/^\s+|\s+$/g, '')
     .replace(/\n{3,}/g, '\n\n');
+}
+
+function setActive911DetailsDensity(value) {
+  const element = document.getElementById('active911Details');
+  if (!element) return;
+  const length = String(value || '').length;
+  element.classList.toggle('compact', length > 350);
+  element.classList.toggle('dense', length > 650);
+}
+
+function storedActive911Id() {
+  try {
+    return localStorage.getItem(ACTIVE911_LAST_SEEN_KEY) || '';
+  } catch (_) {
+    return '';
+  }
+}
+
+function rememberActive911Id(id) {
+  try {
+    localStorage.setItem(ACTIVE911_LAST_SEEN_KEY, String(id || ''));
+  } catch (_) {
+    // Continue with in-memory duplicate protection when storage is unavailable.
+  }
 }
 
 function active911FormatTime(value) {
@@ -2567,6 +2593,7 @@ function showActive911Alert(alert) {
   active911SetOptional('active911Units', alert.units);
   const displayDetails = active911DisplayDetails(alert.details);
   active911SetOptional('active911Details', displayDetails);
+  setActive911DetailsDensity(displayDetails);
 
   const unitsCard = document.getElementById('active911UnitsCard');
   const detailsCard = document.getElementById('active911DetailsCard');
@@ -2629,8 +2656,16 @@ async function checkActive911Alerts() {
     if (!alert || !alert.id) return;
 
     if (!active911BaselineReady) {
-      active911LatestId = String(alert.id);
+      const id = String(alert.id);
+      const previouslySeenId = storedActive911Id();
+      const receivedAt = incidentReceivedTime(alert);
+      const isRecent = Date.now() - receivedAt <= DASHBOARD_CONFIG.active911StartupPopupMaxAgeMs;
+      active911LatestId = id;
       active911BaselineReady = true;
+      rememberActive911Id(id);
+      if (id !== previouslySeenId && isRecent) {
+        showActive911Alert(alert);
+      }
       return;
     }
 
@@ -2638,6 +2673,7 @@ async function checkActive911Alerts() {
 
     if (id !== active911LatestId) {
       active911LatestId = id;
+      rememberActive911Id(id);
       showActive911Alert(alert);
     }
   } catch (error) {

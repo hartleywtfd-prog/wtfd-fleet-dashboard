@@ -1,3 +1,11 @@
+# Version 4.4.0
+
+- Prevents a new Active911 call from being silently treated as the startup baseline after a kiosk or page reload.
+- Remembers the last seen alert ID and displays an unseen startup alert when it was received within the prior two minutes.
+- Removes Area and Sector from Active911 Details in the Cloudflare response and again in the browser as a safeguard.
+- Enlarges the kiosk narrative card and automatically reduces narrative text size for longer details.
+- Removes the unusable kiosk scroll area so text remains inside the visible popup.
+
 # Version 4.3.2
 
 - Forces readable dark text inside the light Fleet Health card after Leaflet popup styling is applied.

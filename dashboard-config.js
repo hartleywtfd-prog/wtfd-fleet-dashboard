@@ -16,6 +16,8 @@ window.WTFD_DASHBOARD_CONFIG = {
   active911BannerDurationMs: 10 * 60 * 1000,
   dashboardRefreshMs: 10000,
   active911PollMs: 5000,
+  // Show an unseen current call after a kiosk/page reload when it is still new.
+  active911StartupPopupMaxAgeMs: 2 * 60 * 1000,
   connectionDelayedMs: 30000,
   connectionLostMs: 90000,
   kioskReloadAfterFailures: 12,

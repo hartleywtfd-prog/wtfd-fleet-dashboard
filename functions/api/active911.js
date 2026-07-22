@@ -147,6 +147,12 @@ function timestampValue(alert) {
 }
 
 function normalizeAlert(alert) {
+  const details = String(alert.details || '')
+    .split(/\r?\n/)
+    .filter(line => !/^\s*(?:area|sector)\s*:/i.test(line))
+    .join('\n')
+    .replace(/^\s+|\s+$/g, '')
+    .replace(/\n{3,}/g, '\n\n');
   return {
     id: String(alert.id || ''),
     description:
@@ -158,7 +164,7 @@ function normalizeAlert(alert) {
     state: alert.state || '',
     crossStreet: alert.cross_street || '',
     units: alert.units || '',
-    details: alert.details || '',
+    details,
     priority: alert.priority || '',
     received: alert.received || alert.sent || '',
     latitude: alert.latitude || null,
