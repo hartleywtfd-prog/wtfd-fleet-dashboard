@@ -1,3 +1,16 @@
+# Version 4.8.0
+
+- Replaces the pale Esri Light Gray Canvas with Esri World Street Map on both
+  the standard dashboard and kiosk site.
+- Adds clearer road hierarchy, neighborhoods, parks, waterways, and geographic
+  context while keeping apparatus markers prominent.
+- Reduces the jurisdiction interior fill opacity from `0.07` to `0.025`.
+- Refines the jurisdiction outline from a 3-pixel bright red line to a
+  2-pixel deeper red line.
+- Renames the standard-site map selector from `Light Map` to `Street Map`.
+- Retains Satellite on the standard site and leaves marker placement, overlap
+  fan-out, precise GPS dots, map framing, and kiosk behavior unchanged.
+
 # Version 4.7.1
 
 - Reduces the jurisdiction interior fill opacity from `0.14` to `0.07` on

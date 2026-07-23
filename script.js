@@ -1,6 +1,6 @@
 /* ===== User-adjustable dashboard settings ===== */
 const DASHBOARD_CONFIG = {
-  version: '4.7.1',
+  version: '4.8.0',
   // Fallback map view used only if the jurisdiction boundary cannot load.
   defaultCenterLat: 39.62784,
   defaultCenterLon: -84.15996,
@@ -266,29 +266,17 @@ function clearLegacyDarkThemeState() {
 clearLegacyDarkThemeState();
 
 function createBaseLayers() {
-  const lightGrayBase = L.tileLayer(
-    'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}',
+  const streetMap = L.tileLayer(
+    'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
     {
-      maxNativeZoom: 16,
       maxZoom: 19,
       attribution:
-        'Sources: Esri, HERE, Garmin, &copy; OpenStreetMap contributors, and the GIS User Community'
-    }
-  );
-
-  const lightGrayReference = L.tileLayer(
-    'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}',
-    {
-      maxNativeZoom: 16,
-      maxZoom: 19
+        'Sources: Esri, HERE, Garmin, USGS, EPA, NPS, &copy; OpenStreetMap contributors, and the GIS User Community'
     }
   );
 
   baseLayers = {
-    street: L.layerGroup([
-      lightGrayBase,
-      lightGrayReference
-    ]),
+    street: streetMap,
 
     satellite: L.tileLayer(
       'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
@@ -382,11 +370,11 @@ function loadServiceAreaBoundary() {
       serviceAreaLayer = L.geoJSON(geojson, {
         interactive: false,
         style: {
-          color: '#dc2626',
-          weight: 3,
+          color: '#b91c1c',
+          weight: 2,
           opacity: 0.9,
           fillColor: '#dc2626',
-          fillOpacity: 0.07
+          fillOpacity: 0.025
         }
       }).addTo(map);
 
