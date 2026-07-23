@@ -1,3 +1,15 @@
+# Version 4.8.4
+
+- Corrects chief-residence privacy detection when Samsara provides the
+  protected place name in `Location` instead of `Facility`.
+- Recognizes both the current `Chief 40/41/42 Residence` names and the earlier
+  shortened place names.
+- Hides every vehicle marker at a protected chief residence from both maps.
+- Keeps the assigned chief in the kiosk Units Away ribbon while displaying
+  only `Away`, never the protected place name or address.
+- Leaves the version 4.8.3 basemap, map framing, marker layout, and all other
+  dashboard behavior unchanged.
+
 # Version 4.8.3
 
 - Restores the original full-color OpenStreetMap Standard basemap on both the

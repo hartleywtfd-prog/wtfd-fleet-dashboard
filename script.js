@@ -1,6 +1,6 @@
 /* ===== User-adjustable dashboard settings ===== */
 const DASHBOARD_CONFIG = {
-  version: '4.8.3',
+  version: '4.8.4',
   // Fallback map view used only if the jurisdiction boundary cannot load.
   defaultCenterLat: 39.62784,
   defaultCenterLon: -84.15996,
@@ -569,11 +569,14 @@ function hasEmergencyLights(v) {
   ].includes(normalizedValue);
 }
 
-const PRIVATE_CHIEF_RESIDENCES = {
-  'chief 40': 'chief 40 residence',
-  'chief 41': 'chief 41 residence',
-  'chief 42': 'chief 42 residence'
-};
+const PRIVATE_CHIEF_RESIDENCE_NAMES = new Set([
+  'chief 40',
+  'chief 40 residence',
+  'chief 41',
+  'chief 41 residence',
+  'chief 42',
+  'chief 42 residence'
+]);
 
 function normalizePrivateLocation(value) {
   return String(value || '')
@@ -583,9 +586,18 @@ function normalizePrivateLocation(value) {
 }
 
 function isPrivateChiefResidence(v) {
-  const unit = normalizePrivateLocation(v && v.unit);
-  const facility = normalizePrivateLocation(v && v.facility);
-  return PRIVATE_CHIEF_RESIDENCES[unit] === facility;
+  // Depending on the Samsara sync response, a recognized place can arrive in
+  // either Facility or Location. Treat every protected chief-residence place
+  // as private regardless of which field contains it. This also prevents a
+  // different department vehicle visiting the residence from exposing it.
+  return [
+    v && v.facility,
+    v && v.location
+  ].some(value =>
+    PRIVATE_CHIEF_RESIDENCE_NAMES.has(
+      normalizePrivateLocation(value)
+    )
+  );
 }
 
 function needsPreciseLocationMarker(v) {
