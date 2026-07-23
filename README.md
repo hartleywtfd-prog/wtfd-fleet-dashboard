@@ -1,3 +1,12 @@
+# Version 4.7.1
+
+- Reduces the jurisdiction interior fill opacity from `0.14` to `0.07` on
+  both maps.
+- Preserves the existing red boundary line while allowing more Light Gray
+  Canvas road and neighborhood detail to remain visible.
+- Leaves map framing, markers, GPS dots, and all operational behavior
+  unchanged.
+
 # Version 4.7.0
 
 - Replaces the default OpenStreetMap Standard tiles with Esri Light Gray

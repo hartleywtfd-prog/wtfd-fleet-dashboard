@@ -1,6 +1,6 @@
 /* ===== User-adjustable dashboard settings ===== */
 const DASHBOARD_CONFIG = {
-  version: '4.7.0',
+  version: '4.7.1',
   // Fallback map view used only if the jurisdiction boundary cannot load.
   defaultCenterLat: 39.62784,
   defaultCenterLon: -84.15996,
@@ -386,7 +386,7 @@ function loadServiceAreaBoundary() {
           weight: 3,
           opacity: 0.9,
           fillColor: '#dc2626',
-          fillOpacity: 0.14
+          fillOpacity: 0.07
         }
       }).addTo(map);
 
