@@ -2591,3 +2591,7 @@ body {
 .kiosk-mode #kioskAwayList .kiosk-unit-row.away strong {
   display: none;
 }
+/* ===== Version 4.8.2 neutral detailed street map ===== */
+.leaflet-tile.street-basemap-tiles {
+  filter: saturate(.62) brightness(1.04) contrast(.92);
+}

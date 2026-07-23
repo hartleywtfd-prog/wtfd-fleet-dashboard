@@ -1,3 +1,14 @@
+# Version 4.8.2
+
+- Restores the detailed Esri World Street Map used in version 4.8.0 on both
+  the standard dashboard and kiosk site.
+- Applies a restrained color treatment only to the street-map tiles to reduce
+  the yellow/tan cast and soften road colors while preserving road hierarchy,
+  city labels, parks, and waterways.
+- Leaves Satellite imagery completely unfiltered.
+- Preserves the refined jurisdiction boundary, marker placement, overlap
+  fan-out, precise GPS dots, map framing, and kiosk behavior.
+
 # Version 4.8.1
 
 - Replaces the tan Esri World Street Map with the cleaner CARTO Voyager
