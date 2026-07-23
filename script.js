@@ -1,6 +1,6 @@
 /* ===== User-adjustable dashboard settings ===== */
 const DASHBOARD_CONFIG = {
-  version: '4.6.1',
+  version: '4.7.0',
   // Fallback map view used only if the jurisdiction boundary cannot load.
   defaultCenterLat: 39.62784,
   defaultCenterLon: -84.15996,
@@ -266,15 +266,29 @@ function clearLegacyDarkThemeState() {
 clearLegacyDarkThemeState();
 
 function createBaseLayers() {
-  baseLayers = {
-    street: L.tileLayer(
-      'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-      {
-        maxZoom: 19,
-        attribution: '&copy; OpenStreetMap'
-      }
-    ),
+  const lightGrayBase = L.tileLayer(
+    'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}',
+    {
+      maxNativeZoom: 16,
+      maxZoom: 19,
+      attribution:
+        'Sources: Esri, HERE, Garmin, &copy; OpenStreetMap contributors, and the GIS User Community'
+    }
+  );
 
+  const lightGrayReference = L.tileLayer(
+    'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}',
+    {
+      maxNativeZoom: 16,
+      maxZoom: 19
+    }
+  );
+
+  baseLayers = {
+    street: L.layerGroup([
+      lightGrayBase,
+      lightGrayReference
+    ]),
 
     satellite: L.tileLayer(
       'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',

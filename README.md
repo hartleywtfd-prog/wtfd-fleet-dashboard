@@ -1,3 +1,15 @@
+# Version 4.7.0
+
+- Replaces the default OpenStreetMap Standard tiles with Esri Light Gray
+  Canvas on both the standard and kiosk sites.
+- Uses the matching Esri reference-label layer to retain geographic context
+  while reducing visual competition with apparatus markers.
+- Renames the standard-site `Street` layer button to `Light Map`.
+- Retains Satellite as an option on the standard site.
+- Preserves the existing service-area boundary, center, zoom, apparatus
+  markers, precise GPS dots, and kiosk controls.
+- Adds the required Esri and source-data attribution.
+
 # Version 4.6.1
 
 - Moves precise-location apparatus pills 10 pixels farther above their GPS
