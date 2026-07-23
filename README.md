@@ -1,3 +1,17 @@
+# Version 4.8.3
+
+- Restores the original full-color OpenStreetMap Standard basemap on both the
+  standard dashboard and kiosk site.
+- Reduces the jurisdiction boundary opacity from `0.9` to `0.65` and the
+  interior fill opacity from `0.025` to `0.012`.
+- Groups vehicles at the same defined facility into one coordinated marker
+  layout even when their raw GPS points differ slightly.
+- Adds additional horizontal and vertical spacing for clusters containing five
+  or more vehicles, improving readability at Headquarters and other crowded
+  facilities.
+- Preserves marker sizing, precise GPS dots, map framing, Satellite mode, and
+  all kiosk behavior.
+
 # Version 4.8.2
 
 - Restores the detailed Esri World Street Map used in version 4.8.0 on both

@@ -1,6 +1,6 @@
 /* ===== User-adjustable dashboard settings ===== */
 const DASHBOARD_CONFIG = {
-  version: '4.8.2',
+  version: '4.8.3',
   // Fallback map view used only if the jurisdiction boundary cannot load.
   defaultCenterLat: 39.62784,
   defaultCenterLon: -84.15996,
@@ -267,12 +267,11 @@ clearLegacyDarkThemeState();
 
 function createBaseLayers() {
   const streetMap = L.tileLayer(
-    'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
+    'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
     {
       maxZoom: 19,
-      className: 'street-basemap-tiles',
       attribution:
-        'Sources: Esri, HERE, Garmin, USGS, EPA, NPS, &copy; OpenStreetMap contributors, and the GIS User Community'
+        '&copy; OpenStreetMap contributors'
     }
   );
 
@@ -373,9 +372,9 @@ function loadServiceAreaBoundary() {
         style: {
           color: '#b91c1c',
           weight: 2,
-          opacity: 0.9,
+          opacity: 0.65,
           fillColor: '#dc2626',
-          fillOpacity: 0.025
+          fillOpacity: 0.012
         }
       }).addTo(map);
 
@@ -1167,6 +1166,16 @@ function buildMarkerCollisionGroups(locations) {
   const visited = new Set();
   const thresholdX = IS_KIOSK_MODE ? 22 : 16;
   const thresholdY = IS_KIOSK_MODE ? 18 : 14;
+  const facilityKey = vehicle => {
+    const facility = normalizePrivateLocation(vehicle && vehicle.facility);
+    return (
+      facility &&
+      facility !== 'away' &&
+      facility !== 'unknown'
+    )
+      ? facility
+      : '';
+  };
 
   pending.forEach((item, itemIndex) => {
     if (visited.has(itemIndex)) return;
@@ -1185,8 +1194,16 @@ function buildMarkerCollisionGroups(locations) {
 
         const horizontalGap = Math.abs(current.point.x - candidate.point.x);
         const verticalGap = Math.abs(current.point.y - candidate.point.y);
+        const currentFacility = facilityKey(current.vehicle);
+        const candidateFacility = facilityKey(candidate.vehicle);
+        const sharesDefinedFacility =
+          currentFacility &&
+          currentFacility === candidateFacility;
 
-        if (horizontalGap <= thresholdX && verticalGap <= thresholdY) {
+        if (
+          sharesDefinedFacility ||
+          (horizontalGap <= thresholdX && verticalGap <= thresholdY)
+        ) {
           visited.add(candidateIndex);
           queue.push(candidateIndex);
         }
@@ -1206,8 +1223,13 @@ function markerLayoutOffsets(total) {
   // apparatus appear to be on a different road or outside the jurisdiction.
   // The true Leaflet marker and popup remain anchored to the GPS coordinate;
   // only the label is displaced and connected back to that point.
-  const x = IS_KIOSK_MODE ? 43 : 46;
-  const y = IS_KIOSK_MODE ? 34 : 36;
+  const largeCluster = total >= 5;
+  const x = largeCluster
+    ? (IS_KIOSK_MODE ? 50 : 54)
+    : (IS_KIOSK_MODE ? 43 : 46);
+  const y = largeCluster
+    ? (IS_KIOSK_MODE ? 39 : 42)
+    : (IS_KIOSK_MODE ? 34 : 36);
 
   const patterns = {
     2: [[-x, 0], [x, 0]],
