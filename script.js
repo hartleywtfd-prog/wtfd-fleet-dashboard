@@ -1,6 +1,6 @@
 /* ===== User-adjustable dashboard settings ===== */
 const DASHBOARD_CONFIG = {
-  version: '4.6.0',
+  version: '4.6.1',
   // Fallback map view used only if the jurisdiction boundary cannot load.
   defaultCenterLat: 39.62784,
   defaultCenterLon: -84.15996,
@@ -1049,7 +1049,7 @@ function markerIcon(v, status, pixelOffset = [0, 0]) {
   const height = IS_KIOSK_MODE ? 36 : 38;
   const preciseLocation = needsPreciseLocationMarker(v);
   const preciseLift = preciseLocation
-    ? (IS_KIOSK_MODE ? 30 : 28)
+    ? (IS_KIOSK_MODE ? 40 : 38)
     : 0;
   const dx = Number(pixelOffset[0] || 0);
   const dy = Number(pixelOffset[1] || 0) - preciseLift;

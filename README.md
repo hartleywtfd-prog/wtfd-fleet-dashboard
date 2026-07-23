@@ -1,3 +1,11 @@
+# Version 4.6.1
+
+- Moves precise-location apparatus pills 10 pixels farther above their GPS
+  dots on both the standard and kiosk maps.
+- Makes the dot-to-pill connector easier to see while keeping the amber dot
+  fixed at the vehicle's true coordinate.
+- Leaves pill sizing and all other map behavior unchanged.
+
 # Version 4.6.0
 
 - Adds precise GPS-point markers for vehicles outside defined facilities on
