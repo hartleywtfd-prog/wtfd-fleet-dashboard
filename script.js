@@ -1,6 +1,6 @@
 /* ===== User-adjustable dashboard settings ===== */
 const DASHBOARD_CONFIG = {
-  version: '4.8.0',
+  version: '4.8.1',
   // Fallback map view used only if the jurisdiction boundary cannot load.
   defaultCenterLat: 39.62784,
   defaultCenterLon: -84.15996,
@@ -267,11 +267,12 @@ clearLegacyDarkThemeState();
 
 function createBaseLayers() {
   const streetMap = L.tileLayer(
-    'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
+    'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
     {
-      maxZoom: 19,
+      subdomains: 'abcd',
+      maxZoom: 20,
       attribution:
-        'Sources: Esri, HERE, Garmin, USGS, EPA, NPS, &copy; OpenStreetMap contributors, and the GIS User Community'
+        '&copy; OpenStreetMap contributors &copy; CARTO'
     }
   );
 

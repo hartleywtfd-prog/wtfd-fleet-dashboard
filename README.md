@@ -1,3 +1,14 @@
+# Version 4.8.1
+
+- Replaces the tan Esri World Street Map with the cleaner CARTO Voyager
+  basemap on both the standard dashboard and kiosk site.
+- Uses a neutral off-white background, restrained road hierarchy, subtle
+  parks, and clear waterways to improve geographic context without competing
+  with apparatus markers.
+- Includes the required OpenStreetMap and CARTO attribution.
+- Preserves the refined jurisdiction boundary, marker placement, overlap
+  fan-out, GPS dots, map framing, Satellite option, and kiosk behavior.
+
 # Version 4.8.0
 
 - Replaces the pale Esri Light Gray Canvas with Esri World Street Map on both
