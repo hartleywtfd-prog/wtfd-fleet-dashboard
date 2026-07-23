@@ -1,3 +1,14 @@
+# Version 4.6.0
+
+- Adds precise GPS-point markers for vehicles outside defined facilities on
+  both the standard and kiosk maps.
+- Places a small amber dot at the vehicle's true GPS coordinate.
+- Lifts the existing apparatus pill above the coordinate and connects it to
+  the dot with a short line so nearby streets and properties remain visible.
+- Preserves the existing pill colors, unit labels, popup behavior, marker
+  priority, and compact collision fan-out.
+- Leaves markers at defined facilities in their existing centered-pill layout.
+
 # Version 4.5.0
 
 - Hides Chief 40, Chief 41, and Chief 42 map markers on both sites while each

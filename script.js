@@ -1,6 +1,6 @@
 /* ===== User-adjustable dashboard settings ===== */
 const DASHBOARD_CONFIG = {
-  version: '4.5.0',
+  version: '4.6.0',
   // Fallback map view used only if the jurisdiction boundary cannot load.
   defaultCenterLat: 39.62784,
   defaultCenterLon: -84.15996,
@@ -586,6 +586,11 @@ function isPrivateChiefResidence(v) {
   return PRIVATE_CHIEF_RESIDENCES[unit] === facility;
 }
 
+function needsPreciseLocationMarker(v) {
+  const facility = normalizePrivateLocation(v && v.facility);
+  return !facility || facility === 'away' || facility === 'unknown';
+}
+
 function getStatus(v) {
   // A chief at the assigned residence remains an Away unit. This check is
   // intentionally first so private location names and response telemetry do
@@ -1042,20 +1047,28 @@ function markerIcon(v, status, pixelOffset = [0, 0]) {
   const identityColors = unitIdentityColors(v, status);
   const width = IS_KIOSK_MODE ? 86 : 90;
   const height = IS_KIOSK_MODE ? 36 : 38;
+  const preciseLocation = needsPreciseLocationMarker(v);
+  const preciseLift = preciseLocation
+    ? (IS_KIOSK_MODE ? 30 : 28)
+    : 0;
   const dx = Number(pixelOffset[0] || 0);
-  const dy = Number(pixelOffset[1] || 0);
+  const dy = Number(pixelOffset[1] || 0) - preciseLift;
   const connectorLength = Math.sqrt(dx * dx + dy * dy);
   const connectorAngle = Math.atan2(-dy, -dx) * 180 / Math.PI;
   const displacedClass = connectorLength > 1 ? ' marker-displaced' : '';
+  const preciseClass = preciseLocation ? ' marker-precise-location' : '';
 
   return L.divIcon({
     className: '',
     html: `
       <div
-        class="marker-shell${displacedClass}"
+        class="marker-shell${displacedClass}${preciseClass}"
         style="--marker-dx:${dx}px;--marker-dy:${dy}px;--connector-length:${connectorLength}px;--connector-angle:${connectorAngle}deg"
       >
         <span class="marker-connector" aria-hidden="true"></span>
+        ${preciseLocation
+          ? '<span class="marker-location-dot" aria-hidden="true"></span>'
+          : ''}
         <div
           class="marker-tag${shapeClass}${identityClass}${statusClass}"
           style="background:${markerColor(v, status)};color:${identityColors?.foreground || '#ffffff'};border-color:${identityColors?.border || '#ffffff'}"

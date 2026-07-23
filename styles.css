@@ -563,12 +563,39 @@ button:disabled,
   border-radius: 999px;
   transform-origin: left center;
   transform: rotate(var(--connector-angle));
-  z-index: -1;
+  z-index: 0;
   pointer-events: none;
 }
 
 .marker-shell.marker-displaced .marker-connector {
   display: block;
+}
+
+.marker-location-dot {
+  display: none;
+  position: absolute;
+  left: calc(50% - var(--marker-dx));
+  top: calc(50% - var(--marker-dy));
+  width: 10px;
+  height: 10px;
+  border: 2px solid #ffffff;
+  border-radius: 50%;
+  background: #f59e0b;
+  box-shadow:
+    0 0 0 1px rgba(120, 53, 15, .72),
+    0 2px 5px rgba(15, 23, 42, .45);
+  transform: translate(-50%, -50%);
+  z-index: 3;
+  pointer-events: none;
+}
+
+.marker-shell.marker-precise-location .marker-location-dot {
+  display: block;
+}
+
+.marker-shell.marker-precise-location .marker-connector {
+  height: 2px;
+  background: rgba(180, 83, 9, .78);
 }
 
 .marker-tag {
@@ -588,6 +615,7 @@ button:disabled,
   box-shadow: 0 3px 8px rgba(0, 0, 0, .38);
   text-shadow: 0 1px 2px rgba(0, 0, 0, .5);
   position: absolute;
+  z-index: 2;
   left: 50%;
   top: 50%;
   transform: translate(-50%, -50%);
@@ -640,6 +668,11 @@ button:disabled,
 .kiosk-mode .marker-svg svg {
   width: 16px;
   height: 16px;
+}
+
+.kiosk-mode .marker-location-dot {
+  width: 11px;
+  height: 11px;
 }
 
 .movingMarker {
