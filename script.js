@@ -1,6 +1,6 @@
 /* ===== User-adjustable dashboard settings ===== */
 const DASHBOARD_CONFIG = {
-  version: '4.4.3',
+  version: '4.5.0',
   // Fallback map view used only if the jurisdiction boundary cannot load.
   defaultCenterLat: 39.62784,
   defaultCenterLon: -84.15996,
@@ -567,7 +567,33 @@ function hasEmergencyLights(v) {
   ].includes(normalizedValue);
 }
 
+const PRIVATE_CHIEF_RESIDENCES = {
+  'chief 40': 'chief 40 residence',
+  'chief 41': 'chief 41 residence',
+  'chief 42': 'chief 42 residence'
+};
+
+function normalizePrivateLocation(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ');
+}
+
+function isPrivateChiefResidence(v) {
+  const unit = normalizePrivateLocation(v && v.unit);
+  const facility = normalizePrivateLocation(v && v.facility);
+  return PRIVATE_CHIEF_RESIDENCES[unit] === facility;
+}
+
 function getStatus(v) {
+  // A chief at the assigned residence remains an Away unit. This check is
+  // intentionally first so private location names and response telemetry do
+  // not move the vehicle into another public-facing roster.
+  if (isPrivateChiefResidence(v)) {
+    return 'away';
+  }
+
   const speed = Number(v.speed || 0);
 
   const gpsStatus = String(
@@ -615,6 +641,10 @@ function getStatus(v) {
 }
 
 function shouldShowMapMarker(v) {
+  // Never expose a chief vehicle's position while it is inside the matching
+  // private residence geofence. It remains available in the Away ribbon.
+  if (isPrivateChiefResidence(v)) return false;
+
   const unit = String(v.unit || '').trim().toLowerCase();
   const isAdministrativeCommandUnit =
     /^prevention\s*(41|42|43|44)\b/.test(unit) ||
@@ -1844,6 +1874,8 @@ function normalizeAwayMunicipality(value) {
 }
 
 function conciseAwayLocation(v) {
+  if (isPrivateChiefResidence(v)) return 'Away';
+
   const raw = String(v.location || v.facility || 'Away').trim();
   if (!raw) return 'Away';
 
@@ -1929,6 +1961,7 @@ function renderKioskStatusBoard(locations, metrics, gps, noGps, stale) {
   const stationDisplayNames = new Map();
   locations.forEach(v => {
     [v.homeStation, v.facility].forEach(value => {
+      if (value === v.facility && isPrivateChiefResidence(v)) return;
       const key = normalizeStationKey(value);
       if (!key || /^(?:away|unknown)$/i.test(String(value || '').trim())) return;
       if (!stationDisplayNames.has(key)) {

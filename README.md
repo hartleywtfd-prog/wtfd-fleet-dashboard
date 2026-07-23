@@ -1,3 +1,15 @@
+# Version 4.5.0
+
+- Hides Chief 40, Chief 41, and Chief 42 map markers on both sites while each
+  vehicle is inside its matching Samsara residence geofence.
+- Treats `Chief 40 Residence`, `Chief 41 Residence`, and `Chief 42 Residence`
+  as private Away locations.
+- Keeps the affected chief visible in the kiosk Units Away ribbon as `Away`.
+- Prevents residence geofences from appearing as station cards or exposing
+  residence names and addresses in the kiosk ribbon.
+- Restores the existing map behavior automatically when the vehicle leaves its
+  assigned residence geofence.
+
 # Version 4.4.3
 
 - Forces Active911 Received times to America/New_York instead of relying on the kiosk device timezone.
