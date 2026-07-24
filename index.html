@@ -17,7 +17,7 @@
 
   <link
     rel="stylesheet"
-    href="styles.css?v=4.8.4"
+    href="styles.css?v=4.8.5"
   >
 </head>
 
@@ -206,7 +206,7 @@
       </div>
 
       <div class="dashboard-version" aria-label="Dashboard version">
-        WTFD Fleet Dashboard <span id="dashboardVersion">v4.8.4</span>
+        WTFD Fleet Dashboard <span id="dashboardVersion">v4.8.5</span>
       </div>
     </aside>
 
@@ -239,37 +239,61 @@
 
       <div class="map-legend">
         <div class="legend-title">
-          Status Legend
+          Map Legend
+        </div>
+
+        <div class="legend-section">Apparatus color</div>
+
+        <div class="legend-row">
+          <span class="legend-dot engine"></span>
+          Engine
         </div>
 
         <div class="legend-row">
-          <span class="legend-dot responding"></span>
-          Responding
+          <span class="legend-dot medic"></span>
+          Medic
         </div>
 
         <div class="legend-row">
-          <span class="legend-dot available"></span>
-          Available
+          <span class="legend-dot ladder"></span>
+          Ladder
         </div>
 
         <div class="legend-row">
-          <span class="legend-dot moving"></span>
-          Moving
+          <span class="legend-dot prevention"></span>
+          Prevention
         </div>
 
         <div class="legend-row">
-          <span class="legend-dot away"></span>
-          Away outline
+          <span class="legend-dot command"></span>
+          Command / Support
+        </div>
+
+        <div class="legend-section operational">Operational indicator</div>
+
+        <div class="legend-row">
+          <span class="legend-ring responding"></span>
+          Responding — red halo
         </div>
 
         <div class="legend-row">
-          <span class="legend-dot nogps"></span>
-          No GPS
+          <span class="legend-ring moving"></span>
+          Moving — blue outline
         </div>
 
         <div class="legend-row">
-          <span class="legend-dot stale"></span>
-          Stale GPS
+          <span class="legend-ring away"></span>
+          Away — amber outline
+        </div>
+
+        <div class="legend-row">
+          <span class="legend-ring nogps"></span>
+          No GPS / Offline — gray
+        </div>
+
+        <div class="legend-row">
+          <span class="legend-ring stale"></span>
+          Stale GPS — dashed red
         </div>
       </div>
     </main>
@@ -345,7 +369,7 @@
     src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
   ></script>
 
-  <script src="dashboard-config.js?v=4.8.4"></script>
-  <script src="script.js?v=4.8.4"></script>
+  <script src="dashboard-config.js?v=4.8.5"></script>
+  <script src="script.js?v=4.8.5"></script>
 </body>
 </html>

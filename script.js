@@ -1,6 +1,6 @@
 /* ===== User-adjustable dashboard settings ===== */
 const DASHBOARD_CONFIG = {
-  version: '4.8.4',
+  version: '4.8.5',
   // Fallback map view used only if the jurisdiction boundary cannot load.
   defaultCenterLat: 39.62784,
   defaultCenterLon: -84.15996,
@@ -1054,6 +1054,10 @@ function markerIcon(v, status, pixelOffset = [0, 0]) {
     statusClass = ' awayMarker';
   } else if (status === 'stale') {
     statusClass = ' staleMarker';
+  } else if (status === 'nogps') {
+    statusClass = ' noGpsMarker';
+  } else if (status === 'offline') {
+    statusClass = ' offlineMarker';
   }
 
   const shapeClass = markerShapeClass(v);

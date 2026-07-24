@@ -1,3 +1,13 @@
+# Version 4.8.5
+
+- Replaces the outdated status-color legend with an accurate two-part map
+  legend for apparatus colors and operational indicators.
+- Keeps normal apparatus and command identity colors intact.
+- Adds a blue outline for moving units and an amber outline for away units.
+- Retains the animated red responding halo and gives stale GPS a dashed red
+  border.
+- Clarifies the gray No GPS / Offline treatment.
+
 # Version 4.8.4
 
 - Corrects chief-residence privacy detection when Samsara provides the

@@ -2591,3 +2591,71 @@ body {
 .kiosk-mode #kioskAwayList .kiosk-unit-row.away strong {
   display: none;
 }
+
+/* ===== Version 4.8.5 accurate apparatus and operational map legend ===== */
+.legend-section {
+  margin-top: 8px;
+  color: #94a3b8;
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.legend-section.operational {
+  margin-top: 11px;
+}
+.legend-dot.engine { background: #d32f2f; }
+.legend-dot.medic { background: #2563eb; }
+.legend-dot.ladder { background: #991b1b; }
+.legend-dot.prevention { background: #15803d; }
+.legend-dot.command {
+  background: linear-gradient(135deg, #d4a900 0 48%, #6d28d9 52% 100%);
+}
+.legend-ring {
+  width: 12px;
+  height: 12px;
+  border: 3px solid currentColor;
+  border-radius: 50%;
+  background: transparent;
+  box-sizing: border-box;
+  flex: 0 0 12px;
+}
+.legend-ring.responding {
+  color: #ef4444;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, .22);
+}
+.legend-ring.moving { color: #60a5fa; }
+.legend-ring.away { color: #f59e0b; }
+.legend-ring.nogps {
+  color: #94a3b8;
+  background: #64748b;
+}
+.legend-ring.stale {
+  color: #fca5a5;
+  border-style: dashed;
+  background: #991b1b;
+}
+
+/* Preserve apparatus identity while showing status with a separate outline. */
+.marker-tag.movingMarker {
+  border-color: #60a5fa !important;
+  box-shadow:
+    0 0 0 3px rgba(37, 99, 235, .42),
+    0 4px 12px rgba(0, 0, 0, .45);
+}
+.marker-tag.awayMarker {
+  border-color: #f59e0b !important;
+  box-shadow:
+    0 0 0 3px rgba(245, 158, 11, .38),
+    0 4px 12px rgba(0, 0, 0, .45);
+}
+.marker-tag.staleMarker {
+  border: 3px dashed #fecaca !important;
+}
+.marker-tag.noGpsMarker,
+.marker-tag.offlineMarker {
+  border-color: #cbd5e1 !important;
+  box-shadow:
+    0 0 0 2px rgba(100, 116, 139, .42),
+    0 4px 12px rgba(0, 0, 0, .45);
+}
