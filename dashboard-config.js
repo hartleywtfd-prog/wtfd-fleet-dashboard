@@ -10,6 +10,12 @@ window.WTFD_DASHBOARD_CONFIG = {
   alertSoundVolume: 1.0,
   alertSoundPlayOncePerIncident: true,
 
+  // Temporary live call-sign corrections keyed by apparatus F-number.
+  // Remove or change an entry when the upstream OperativeIQ/UnitConfig feed is corrected.
+  unitOverrides: {
+    F137: 'Medic 144'
+  },
+
   active911PopupDurationMs: 15000,
   // How long the incident location marker remains on the map.
   active911IncidentMarkerDurationMs: 10 * 60 * 1000,

@@ -1,3 +1,10 @@
+# Version 4.8.8
+
+- Corrects apparatus F137 to display its current operational call sign as Medic 144 (M144 on the map).
+- Keeps F137 as the underlying apparatus identity for Fleet Health and other F-number matching.
+- Adds a simple `unitOverrides` setting in `dashboard-config.js` so a temporary call-sign correction can be changed or removed without editing the main dashboard code.
+- Preserves all v4.8.7 audio packaging, Headquarters / Station 45 assignments, map behavior, and privacy logic.
+
 # Version 4.8.7
 
 - Repackages the v4.8.6 Headquarters / Station 45 logic in a deployment-ready repository root.

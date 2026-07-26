@@ -1,6 +1,6 @@
 /* ===== User-adjustable dashboard settings ===== */
 const DASHBOARD_CONFIG = {
-  version: '4.8.7',
+  version: '4.8.8',
   // Fallback map view used only if the jurisdiction boundary cannot load.
   defaultCenterLat: 39.62784,
   defaultCenterLon: -84.15996,
@@ -659,6 +659,22 @@ function getStatus(v) {
   return 'away';
 }
 
+function applyCurrentUnitOverride(vehicle) {
+  const v = { ...(vehicle || {}) };
+  const overrides = DASHBOARD_CONFIG.unitOverrides || {};
+  const fNumber = extractFNumber(v.rawName, v.apparatusNumber);
+  const override = fNumber ? overrides[fNumber] : '';
+
+  if (override) {
+    // Keep the physical apparatus identity (F-number) unchanged while correcting
+    // the operational call sign used everywhere the dashboard renders v.unit.
+    v.unit = String(override).trim();
+    v.displayName = v.unit;
+  }
+
+  return v;
+}
+
 function applySharedHeadquartersFacilityAssignment(vehicle) {
   const v = { ...(vehicle || {}) };
   const facility = String(v.facility || '').trim();
@@ -686,7 +702,11 @@ function applySharedHeadquartersFacilityAssignment(vehicle) {
 }
 
 function applyFacilityAssignments(locations) {
-  return (locations || []).map(applySharedHeadquartersFacilityAssignment);
+  return (locations || []).map(vehicle =>
+    applySharedHeadquartersFacilityAssignment(
+      applyCurrentUnitOverride(vehicle)
+    )
+  );
 }
 
 function shouldShowMapMarker(v) {
