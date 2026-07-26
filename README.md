@@ -1,3 +1,10 @@
+# Version 4.8.7
+
+- Repackages the v4.8.6 Headquarters / Station 45 logic in a deployment-ready repository root.
+- Preserves `functions/api/` and `sounds/` directory structure so Cloudflare Pages routes and the Active911 chime are deployed under the correct paths.
+- Adds an explicit WAV content type for the alert sound.
+- No change to the v4.8.6 Headquarters unit assignments or residence privacy behavior.
+
 # Version 4.8.6
 
 - Separates the shared Station 45 / Headquarters building into logical dashboard locations.
