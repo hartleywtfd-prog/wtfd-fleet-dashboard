@@ -1,6 +1,6 @@
 /* ===== User-adjustable dashboard settings ===== */
 const DASHBOARD_CONFIG = {
-  version: '4.8.5',
+  version: '4.8.6',
   // Fallback map view used only if the jurisdiction boundary cannot load.
   defaultCenterLat: 39.62784,
   defaultCenterLon: -84.15996,
@@ -657,6 +657,36 @@ function getStatus(v) {
   }
 
   return 'away';
+}
+
+function applySharedHeadquartersFacilityAssignment(vehicle) {
+  const v = { ...(vehicle || {}) };
+  const facility = String(v.facility || '').trim();
+  const facilityKey = facility.toLowerCase();
+
+  // Station 45 and Headquarters share one physical building. When Samsara
+  // reports either building label, use the unit assignment to choose the
+  // logical dashboard location while leaving every other facility untouched.
+  const isSharedBuilding =
+    facilityKey === 'hq' ||
+    facilityKey.includes('headquarters') ||
+    /^(?:station\s*)?45$/i.test(facility);
+
+  if (!isSharedBuilding) return v;
+
+  const unit = String(v.unit || v.displayName || '').trim().toLowerCase();
+  const isHeadquartersUnit =
+    /^prevention\s*(41|42|43|44)\b/.test(unit) ||
+    /^(fire\s*)?marshal\s*40\b/.test(unit) ||
+    /^chief\s*(40|41|42)\b/.test(unit) ||
+    /^(safety|training)\s*40\b/.test(unit);
+
+  v.facility = isHeadquartersUnit ? 'Headquarters' : 'Station 45';
+  return v;
+}
+
+function applyFacilityAssignments(locations) {
+  return (locations || []).map(applySharedHeadquartersFacilityAssignment);
 }
 
 function shouldShowMapMarker(v) {
@@ -2170,7 +2200,7 @@ async function loadDashboard() {
     const data = await apiRequest('dashboard');
     const settings = data.settings || {};
     lastDashboardSettings = settings;
-    allLocations = data.locations || [];
+    allLocations = applyFacilityAssignments(data.locations || []);
 
     if (!map) initMap(settings);
     renderDashboard(allLocations);
@@ -2189,7 +2219,7 @@ async function loadDashboard() {
     if ((!allLocations || !allLocations.length) && cached) {
       const data = cached.data;
       lastDashboardSettings = data.settings || {};
-      allLocations = data.locations || [];
+      allLocations = applyFacilityAssignments(data.locations || []);
       if (!map) initMap(lastDashboardSettings);
       renderDashboard(allLocations);
     }

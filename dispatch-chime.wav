@@ -1,6 +1,6 @@
 export async function onRequestGet() {
   const url =
-    "https://script.google.com/macros/s/AKfycbwhinuB6R-rxHMG4lSkilihzVcFUrGXOQNbhYLrNQfksn-Yy5nxOPFyaUNnRhlpIhRGhw/exec?mode=json&action=sync";
+    "https://script.google.com/macros/s/AKfycbwhinuB6R-rxHMG4lSkilihzVcFUrGXOQNbhYLrNQfksn-Yy5nxOPFyaUNnRhlpIhRGhw/exec?mode=json";
 
   try {
     const response = await fetch(url, {
@@ -23,7 +23,7 @@ export async function onRequestGet() {
     });
   } catch (error) {
     return new Response(JSON.stringify({
-      error: "Unable to run the fleet synchronization.",
+      error: "Unable to retrieve fleet dashboard data.",
       detail: error instanceof Error ? error.message : String(error)
     }), {
       status: 502,

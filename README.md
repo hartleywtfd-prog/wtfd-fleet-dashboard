@@ -1,3 +1,10 @@
+# Version 4.8.6
+
+- Separates the shared Station 45 / Headquarters building into logical dashboard locations.
+- Assigns Prevention 41–44, Marshal 40, Chief 40–42, Safety 40, and Training 40 to Headquarters whenever Samsara reports the shared building as either Headquarters/HQ or Station 45.
+- Assigns all other apparatus at that shared building to Station 45.
+- Leaves units at all other facilities unchanged and preserves chief-residence privacy behavior.
+
 # Version 4.8.5
 
 - Replaces the outdated status-color legend with an accurate two-part map
