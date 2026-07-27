@@ -1,6 +1,6 @@
 /* ===== User-adjustable dashboard settings ===== */
 const DASHBOARD_CONFIG = {
-  version: '4.9.1',
+  version: '4.9.2',
   // Fallback map view used only if the jurisdiction boundary cannot load.
   defaultCenterLat: 39.62784,
   defaultCenterLon: -84.15996,
@@ -676,9 +676,15 @@ function applyCurrentUnitOverride(vehicle) {
   }
 
   const assignment = fNumber ? assignments[fNumber] : null;
-  const fallback =
+  const configuredFallback =
     (assignment && String(assignment.primary || '').trim()) ||
     (fNumber ? legacyFallbacks[fNumber] : '');
+  const isFrontlinePrimary =
+    /^(?:engine|medic|ladder|truck)\b/i.test(configuredFallback);
+  // A generic frontline vehicle may be out of service, awaiting delivery, or
+  // serving as reserve apparatus. Do not create duplicate operational call
+  // signs from its primary assignment; wait for the live CSV assignment.
+  const fallback = isFrontlinePrimary ? '' : configuredFallback;
   const currentUnit = String(v.unit || v.displayName || '').trim();
   const apparatusDigits = String(fNumber || '').replace(/\D/g, '');
   const normalizedUnit = currentUnit.toLowerCase();

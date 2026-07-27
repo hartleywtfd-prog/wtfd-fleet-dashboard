@@ -1,3 +1,11 @@
+# Version 4.9.2
+
+- Prevents duplicate frontline call signs such as three E45 markers.
+- Does not apply Engine, Medic, Ladder, or Truck primary assignments when the live feed contains only a generic vehicle identity.
+- Requires a live CSV call sign before reserve, out-of-service, or not-yet-ready frontline vehicles display as an operational unit.
+- Continues to use stable command/admin primaries such as Battalion 40, Training 40, and Safety 40 as generic-name fallbacks.
+- Preserves the complete primary and alternate assignment reference from v4.9.1.
+
 # Version 4.9.1
 
 - Adds the complete 27-apparatus primary and alternate assignment reference supplied in Assignments.csv.
