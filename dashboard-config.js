@@ -13,6 +13,7 @@ window.WTFD_DASHBOARD_CONFIG = {
   // Temporary live call-sign corrections keyed by apparatus F-number.
   // Remove or change an entry when the upstream OperativeIQ/UnitConfig feed is corrected.
   unitOverrides: {
+    F112: 'Training 40',
     F137: 'Medic 144'
   },
 

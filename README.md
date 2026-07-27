@@ -1,3 +1,9 @@
+# Version 4.8.9
+
+- Corrects apparatus F112 to display as Training 40 (T40 on the map) instead of B112.
+- Applies the correction to both the standard and kiosk views while keeping F112 as the underlying apparatus identity.
+- Preserves the existing F137 / Medic 144 correction and all v4.8.8 behavior.
+
 # Version 4.8.8
 
 - Corrects apparatus F137 to display its current operational call sign as Medic 144 (M144 on the map).
