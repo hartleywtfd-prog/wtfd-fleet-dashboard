@@ -10,11 +10,37 @@ window.WTFD_DASHBOARD_CONFIG = {
   alertSoundVolume: 1.0,
   alertSoundPlayOncePerIncident: true,
 
-  // Temporary live call-sign corrections keyed by apparatus F-number.
-  // Remove or change an entry when the upstream OperativeIQ/UnitConfig feed is corrected.
-  unitOverrides: {
-    F112: 'Training 40',
-    F137: 'Medic 144'
+  // Fleet assignment reference. The live CSV call sign always takes priority.
+  // Primary assignments are fallbacks only when the feed supplies a generic
+  // apparatus label. Alternates document expected temporary assignments.
+  unitAssignments: {
+    F103: { primary: 'Battalion 40', alternates: ['Training 40', 'Safety 40'] },
+    F104: { primary: 'Chief 41', alternates: [] },
+    F107: { primary: 'Prevention 42', alternates: [] },
+    F108: { primary: 'Engine 45', alternates: ['Engine 41', 'Engine 42', 'Engine 43', 'Engine 44', 'Engine 143', 'Engine 243', 'Engine 142'] },
+    F109: { primary: 'Chief 42', alternates: [] },
+    F111: { primary: 'Utility 41', alternates: ['Safety 40', 'Training 40', 'Battalion 40'] },
+    F112: { primary: 'Training 40', alternates: ['Battalion 40', 'Safety 40'] },
+    F115: { primary: 'Engine 44', alternates: ['Engine 41', 'Engine 42', 'Engine 43', 'Engine 45', 'Engine 143', 'Engine 243', 'Engine 142'] },
+    F116: { primary: 'Engine 43', alternates: ['Engine 41', 'Engine 42', 'Engine 44', 'Engine 45', 'Engine 143', 'Engine 243', 'Engine 142'] },
+    F117: { primary: 'Medic 244', alternates: ['Medic 41', 'Medic 42', 'Medic 43', 'Medic 44', 'Medic 45', 'Medic 144'] },
+    F118: { primary: 'Engine 41', alternates: ['Engine 42', 'Engine 43', 'Engine 44', 'Engine 45', 'Engine 143', 'Engine 243', 'Engine 142'] },
+    F119: { primary: 'Engine 45', alternates: ['Engine 41', 'Engine 42', 'Engine 43', 'Engine 44', 'Engine 143', 'Engine 243', 'Engine 142'] },
+    F121: { primary: 'Chief 40', alternates: ['Central Supply'] },
+    F122: { primary: 'Medic 44', alternates: ['Medic 41', 'Medic 42', 'Medic 43', 'Medic 45', 'Medic 144', 'Medic 244'] },
+    F123: { primary: 'Medic 43', alternates: ['Medic 41', 'Medic 42', 'Medic 44', 'Medic 45', 'Medic 144', 'Medic 244'] },
+    F124: { primary: 'Engine 143', alternates: ['Engine 41', 'Engine 42', 'Engine 43', 'Engine 44', 'Engine 45', 'Engine 142', 'Engine 243'] },
+    F126: { primary: 'Medic 41', alternates: ['Medic 42', 'Medic 43', 'Medic 44', 'Medic 45', 'Medic 144', 'Medic 244'] },
+    F129: { primary: 'Engine 42', alternates: ['Engine 41', 'Engine 43', 'Engine 44', 'Engine 45', 'Engine 143', 'Engine 142', 'Engine 243'] },
+    F130: { primary: 'Prevention 43', alternates: [] },
+    F131: { primary: 'Safety 40', alternates: ['Battalion 40', 'Training 40'] },
+    F132: { primary: 'Marshal 40', alternates: [] },
+    F133: { primary: 'Prevention 41', alternates: [] },
+    F136: { primary: 'Prevention 44', alternates: [] },
+    F137: { primary: 'Medic 144', alternates: ['Medic 41', 'Medic 42', 'Medic 43', 'Medic 44', 'Medic 45', 'Medic 244'] },
+    F138: { primary: 'Medic 45', alternates: ['Medic 41', 'Medic 42', 'Medic 43', 'Medic 44', 'Medic 144', 'Medic 244'] },
+    F139: { primary: 'Medic 42', alternates: ['Medic 41', 'Medic 43', 'Medic 44', 'Medic 45', 'Medic 144', 'Medic 244'] },
+    F141: { primary: 'Ladder 41', alternates: [] }
   },
 
   active911PopupDurationMs: 15000,

@@ -1,6 +1,6 @@
 /* ===== User-adjustable dashboard settings ===== */
 const DASHBOARD_CONFIG = {
-  version: '4.8.9',
+  version: '4.9.1',
   // Fallback map view used only if the jurisdiction boundary cannot load.
   defaultCenterLat: 39.62784,
   defaultCenterLon: -84.15996,
@@ -662,6 +662,8 @@ function getStatus(v) {
 function applyCurrentUnitOverride(vehicle) {
   const v = { ...(vehicle || {}) };
   const overrides = DASHBOARD_CONFIG.unitOverrides || {};
+  const assignments = DASHBOARD_CONFIG.unitAssignments || {};
+  const legacyFallbacks = DASHBOARD_CONFIG.unitFallbacks || {};
   const fNumber = extractFNumber(v.rawName, v.apparatusNumber);
   const override = fNumber ? overrides[fNumber] : '';
 
@@ -669,6 +671,36 @@ function applyCurrentUnitOverride(vehicle) {
     // Keep the physical apparatus identity (F-number) unchanged while correcting
     // the operational call sign used everywhere the dashboard renders v.unit.
     v.unit = String(override).trim();
+    v.displayName = v.unit;
+    return v;
+  }
+
+  const assignment = fNumber ? assignments[fNumber] : null;
+  const fallback =
+    (assignment && String(assignment.primary || '').trim()) ||
+    (fNumber ? legacyFallbacks[fNumber] : '');
+  const currentUnit = String(v.unit || v.displayName || '').trim();
+  const apparatusDigits = String(fNumber || '').replace(/\D/g, '');
+  const normalizedUnit = currentUnit.toLowerCase();
+  const currentNumberMatch = currentUnit.match(/\d+/);
+  const currentNumber = currentNumberMatch ? currentNumberMatch[0] : '';
+  const hasKnownUnitPrefix =
+    /^(?:engine|medic|ladder|truck|battalion|chief|training|safety|prevention)\b/i.test(currentUnit);
+  const isGenericVehicleName =
+    !currentUnit ||
+    /^vehicle\b/.test(normalizedUnit) ||
+    new RegExp(`^f?${apparatusDigits}$`, 'i').test(currentUnit) ||
+    (!currentNumber && hasKnownUnitPrefix) ||
+    (
+      currentNumber === apparatusDigits &&
+      hasKnownUnitPrefix
+    );
+
+  if (fallback && isGenericVehicleName) {
+    // Use the normal assignment only when the feed supplies an apparatus-based
+    // placeholder (for example Vehicle F112/B112). A live operational call sign
+    // such as Battalion 40 remains authoritative.
+    v.unit = String(fallback).trim();
     v.displayName = v.unit;
   }
 
@@ -1076,6 +1108,8 @@ function shortLabel(v) {
   if (/^chief\b/.test(normalizedUnit)) return 'C' + number;
   if (/^training\b/.test(normalizedUnit)) return 'T' + number;
   if (/^safety\b/.test(normalizedUnit)) return 'S' + number;
+  if (/^utility\b/.test(normalizedUnit)) return 'U' + number;
+  if (/^central\s+supply\b/.test(normalizedUnit)) return 'CS';
   if (/^prevention\b/.test(normalizedUnit)) return 'P' + number;
   if (/^(fire\s*)?marshal\b/.test(normalizedUnit)) return 'FM' + number;
 

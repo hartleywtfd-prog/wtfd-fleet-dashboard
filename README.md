@@ -1,3 +1,21 @@
+# Version 4.9.1
+
+- Adds the complete 27-apparatus primary and alternate assignment reference supplied in Assignments.csv.
+- Keeps the live CSV / UnitConfig call sign authoritative for every apparatus.
+- Uses each primary assignment only when the live feed supplies a missing or apparatus-based placeholder.
+- Converts the prior F137 / Medic 144 hard override into a fallback so F137 can display a temporary live assignment.
+- Supports the Engine 45 transition among F108, F118, and F119 without forcing any of them to display Engine 45.
+- Adds compact map labels for Utility assignments (U##) and Central Supply (CS).
+- Normalizes punctuation separators in the supplied alternate lists and expands F103's primary assignment from Battalion to Battalion 40.
+
+# Version 4.9.0
+
+- Keeps the live CSV / UnitConfig operational call sign authoritative for F103, F112, and F131.
+- Uses normal assignments only when the feed supplies no valid call sign: F103 as Battalion 40, F112 as Training 40, and F131 as Safety 40.
+- Allows F112 or F131 to display as Battalion 40 (B40 on the map) whenever either is placed in service under that call sign.
+- Prevents apparatus-number placeholders such as B112 from appearing when a normal assignment should be used.
+- Preserves the existing F137 / Medic 144 correction and all prior behavior.
+
 # Version 4.8.9
 
 - Corrects apparatus F112 to display as Training 40 (T40 on the map) instead of B112.
