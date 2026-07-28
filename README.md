@@ -1,3 +1,9 @@
+# Version 5.0.2
+
+- Accepts CrewSense days, assignments, shifts, positions, and labels as either arrays or keyed objects.
+- Reports the live `days` collection type, object keys, and CrewSense-returned date window without exposing personnel data.
+- Preserves the interactive-only display and all credential protections from v5.0.1.
+
 # Version 5.0.1
 
 - Adds privacy-safe CrewSense response diagnostics containing only counts and field names.

@@ -72,6 +72,12 @@ function shiftIsCurrent(shift, nowLocal) {
   return start <= nowLocal && nowLocal < end;
 }
 
+function collectionValues(value) {
+  if (Array.isArray(value)) return value;
+  if (value && typeof value === 'object') return Object.values(value);
+  return [];
+}
+
 function scheduleDays(payload) {
   const candidates = [
     payload?.days,
@@ -82,17 +88,23 @@ function scheduleDays(payload) {
     Array.isArray(payload?.items) ? payload.items : null,
     Array.isArray(payload) ? payload : null
   ];
-  const match = candidates.find(candidate =>
-    Array.isArray(candidate) && candidate.length
-  );
+  const match = candidates
+    .map(collectionValues)
+    .find(candidate => candidate.length);
   if (match) return match;
   return [];
 }
 
 function assignmentShifts(assignment) {
-  if (Array.isArray(assignment?.shifts)) return assignment.shifts;
-  if (Array.isArray(assignment?.users)) return assignment.users;
-  if (Array.isArray(assignment?.crew)) return assignment.crew;
+  const candidates = [
+    assignment?.shifts,
+    assignment?.users,
+    assignment?.crew
+  ];
+  const match = candidates
+    .map(collectionValues)
+    .find(candidate => candidate.length);
+  if (match) return match;
   return [];
 }
 
@@ -106,7 +118,7 @@ function normalizeAssignments(payload) {
       day?.schedule?.assignments ||
       day?.data?.assignments ||
       [];
-    (Array.isArray(dayAssignments) ? dayAssignments : []).forEach(assignment => {
+    collectionValues(dayAssignments).forEach(assignment => {
       const crew = assignmentShifts(assignment)
         .filter(shift => shiftIsCurrent(shift, nowLocal))
         .map(shift => ({
@@ -124,7 +136,7 @@ function normalizeAssignments(payload) {
             [shift?.user?.first_name, shift?.user?.last_name]
               .filter(Boolean)
               .join(' '),
-          positions: (shift?.labels || shift?.positions || [])
+          positions: collectionValues(shift?.labels || shift?.positions)
             .map(label => label?.label || label?.name || '')
             .filter(Boolean)
         }))
@@ -152,7 +164,7 @@ function responseDiagnostics(payload) {
     firstDay?.schedule?.assignments ||
     firstDay?.data?.assignments ||
     [];
-  const safeAssignments = Array.isArray(assignments) ? assignments : [];
+  const safeAssignments = collectionValues(assignments);
   const firstAssignment = safeAssignments[0] || {};
   const shifts = assignmentShifts(firstAssignment);
 
@@ -168,6 +180,21 @@ function responseDiagnostics(payload) {
       !Array.isArray(payload.data)
         ? Object.keys(payload.data).slice(0, 20)
         : [],
+    daysCollectionType: Array.isArray(payload?.days)
+      ? 'array'
+      : payload?.days && typeof payload.days === 'object'
+        ? 'object'
+        : typeof payload?.days,
+    daysObjectKeys:
+      payload?.days &&
+      typeof payload.days === 'object' &&
+      !Array.isArray(payload.days)
+        ? Object.keys(payload.days).slice(0, 10)
+        : [],
+    returnedWindow: {
+      start: payload?.start || '',
+      end: payload?.end || ''
+    },
     dayCount: days.length,
     firstDayKeys: Object.keys(firstDay).slice(0, 20),
     firstDayAssignmentCount: safeAssignments.length,
