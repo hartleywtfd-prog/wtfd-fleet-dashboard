@@ -1,3 +1,10 @@
+# Version 5.0.7
+
+- Fixes the popup-building error that affected every apparatus without a
+  cross-staffing configuration. JavaScript reports `null` as an object, so the
+  previous code attempted to read a cross-staffing label from `null`.
+- Restores normal popup and click behavior for all apparatus markers.
+
 # Version 5.0.6
 
 - Moves apparatus markers into one managed Leaflet layer so refreshes cannot
