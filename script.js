@@ -1,6 +1,6 @@
 /* ===== User-adjustable dashboard settings ===== */
 const DASHBOARD_CONFIG = {
-  version: '5.0.5',
+  version: '5.0.6',
   // Fallback map view used only if the jurisdiction boundary cannot load.
   defaultCenterLat: 39.62784,
   defaultCenterLon: -84.15996,
@@ -101,6 +101,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
 let map;
 let markers = {};
+let apparatusMarkerLayer = null;
+let markerByVehicle = new WeakMap();
 let allLocations = [];
 let activeBaseLayer = 'street';
 let baseLayers = {};
@@ -327,6 +329,7 @@ function initMap(settings) {
     [centerLat, centerLon],
     zoom
   );
+  apparatusMarkerLayer = L.layerGroup().addTo(map);
 
   createBaseLayers();
   preferredAutomaticLayer = 'street';
@@ -1423,11 +1426,52 @@ function sortGroupForLayout(group) {
 }
 
 function clearMarkers() {
-  Object.values(markers).forEach(
-    marker => map.removeLayer(marker)
-  );
-
+  if (apparatusMarkerLayer) apparatusMarkerLayer.clearLayers();
   markers = {};
+  markerByVehicle = new WeakMap();
+}
+
+function locationTimestamp(location) {
+  const value = new Date(location?.lastUpdate || 0).getTime();
+  return Number.isFinite(value) ? value : 0;
+}
+
+function deduplicateDisplayLocations(locations) {
+  const byVehicle = new Map();
+
+  (locations || []).forEach((location, index) => {
+    const fNumber = extractFNumber(
+      location?.rawName,
+      location?.apparatusNumber
+    );
+    const rawName = String(location?.rawName || '').trim().toLowerCase();
+    const physicalKey = fNumber || rawName || `row-${index}`;
+    const existing = byVehicle.get(physicalKey);
+    if (
+      !existing ||
+      locationTimestamp(location) >= locationTimestamp(existing)
+    ) {
+      byVehicle.set(physicalKey, location);
+    }
+  });
+
+  const byUnit = new Map();
+  [...byVehicle.values()].forEach(location => {
+    const unitKey = String(location?.unit || '').trim().toLowerCase();
+    if (!unitKey) {
+      byUnit.set(`unassigned-${byUnit.size}`, location);
+      return;
+    }
+    const existing = byUnit.get(unitKey);
+    if (
+      !existing ||
+      locationTimestamp(location) >= locationTimestamp(existing)
+    ) {
+      byUnit.set(unitKey, location);
+    }
+  });
+
+  return [...byUnit.values()];
 }
 
 function setText(id, value) {
@@ -1887,6 +1931,8 @@ function renderCommandPanel(metrics) {
 
 function renderDashboard(locations) {
   const nextMarkers = {};
+  const nextMarkerByVehicle = new WeakMap();
+  const nextMarkerLayer = L.layerGroup();
   const markerBuildErrors = [];
 
   const unitList =
@@ -1907,7 +1953,8 @@ function renderDashboard(locations) {
       : ''
   ).toLowerCase();
 
-  const filtered = locations
+  const displayLocations = deduplicateDisplayLocations(locations);
+  const filtered = displayLocations
     .filter(v => {
       const haystack = [
         v.unit,
@@ -1987,7 +2034,7 @@ function renderDashboard(locations) {
             zIndexOffset:
               markerZIndex(v, status)
           }
-        ).addTo(map);
+        ).addTo(nextMarkerLayer);
 
         const emergencyText =
           hasEmergencyLights(v)
@@ -2018,9 +2065,14 @@ function renderDashboard(locations) {
           }
         `);
 
-        nextMarkers[
-          v.rawName + '-' + v.unit
-        ] = marker;
+        const markerKey = [
+          extractFNumber(v.rawName, v.apparatusNumber),
+          v.rawName,
+          v.unit,
+          index
+        ].join('-');
+        nextMarkers[markerKey] = marker;
+        nextMarkerByVehicle.set(v, marker);
       } catch (error) {
         markerBuildErrors.push({
           unit: v.unit || v.rawName || 'Unknown unit',
@@ -2039,14 +2091,22 @@ function renderDashboard(locations) {
   // If every marker fails, preserve the last known-good markers instead
   // of leaving the map empty.
   if (Object.keys(nextMarkers).length > 0 || locations.length === 0) {
-    Object.values(markers).forEach(marker => {
-      if (map.hasLayer(marker)) map.removeLayer(marker);
-    });
+    if (apparatusMarkerLayer) map.removeLayer(apparatusMarkerLayer);
+    apparatusMarkerLayer = nextMarkerLayer;
+    apparatusMarkerLayer.addTo(map);
     markers = nextMarkers;
-  } else {
-    Object.values(nextMarkers).forEach(marker => {
-      if (map.hasLayer(marker)) map.removeLayer(marker);
+    markerByVehicle = nextMarkerByVehicle;
+
+    Object.values(markers).forEach(marker => {
+      const tag = marker.getElement()?.querySelector('.marker-tag');
+      if (!tag) return;
+      tag.addEventListener('click', event => {
+        event.preventDefault();
+        event.stopPropagation();
+        marker.openPopup();
+      });
     });
+  } else {
     console.error('Marker refresh aborted; preserving previous markers.', markerBuildErrors);
   }
 
@@ -2107,12 +2167,7 @@ function renderDashboard(locations) {
     `;
 
     div.onclick = () => {
-      const marker =
-        markers[
-          v.rawName +
-          '-' +
-          v.unit
-        ];
+      const marker = markerByVehicle.get(v);
 
       if (marker) {
         map.setView(

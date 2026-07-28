@@ -1,3 +1,12 @@
+# Version 5.0.6
+
+- Moves apparatus markers into one managed Leaflet layer so refreshes cannot
+  leave orphaned or duplicated markers behind.
+- Deduplicates repeated physical vehicles and repeated operational call signs,
+  retaining the newest location record.
+- Makes the visible, collision-offset unit label the click target and uses a
+  direct vehicle-to-marker reference for sidebar selection.
+
 # Version 5.0.5
 
 - Fixes CrewSense call-sign normalization so every vehicle remains selectable
