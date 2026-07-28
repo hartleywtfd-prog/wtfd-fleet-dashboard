@@ -73,8 +73,26 @@ function shiftIsCurrent(shift, nowLocal) {
 }
 
 function scheduleDays(payload) {
-  if (Array.isArray(payload?.days)) return payload.days;
-  if (Array.isArray(payload?.data?.days)) return payload.data.days;
+  const candidates = [
+    payload?.days,
+    payload?.data?.days,
+    payload?.schedule?.days,
+    payload?.data?.schedule?.days,
+    Array.isArray(payload?.data) ? payload.data : null,
+    Array.isArray(payload?.items) ? payload.items : null,
+    Array.isArray(payload) ? payload : null
+  ];
+  const match = candidates.find(candidate =>
+    Array.isArray(candidate) && candidate.length
+  );
+  if (match) return match;
+  return [];
+}
+
+function assignmentShifts(assignment) {
+  if (Array.isArray(assignment?.shifts)) return assignment.shifts;
+  if (Array.isArray(assignment?.users)) return assignment.users;
+  if (Array.isArray(assignment?.crew)) return assignment.crew;
   return [];
 }
 
@@ -83,18 +101,30 @@ function normalizeAssignments(payload) {
   const assignments = [];
 
   scheduleDays(payload).forEach(day => {
-    (day?.assignments || []).forEach(assignment => {
-      const crew = (assignment?.shifts || [])
+    const dayAssignments =
+      day?.assignments ||
+      day?.schedule?.assignments ||
+      day?.data?.assignments ||
+      [];
+    (Array.isArray(dayAssignments) ? dayAssignments : []).forEach(assignment => {
+      const crew = assignmentShifts(assignment)
         .filter(shift => shiftIsCurrent(shift, nowLocal))
         .map(shift => ({
-          id: String(shift?.user?.id || ''),
+          id: String(
+            shift?.user?.id ||
+            shift?.user_id ||
+            shift?.id ||
+            ''
+          ),
           name:
             shift?.user?.name ||
             shift?.user?.full_name ||
+            shift?.name ||
+            shift?.full_name ||
             [shift?.user?.first_name, shift?.user?.last_name]
               .filter(Boolean)
               .join(' '),
-          positions: (shift?.labels || [])
+          positions: (shift?.labels || shift?.positions || [])
             .map(label => label?.label || label?.name || '')
             .filter(Boolean)
         }))
@@ -112,6 +142,44 @@ function normalizeAssignments(payload) {
   });
 
   return assignments;
+}
+
+function responseDiagnostics(payload) {
+  const days = scheduleDays(payload);
+  const firstDay = days[0] || {};
+  const assignments =
+    firstDay?.assignments ||
+    firstDay?.schedule?.assignments ||
+    firstDay?.data?.assignments ||
+    [];
+  const safeAssignments = Array.isArray(assignments) ? assignments : [];
+  const firstAssignment = safeAssignments[0] || {};
+  const shifts = assignmentShifts(firstAssignment);
+
+  return {
+    responseType: Array.isArray(payload) ? 'array' : typeof payload,
+    topLevelKeys:
+      payload && typeof payload === 'object' && !Array.isArray(payload)
+        ? Object.keys(payload).slice(0, 20)
+        : [],
+    dataKeys:
+      payload?.data &&
+      typeof payload.data === 'object' &&
+      !Array.isArray(payload.data)
+        ? Object.keys(payload.data).slice(0, 20)
+        : [],
+    dayCount: days.length,
+    firstDayKeys: Object.keys(firstDay).slice(0, 20),
+    firstDayAssignmentCount: safeAssignments.length,
+    firstAssignmentKeys: Object.keys(firstAssignment).slice(0, 20),
+    firstAssignmentShiftCount: shifts.length,
+    firstShiftKeys: Object.keys(shifts[0] || {}).slice(0, 20),
+    queryWindow: {
+      start: `${offsetLocalDate(-1)} 00:00:00`,
+      end: `${offsetLocalDate(1)} 23:59:59`,
+      now: localDateTimeString()
+    }
+  };
 }
 
 async function requestAccessToken(clientId, clientSecret) {
@@ -174,7 +242,8 @@ export async function onRequestGet(context) {
     const schedule = await requestSchedule(accessToken);
     return jsonResponse({
       updatedAt: new Date().toISOString(),
-      assignments: normalizeAssignments(schedule)
+      assignments: normalizeAssignments(schedule),
+      diagnostics: responseDiagnostics(schedule)
     });
   } catch (error) {
     return jsonResponse({

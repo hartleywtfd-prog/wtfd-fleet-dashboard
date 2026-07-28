@@ -1,3 +1,10 @@
+# Version 5.0.1
+
+- Adds privacy-safe CrewSense response diagnostics containing only counts and field names.
+- Recognizes additional current API response wrappers such as `schedule.days`, `data.schedule.days`, `data`, and `items`.
+- Recognizes `shifts`, `users`, or `crew` arrays within an assignment.
+- Never includes raw schedule data, credentials, or employee values in diagnostics.
+
 # Version 5.0.0
 
 - Adds a server-side CrewSense / Vector Scheduling API integration for the regular interactive dashboard.
