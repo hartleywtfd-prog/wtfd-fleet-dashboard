@@ -1,3 +1,20 @@
+# Version 4.9.4
+
+- Rebuilds Active911 tone matching from 2,743 actual WTFD alert records containing 117 distinct descriptions.
+- Uses the Active911 `description` as the run type; recognizes that `cad_code` is the incident number rather than a call-type field.
+- Uses stable description prefixes such as `FALARM`, `FIRE`, `VEHACC`, `INVES`, `GAS`, and medical determinant names.
+- Prevents apparatus updates or appended dispatch narrative from changing the selected tone.
+- Uses the stable CAD incident number to prevent an apparatus addition/change from replaying the popup or tone for the same incident.
+- Keeps unmatched and future call types on the original default dispatch chime.
+
+# Version 4.9.3
+
+- Plays distinct tones for Fire, EMS, vehicle accident/rescue, and hazmat/special-rescue Active911 alerts.
+- Matches configurable keywords against the Active911 description.
+- Uses the existing dispatch chime when a run type does not match a configured category.
+- Preserves one-time-per-incident playback, autoplay retry behavior, and both standard and kiosk alert behavior.
+- Tone categories, keywords, file paths, and volume can be changed in `dashboard-config.js`.
+
 # Version 4.9.2
 
 - Prevents duplicate frontline call signs such as three E45 markers.

@@ -1,6 +1,6 @@
 /* ===== User-adjustable dashboard settings ===== */
 const DASHBOARD_CONFIG = {
-  version: '4.9.2',
+  version: '4.9.4',
   // Fallback map view used only if the jurisdiction boundary cannot load.
   defaultCenterLat: 39.62784,
   defaultCenterLon: -84.15996,
@@ -48,6 +48,7 @@ const DASHBOARD_CONFIG = {
   alertSoundVolume: 0.75,
   alertSoundPlayOncePerIncident: true,
   alertSoundStorageKey: 'wtfd-last-audible-active911-id',
+  alertSoundToneRules: [],
 
   // Regular-site Fleet Health integration. Kiosk mode does not request it.
   fleetHealthDashboardUrl: 'https://wtfd-fleet-health.pages.dev/',
@@ -2362,6 +2363,7 @@ function normalizeIncidentCoordinate(value) {
 }
 
 function incidentKey(alert) {
+  if (alert && alert.cadCode) return String(alert.cadCode);
   if (alert && alert.id) return String(alert.id);
   return [alert?.address, alert?.unit, alert?.city]
     .filter(Boolean)
@@ -2478,28 +2480,55 @@ let active911BaselineReady = false;
 let active911LatestId = '';
 let active911PopupOpen = false;
 let active911DismissTimer = null;
-let active911Audio = null;
+const active911AudioByUrl = new Map();
 let pendingActive911Sound = false;
 let active911AudioRetryTimer = null;
 const ACTIVE911_LAST_SEEN_KEY = 'wtfd-last-seen-active911-id';
 
-function getActive911Audio() {
-  if (!DASHBOARD_CONFIG.alertSoundEnabled || !DASHBOARD_CONFIG.alertSoundUrl) {
+function active911SoundUrl(alert) {
+  const description = String(alert?.description || '').trim().toUpperCase();
+  const rules = Array.isArray(DASHBOARD_CONFIG.alertSoundToneRules)
+    ? DASHBOARD_CONFIG.alertSoundToneRules
+    : [];
+
+  const match = rules.find(rule => {
+    if (!rule?.url) return false;
+    const prefixMatch =
+      Array.isArray(rule.prefixes) &&
+      rule.prefixes.some(prefix =>
+        description.startsWith(String(prefix || '').trim().toUpperCase())
+      );
+    const keywordMatch =
+      Array.isArray(rule.keywords) &&
+      rule.keywords.some(keyword =>
+        description.includes(String(keyword || '').trim().toUpperCase())
+      );
+    return prefixMatch || keywordMatch;
+  });
+
+  return match?.url || DASHBOARD_CONFIG.alertSoundUrl;
+}
+
+function getActive911Audio(alert) {
+  const soundUrl = active911SoundUrl(alert);
+  if (!DASHBOARD_CONFIG.alertSoundEnabled || !soundUrl) {
     return null;
   }
 
-  if (!active911Audio) {
-    active911Audio = new Audio(DASHBOARD_CONFIG.alertSoundUrl);
-    active911Audio.preload = 'auto';
-    active911Audio.load();
+  if (!active911AudioByUrl.has(soundUrl)) {
+    const audio = new Audio(soundUrl);
+    audio.preload = 'auto';
+    audio.load();
+    active911AudioByUrl.set(soundUrl, audio);
   }
 
-  active911Audio.volume = Math.min(
+  const audio = active911AudioByUrl.get(soundUrl);
+  audio.volume = Math.min(
     1,
     Math.max(0, Number(DASHBOARD_CONFIG.alertSoundVolume) || 0)
   );
 
-  return active911Audio;
+  return audio;
 }
 
 function wasIncidentSoundPlayed(id) {
@@ -2523,8 +2552,8 @@ function rememberIncidentSound(id) {
 }
 
 async function playActive911Sound(alert) {
-  const id = String(alert?.id || '');
-  const audio = getActive911Audio();
+  const id = incidentKey(alert);
+  const audio = getActive911Audio(alert);
 
   if (!audio || wasIncidentSoundPlayed(id)) return;
 
@@ -2859,7 +2888,7 @@ async function checkActive911Alerts() {
     if (!alert || !alert.id) return;
 
     if (!active911BaselineReady) {
-      const id = String(alert.id);
+      const id = incidentKey(alert);
       const previouslySeenId = storedActive911Id();
       const receivedAt = incidentReceivedTime(alert);
       const isRecent = Date.now() - receivedAt <= DASHBOARD_CONFIG.active911StartupPopupMaxAgeMs;
@@ -2872,7 +2901,7 @@ async function checkActive911Alerts() {
       return;
     }
 
-    const id = String(alert.id);
+    const id = incidentKey(alert);
 
     if (id !== active911LatestId) {
       active911LatestId = id;

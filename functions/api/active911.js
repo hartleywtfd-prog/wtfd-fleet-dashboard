@@ -157,6 +157,7 @@ function normalizeAlert(alert) {
     id: String(alert.id || ''),
     description:
       alert.description || alert.cad_code || 'Emergency Call',
+    cadCode: alert.cad_code || '',
     place: alert.place || '',
     address: alert.address || '',
     unit: alert.unit || '',

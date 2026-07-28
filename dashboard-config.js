@@ -2,13 +2,53 @@
  * WTFD Fleet Dashboard - site settings
  *
  * Alert tone changes do not require editing script.js.
- * Replace the audio file and keep the same name, or update alertSoundUrl below.
+ * Rules are checked from top to bottom against the Active911 description.
  */
 window.WTFD_DASHBOARD_CONFIG = {
   alertSoundEnabled: true,
   alertSoundUrl: 'sounds/dispatch-chime.wav',
   alertSoundVolume: 1.0,
   alertSoundPlayOncePerIncident: true,
+  alertSoundToneRules: [
+    {
+      name: 'Fire',
+      url: 'sounds/fire-alert.wav',
+      prefixes: [
+        'FALARM', 'FIRE', 'MAFIRE', 'FRES', 'FHIRS', 'SCHOOL ALARM'
+      ],
+      keywords: [
+        'STRUCTURE FIRE - 69', '-SF-COMMERCIAL BLDG'
+      ]
+    },
+    {
+      name: 'Vehicle Accident / Rescue',
+      url: 'sounds/rescue-alert.wav',
+      prefixes: [
+        'VEHACC', 'RESCUE', 'ELEVATOR'
+      ]
+    },
+    {
+      name: 'Hazmat / Special Rescue',
+      url: 'sounds/special-ops-alert.wav',
+      prefixes: [
+        'INVES', 'GAS', 'CO ALARM', 'HAZMT', 'FUEL', 'WATER', 'WIRES',
+        'BOMBF', 'FD INFO', 'FDEVENT'
+      ]
+    },
+    {
+      name: 'EMS',
+      url: 'sounds/ems-alert.wav',
+      prefixes: [
+        'ABD', 'ALLER', 'ALCOM', 'ANIMAL BITES', 'ASSAULT',
+        'ATTEMPTED SUICIDE', 'BRETH', 'CHEST PAIN', 'CHILD BIRTH',
+        'CHOKING', 'DIABETIC PROBLEMS', 'DIFFICULTY BREATHING',
+        'FALL', 'FULL', 'ILL', 'LIFT', 'MAMEDIC', 'MEDICAL ALARM',
+        'MENTAL HEALTH', 'OVERDOSE', 'PERSON DOWN', 'SEIZURE',
+        'SHOOTING', 'STROKE', 'TRAUMATIC INJURY', 'UNCON'
+      ],
+      keywords: ['-SUIC-']
+    }
+  ],
 
   // Fleet assignment reference. The live CSV call sign always takes priority.
   // Primary assignments are fallbacks only when the feed supplies a generic
