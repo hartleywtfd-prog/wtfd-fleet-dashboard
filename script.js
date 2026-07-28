@@ -1,6 +1,6 @@
 /* ===== User-adjustable dashboard settings ===== */
 const DASHBOARD_CONFIG = {
-  version: '5.0.8',
+  version: '5.0.9',
   // Fallback map view used only if the jurisdiction boundary cannot load.
   defaultCenterLat: 39.62784,
   defaultCenterLon: -84.15996,
@@ -22,10 +22,10 @@ const DASHBOARD_CONFIG = {
   kioskServiceAreaMaxZoom: 14,
   kioskServiceAreaCenterShiftLon: 0.006,
 
-  // Fleet positions remain near-live without exhausting the Cloudflare
-  // Workers daily request allowance on continuously running kiosk screens.
-  dashboardRefreshMs: 30000,
-  active911PollMs: 10000,
+  // Keep time-sensitive fleet positions and alerts responsive. Less urgent
+  // integrations use much longer intervals below.
+  dashboardRefreshMs: 10000,
+  active911PollMs: 5000,
   active911PopupDurationMs: 15000,
   active911IncidentMarkerDurationMs: 10 * 60 * 1000,
   active911BannerDurationMs: 10 * 60 * 1000,
@@ -54,7 +54,7 @@ const DASHBOARD_CONFIG = {
 
   // CrewSense / Vector Scheduling integration. Kiosk mode does not request it.
   crewSenseApiUrl: '/api/crewsense',
-  crewSenseRefreshMs: 60 * 1000,
+  crewSenseRefreshMs: 30 * 60 * 1000,
   crewSenseAssignmentAliases: {},
   crewSenseCrossStaffedUnits: {},
   crewSensePersonnelAssignments: {},
@@ -62,7 +62,7 @@ const DASHBOARD_CONFIG = {
   // Regular-site Fleet Health integration. Kiosk mode does not request it.
   fleetHealthDashboardUrl: 'https://wtfd-fleet-health.pages.dev/',
   fleetHealthApiUrl: 'https://wtfd-fleet-health.pages.dev/api/fleet-health',
-  fleetHealthRefreshMs: 60 * 1000
+  fleetHealthRefreshMs: 15 * 60 * 1000
 };
 
 Object.assign(

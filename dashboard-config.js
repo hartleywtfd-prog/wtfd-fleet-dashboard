@@ -52,7 +52,7 @@ window.WTFD_DASHBOARD_CONFIG = {
 
   // CrewSense / Vector Scheduling integration (interactive dashboard only).
   crewSenseApiUrl: '/api/crewsense',
-  crewSenseRefreshMs: 60 * 1000,
+  crewSenseRefreshMs: 30 * 60 * 1000,
   // Add entries only when a CrewSense assignment name differs from the
   // dashboard call sign. Example: 'Medic 45': 'Station 45 - Medic'.
   crewSenseAssignmentAliases: {},
@@ -112,10 +112,11 @@ window.WTFD_DASHBOARD_CONFIG = {
   // How long the incident location marker remains on the map.
   active911IncidentMarkerDurationMs: 10 * 60 * 1000,
   active911BannerDurationMs: 10 * 60 * 1000,
-  // Balanced for continuously running displays: vehicle positions update
-  // every 30 seconds and new Active911 alerts are detected within 10 seconds.
-  dashboardRefreshMs: 30000,
-  active911PollMs: 10000,
+  // Preserve rapid operational updates. Nonurgent Fleet Health and CrewSense
+  // data refresh less often to reduce background request volume.
+  dashboardRefreshMs: 10000,
+  active911PollMs: 5000,
+  fleetHealthRefreshMs: 15 * 60 * 1000,
   // Show an unseen current call after a kiosk/page reload when it is still new.
   active911StartupPopupMaxAgeMs: 2 * 60 * 1000,
   // Do not rely on the Fire TV/browser timezone for Received times.

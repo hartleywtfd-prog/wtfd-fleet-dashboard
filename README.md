@@ -1,3 +1,12 @@
+# Version 5.0.9
+
+- Restores Active911 polling to every 5 seconds.
+- Restores fleet-location polling to every 10 seconds.
+- Reduces Fleet Health/Samsara telematics polling to every 15 minutes.
+- Reduces CrewSense polling to every 30 minutes.
+- Retains the overlapping-request and hidden-tab protections introduced in
+  version 5.0.8.
+
 # Version 5.0.8
 
 - Reduces fleet-data polling from every 10 seconds to every 30 seconds.
@@ -479,12 +488,12 @@
 The fleet display refresh rate is controlled in `dashboard-config.js`:
 
 ```javascript
-dashboardRefreshMs: 30000
+dashboardRefreshMs: 10000
 ```
 
-Thirty seconds is recommended. A shorter interval generally will not create
-newer coordinates because Google Apps Script is still updating once per minute,
-and it can consume the shared Cloudflare Workers request allowance quickly.
+This build uses 10 seconds to preserve the most responsive map behavior.
+Fleet Health and CrewSense use longer intervals to reduce nonurgent background
+traffic.
 
 ## Version 2.7.0
 
