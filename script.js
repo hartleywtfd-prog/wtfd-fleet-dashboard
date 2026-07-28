@@ -1,6 +1,6 @@
 /* ===== User-adjustable dashboard settings ===== */
 const DASHBOARD_CONFIG = {
-  version: '5.0.3',
+  version: '5.0.4',
   // Fallback map view used only if the jurisdiction boundary cannot load.
   defaultCenterLat: 39.62784,
   defaultCenterLon: -84.15996,
@@ -54,6 +54,8 @@ const DASHBOARD_CONFIG = {
   crewSenseApiUrl: '/api/crewsense',
   crewSenseRefreshMs: 60 * 1000,
   crewSenseAssignmentAliases: {},
+  crewSenseCrossStaffedUnits: {},
+  crewSensePersonnelAssignments: {},
 
   // Regular-site Fleet Health integration. Kiosk mode does not request it.
   fleetHealthDashboardUrl: 'https://wtfd-fleet-health.pages.dev/',
@@ -1600,16 +1602,86 @@ function normalizeCrewSenseAssignment(value) {
     : normalized.replace(/\s+/g, '');
 }
 
+function crewSenseConfigValue(config, unit) {
+  if (!config || !unit) return null;
+  return config[unit] ?? config[String(unit).toLowerCase()] ?? null;
+}
+
+function normalizeCrewSensePerson(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+function crewSensePersonnelForUnit(unit) {
+  const configured = crewSenseConfigValue(
+    DASHBOARD_CONFIG.crewSensePersonnelAssignments,
+    unit
+  );
+  const names = Array.isArray(configured)
+    ? configured
+    : configured
+      ? [configured]
+      : [];
+  if (!names.length) return null;
+  const expectedNames = new Set(names.map(normalizeCrewSensePerson));
+  const targetAssignment = normalizeCrewSenseAssignment(unit);
+
+  for (const [sourceKey, assignment] of crewSenseByAssignment.entries()) {
+    const member = (assignment.crew || []).find(person =>
+      expectedNames.has(normalizeCrewSensePerson(person.name))
+    );
+    if (!member) continue;
+
+    // If the person is actively placed on an operational unit, that live
+    // assignment wins. This prevents Safety 40 or Training 40 from also
+    // displaying when its normal assignee is filling Battalion 40.
+    const sourceIsOperational = /^(?:e|m|l|bc|c|s|t)\d+$/.test(sourceKey);
+    if (sourceIsOperational && sourceKey !== targetAssignment) return null;
+
+    return {
+      id: `personnel-${member.id || normalizeCrewSensePerson(member.name)}`,
+      name: unit,
+      crew: [member],
+      standardPersonnelAssignment: true,
+      sourceAssignment: assignment.name
+    };
+  }
+
+  return null;
+}
+
 function crewSenseAssignmentFor(location) {
   const unit = String(location?.unit || '').trim();
   const aliases = DASHBOARD_CONFIG.crewSenseAssignmentAliases || {};
+  const crossStaffed = crewSenseConfigValue(
+    DASHBOARD_CONFIG.crewSenseCrossStaffedUnits,
+    unit
+  );
+  const crossAssignment =
+    typeof crossStaffed === 'string'
+      ? crossStaffed
+      : crossStaffed?.assignment;
   const configuredName =
-    aliases[unit] ||
-    aliases[unit.toLowerCase()] ||
+    crossAssignment ||
+    crewSenseConfigValue(aliases, unit) ||
     unit;
-  return crewSenseByAssignment.get(
+  const liveAssignment = crewSenseByAssignment.get(
     normalizeCrewSenseAssignment(configuredName)
-  ) || null;
+  );
+  if (liveAssignment) {
+    return {
+      ...liveAssignment,
+      crossStaffed: Boolean(crossStaffed),
+      crossStaffedLabel:
+        typeof crossStaffed === 'object'
+          ? crossStaffed.label
+          : ''
+    };
+  }
+  return crewSensePersonnelForUnit(unit);
 }
 
 function crewSensePopupHtml(location) {
@@ -1636,6 +1708,12 @@ function crewSensePopupHtml(location) {
   return `<div class="popup-crew">
     <strong>Assigned Crew</strong>
     <span class="popup-crew-assignment">${escapeHtml(assignment.name)}</span>
+    ${assignment.crossStaffed
+      ? `<span class="popup-crew-cross-staffed">Cross-staffed: ${escapeHtml(assignment.crossStaffedLabel || assignment.name)}</span>`
+      : ''}
+    ${assignment.standardPersonnelAssignment
+      ? '<span class="popup-crew-standard">Standard assignment</span>'
+      : ''}
     <ul>${members || '<li>No active personnel listed</li>'}</ul>
     <small>Schedule updated ${escapeHtml(timeAgo(crewSenseUpdatedAt))}</small>
   </div>`;

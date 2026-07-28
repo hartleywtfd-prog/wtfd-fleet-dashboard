@@ -1,3 +1,12 @@
+# Version 5.0.4
+
+- Treats Engine 43/Medic 43 and Engine 44/Medic 44 as cross-staffed unit pairs.
+- Displays the same live CrewSense crew on both members of each pair with a clear cross-staffed label.
+- Adds configurable standard personnel mappings for Chief 40–42, Marshal 40, Prevention 41–44, Training 40, and Safety 40.
+- Searches all active CrewSense assignments for each mapped employee, including common formal-name variants.
+- Gives live operational assignments priority over standard mappings.
+- Prevents Training 40 or Safety 40 from displaying its normal assignee when that person is actively filling Battalion 40.
+
 # Version 5.0.3
 
 - Automatically matches expanded dashboard call signs to CrewSense abbreviations.

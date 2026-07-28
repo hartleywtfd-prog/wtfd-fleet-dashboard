@@ -312,6 +312,23 @@ button:hover,
   font-weight: 700;
 }
 
+.popup-crew-cross-staffed,
+.popup-crew-standard {
+  display: inline-block;
+  margin-top: 5px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: #dbeafe;
+  color: #1e3a8a !important;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.popup-crew-standard {
+  background: #e2e8f0;
+  color: #334155 !important;
+}
+
 .popup-crew ul {
   margin: 6px 0;
   padding: 0;

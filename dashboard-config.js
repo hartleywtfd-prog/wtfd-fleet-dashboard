@@ -56,6 +56,24 @@ window.WTFD_DASHBOARD_CONFIG = {
   // Add entries only when a CrewSense assignment name differs from the
   // dashboard call sign. Example: 'Medic 45': 'Station 45 - Medic'.
   crewSenseAssignmentAliases: {},
+  crewSenseCrossStaffedUnits: {
+    'Engine 43': { assignment: 'E43', label: 'Engine 43 / Medic 43' },
+    'Medic 43': { assignment: 'E43', label: 'Engine 43 / Medic 43' },
+    'Engine 44': { assignment: 'E44', label: 'Engine 44 / Medic 44' },
+    'Medic 44': { assignment: 'E44', label: 'Engine 44 / Medic 44' }
+  },
+  crewSensePersonnelAssignments: {
+    'Chief 40': ['Nick Bergman'],
+    'Chief 41': ['Troy Bonfield'],
+    'Chief 42': ['Jason Hartley'],
+    'Marshal 40': ['Bill Sutter'],
+    'Prevention 41': ['Josh Doolin', 'Joshua Doolin'],
+    'Prevention 42': ['Melissa Holland'],
+    'Prevention 43': ['Alex Leveck', 'Alexander LeVeck'],
+    'Prevention 44': ['Seth Adams'],
+    'Training 40': ['Matt Lolli'],
+    'Safety 40': ['Darian Edwards']
+  },
 
   // Fleet assignment reference. The live CSV call sign always takes priority.
   // Primary assignments are fallbacks only when the feed supplies a generic
