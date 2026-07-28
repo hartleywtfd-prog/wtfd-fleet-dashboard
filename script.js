@@ -1,6 +1,6 @@
 /* ===== User-adjustable dashboard settings ===== */
 const DASHBOARD_CONFIG = {
-  version: '5.0.4',
+  version: '5.0.5',
   // Fallback map view used only if the jurisdiction boundary cannot load.
   defaultCenterLat: 39.62784,
   defaultCenterLon: -84.15996,
@@ -1597,9 +1597,10 @@ function normalizeCrewSenseAssignment(value) {
     [/^training\s*(\d+)$/, 't$1']
   ];
   const match = unitPatterns.find(([pattern]) => pattern.test(normalized));
-  return match
-    ? normalized.replace(match[0], match[1])
-    : normalized.replace(/\s+/g, '');
+  if (!match) return normalized.replace(/\s+/g, '');
+
+  const [pattern, replacement] = match;
+  return normalized.replace(pattern, replacement);
 }
 
 function crewSenseConfigValue(config, unit) {

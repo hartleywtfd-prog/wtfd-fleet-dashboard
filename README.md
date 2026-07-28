@@ -1,3 +1,11 @@
+# Version 5.0.5
+
+- Fixes CrewSense call-sign normalization so every vehicle remains selectable
+  and matches abbreviated schedule assignments, not only the cross-staffed
+  Engine/Medic 43 and Engine/Medic 44 units.
+- Softens the marker status shadows so moving, away, and command units no
+  longer display with a heavy black halo.
+
 # Version 5.0.4
 
 - Treats Engine 43/Medic 43 and Engine 44/Medic 44 as cross-staffed unit pairs.

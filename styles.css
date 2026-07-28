@@ -674,7 +674,7 @@ button:disabled,
   gap: 5px;
   font-size: 16px;
   font-weight: 900;
-  box-shadow: 0 3px 8px rgba(0, 0, 0, .38);
+  box-shadow: 0 2px 4px rgba(15, 23, 42, .22);
   text-shadow: 0 1px 2px rgba(0, 0, 0, .5);
   position: absolute;
   z-index: 2;
@@ -2419,13 +2419,13 @@ body {
   box-shadow:
     inset 0 1px 0 rgba(255,255,255,.75),
     inset 0 -1px 0 rgba(74,52,0,.28),
-    0 3px 9px rgba(0,0,0,.42);
+    0 2px 4px rgba(15,23,42,.22);
 }
 .marker-tag.unit-black-gold {
   background: linear-gradient(180deg, #151515 0%, #050505 62%, #000000 100%);
   box-shadow:
     inset 0 1px 0 rgba(255,255,255,.10),
-    0 3px 9px rgba(0,0,0,.48);
+    0 2px 4px rgba(15,23,42,.24);
 }
 .marker-tag.unit-battalion-40 .marker-svg,
 .marker-tag.unit-chief-gold .marker-svg,
@@ -2702,14 +2702,14 @@ body {
 .marker-tag.movingMarker {
   border-color: #60a5fa !important;
   box-shadow:
-    0 0 0 3px rgba(37, 99, 235, .42),
-    0 4px 12px rgba(0, 0, 0, .45);
+    0 0 0 2px rgba(37, 99, 235, .38),
+    0 2px 4px rgba(15, 23, 42, .20);
 }
 .marker-tag.awayMarker {
   border-color: #f59e0b !important;
   box-shadow:
-    0 0 0 3px rgba(245, 158, 11, .38),
-    0 4px 12px rgba(0, 0, 0, .45);
+    0 0 0 2px rgba(245, 158, 11, .36),
+    0 2px 4px rgba(15, 23, 42, .20);
 }
 .marker-tag.staleMarker {
   border: 3px dashed #fecaca !important;
@@ -2719,5 +2719,5 @@ body {
   border-color: #cbd5e1 !important;
   box-shadow:
     0 0 0 2px rgba(100, 116, 139, .42),
-    0 4px 12px rgba(0, 0, 0, .45);
+    0 2px 4px rgba(15, 23, 42, .20);
 }
