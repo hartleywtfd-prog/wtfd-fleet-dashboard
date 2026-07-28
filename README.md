@@ -1,3 +1,14 @@
+# Version 5.0.8
+
+- Reduces fleet-data polling from every 10 seconds to every 30 seconds.
+- Reduces Active911 polling from every 5 seconds to every 10 seconds, keeping
+  the maximum normal alert-detection delay at approximately 10 seconds.
+- Prevents overlapping Active911 requests when a prior check is still running.
+- Pauses fleet, Active911, Fleet Health, and CrewSense polling in hidden
+  interactive browser tabs; kiosk polling remains continuous.
+- Cuts the expected Cloudflare Worker request volume by about 60–65% for
+  continuously running kiosk displays.
+
 # Version 5.0.7
 
 - Fixes the popup-building error that affected every apparatus without a
@@ -468,10 +479,12 @@
 The fleet display refresh rate is controlled in `dashboard-config.js`:
 
 ```javascript
-dashboardRefreshMs: 10000
+dashboardRefreshMs: 30000
 ```
 
-Ten seconds is recommended. A shorter interval generally will not create newer coordinates because Google Apps Script is still updating once per minute.
+Thirty seconds is recommended. A shorter interval generally will not create
+newer coordinates because Google Apps Script is still updating once per minute,
+and it can consume the shared Cloudflare Workers request allowance quickly.
 
 ## Version 2.7.0
 

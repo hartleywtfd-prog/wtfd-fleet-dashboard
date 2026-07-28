@@ -1,6 +1,6 @@
 /* ===== User-adjustable dashboard settings ===== */
 const DASHBOARD_CONFIG = {
-  version: '5.0.7',
+  version: '5.0.8',
   // Fallback map view used only if the jurisdiction boundary cannot load.
   defaultCenterLat: 39.62784,
   defaultCenterLon: -84.15996,
@@ -22,8 +22,10 @@ const DASHBOARD_CONFIG = {
   kioskServiceAreaMaxZoom: 14,
   kioskServiceAreaCenterShiftLon: 0.006,
 
-  dashboardRefreshMs: 10000,
-  active911PollMs: 5000,
+  // Fleet positions remain near-live without exhausting the Cloudflare
+  // Workers daily request allowance on continuously running kiosk screens.
+  dashboardRefreshMs: 30000,
+  active911PollMs: 10000,
   active911PopupDurationMs: 15000,
   active911IncidentMarkerDurationMs: 10 * 60 * 1000,
   active911BannerDurationMs: 10 * 60 * 1000,
@@ -108,6 +110,7 @@ let activeBaseLayer = 'street';
 let baseLayers = {};
 let serviceAreaLayer = null;
 let serviceAreaViewApplied = false;
+let active911RequestInFlight = false;
 let homeMapView = null;
 let lastSuccessfulDashboardRefresh = 0;
 let kioskCursorTimer = null;
@@ -1603,7 +1606,11 @@ function fleetHealthPopupHtml(location) {
 }
 
 async function loadFleetHealth() {
-  if (IS_KIOSK_MODE || fleetHealthRequestInFlight) return;
+  if (
+    IS_KIOSK_MODE ||
+    fleetHealthRequestInFlight ||
+    document.visibilityState === 'hidden'
+  ) return;
   fleetHealthRequestInFlight = true;
   try {
     const response = await fetch(`${DASHBOARD_CONFIG.fleetHealthApiUrl}?t=${Date.now()}`, { cache: 'no-store' });
@@ -1768,6 +1775,7 @@ async function loadCrewSense() {
   if (
     IS_KIOSK_MODE ||
     crewSenseRequestInFlight ||
+    document.visibilityState === 'hidden' ||
     !DASHBOARD_CONFIG.crewSenseApiUrl
   ) return;
 
@@ -2513,6 +2521,7 @@ function scheduleReconnect() {
 
 async function loadDashboard() {
   if (dashboardRequestInFlight) return;
+  if (!IS_KIOSK_MODE && document.visibilityState === 'hidden') return;
   dashboardRequestInFlight = true;
 
   try {
@@ -3133,6 +3142,10 @@ function dismissActive911Alert() {
 }
 
 async function checkActive911Alerts() {
+  if (active911RequestInFlight) return;
+  if (!IS_KIOSK_MODE && document.visibilityState === 'hidden') return;
+  active911RequestInFlight = true;
+
   try {
     const response = await fetch('/api/active911', {
       cache: 'no-store'
@@ -3170,6 +3183,8 @@ async function checkActive911Alerts() {
     }
   } catch (error) {
     console.warn('Active911 popup check failed:', error);
+  } finally {
+    active911RequestInFlight = false;
   }
 }
 

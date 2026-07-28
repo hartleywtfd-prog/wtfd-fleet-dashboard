@@ -112,8 +112,10 @@ window.WTFD_DASHBOARD_CONFIG = {
   // How long the incident location marker remains on the map.
   active911IncidentMarkerDurationMs: 10 * 60 * 1000,
   active911BannerDurationMs: 10 * 60 * 1000,
-  dashboardRefreshMs: 10000,
-  active911PollMs: 5000,
+  // Balanced for continuously running displays: vehicle positions update
+  // every 30 seconds and new Active911 alerts are detected within 10 seconds.
+  dashboardRefreshMs: 30000,
+  active911PollMs: 10000,
   // Show an unseen current call after a kiosk/page reload when it is still new.
   active911StartupPopupMaxAgeMs: 2 * 60 * 1000,
   // Do not rely on the Fire TV/browser timezone for Received times.
