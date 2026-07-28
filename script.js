@@ -1,6 +1,6 @@
 /* ===== User-adjustable dashboard settings ===== */
 const DASHBOARD_CONFIG = {
-  version: '5.0.2',
+  version: '5.0.3',
   // Fallback map view used only if the jurisdiction boundary cannot load.
   defaultCenterLat: 39.62784,
   defaultCenterLon: -84.15996,
@@ -1578,12 +1578,26 @@ async function loadFleetHealth() {
 }
 
 function normalizeCrewSenseAssignment(value) {
-  return String(value || '')
+  const normalized = String(value || '')
     .trim()
     .toLowerCase()
     .replace(/&/g, ' and ')
     .replace(/[^a-z0-9]+/g, ' ')
     .trim();
+
+  const unitPatterns = [
+    [/^engine\s*(\d+)$/, 'e$1'],
+    [/^medic\s*(\d+)$/, 'm$1'],
+    [/^(?:ladder|truck)\s*(\d+)$/, 'l$1'],
+    [/^(?:battalion|battalion chief)\s*(\d+)$/, 'bc$1'],
+    [/^chief\s*(\d+)$/, 'c$1'],
+    [/^safety\s*(\d+)$/, 's$1'],
+    [/^training\s*(\d+)$/, 't$1']
+  ];
+  const match = unitPatterns.find(([pattern]) => pattern.test(normalized));
+  return match
+    ? normalized.replace(match[0], match[1])
+    : normalized.replace(/\s+/g, '');
 }
 
 function crewSenseAssignmentFor(location) {

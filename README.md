@@ -1,3 +1,10 @@
+# Version 5.0.3
+
+- Automatically matches expanded dashboard call signs to CrewSense abbreviations.
+- Examples: `Medic 45 → M45`, `Engine 44 → E44`, `Ladder 41 → L41`, and `Battalion 40 → BC40`.
+- Continues to support explicit aliases for nonstandard assignment names.
+- Hides the position line when CrewSense does not supply shift labels.
+
 # Version 5.0.2
 
 - Accepts CrewSense days, assignments, shifts, positions, and labels as either arrays or keyed objects.
