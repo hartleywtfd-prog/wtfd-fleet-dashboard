@@ -50,6 +50,13 @@ window.WTFD_DASHBOARD_CONFIG = {
     }
   ],
 
+  // CrewSense / Vector Scheduling integration (interactive dashboard only).
+  crewSenseApiUrl: '/api/crewsense',
+  crewSenseRefreshMs: 60 * 1000,
+  // Add entries only when a CrewSense assignment name differs from the
+  // dashboard call sign. Example: 'Medic 45': 'Station 45 - Medic'.
+  crewSenseAssignmentAliases: {},
+
   // Fleet assignment reference. The live CSV call sign always takes priority.
   // Primary assignments are fallbacks only when the feed supplies a generic
   // apparatus label. Alternates document expected temporary assignments.

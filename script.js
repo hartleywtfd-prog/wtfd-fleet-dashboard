@@ -1,6 +1,6 @@
 /* ===== User-adjustable dashboard settings ===== */
 const DASHBOARD_CONFIG = {
-  version: '4.9.4',
+  version: '5.0.0',
   // Fallback map view used only if the jurisdiction boundary cannot load.
   defaultCenterLat: 39.62784,
   defaultCenterLon: -84.15996,
@@ -49,6 +49,11 @@ const DASHBOARD_CONFIG = {
   alertSoundPlayOncePerIncident: true,
   alertSoundStorageKey: 'wtfd-last-audible-active911-id',
   alertSoundToneRules: [],
+
+  // CrewSense / Vector Scheduling integration. Kiosk mode does not request it.
+  crewSenseApiUrl: '/api/crewsense',
+  crewSenseRefreshMs: 60 * 1000,
+  crewSenseAssignmentAliases: {},
 
   // Regular-site Fleet Health integration. Kiosk mode does not request it.
   fleetHealthDashboardUrl: 'https://wtfd-fleet-health.pages.dev/',
@@ -124,6 +129,10 @@ let previousConnectionState = 'online';
 let recoveryToastTimer = null;
 let fleetHealthByApparatus = new Map();
 let fleetHealthRequestInFlight = false;
+let crewSenseByAssignment = new Map();
+let crewSenseRequestInFlight = false;
+let crewSenseUpdatedAt = null;
+let crewSenseLoaded = false;
 
 function showRecoveryToast() {
   const toast = document.getElementById('connectionRestoredToast');
@@ -1568,6 +1577,106 @@ async function loadFleetHealth() {
   }
 }
 
+function normalizeCrewSenseAssignment(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/&/g, ' and ')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+function crewSenseAssignmentFor(location) {
+  const unit = String(location?.unit || '').trim();
+  const aliases = DASHBOARD_CONFIG.crewSenseAssignmentAliases || {};
+  const configuredName =
+    aliases[unit] ||
+    aliases[unit.toLowerCase()] ||
+    unit;
+  return crewSenseByAssignment.get(
+    normalizeCrewSenseAssignment(configuredName)
+  ) || null;
+}
+
+function crewSensePopupHtml(location) {
+  if (IS_KIOSK_MODE) return '';
+  if (!crewSenseLoaded) {
+    return `<div class="popup-crew"><strong>Assigned Crew:</strong> Loading…</div>`;
+  }
+
+  const assignment = crewSenseAssignmentFor(location);
+  if (!assignment) {
+    return `<div class="popup-crew">
+      <strong>Assigned Crew:</strong> No matching CrewSense assignment
+    </div>`;
+  }
+
+  const members = (assignment.crew || []).map(member => {
+    const positions = (member.positions || []).join(', ');
+    return `<li>
+      <span>${escapeHtml(member.name)}</span>
+      ${positions ? `<small>${escapeHtml(positions)}</small>` : ''}
+    </li>`;
+  }).join('');
+
+  return `<div class="popup-crew">
+    <strong>Assigned Crew</strong>
+    <span class="popup-crew-assignment">${escapeHtml(assignment.name)}</span>
+    <ul>${members || '<li>No active personnel listed</li>'}</ul>
+    <small>Schedule updated ${escapeHtml(timeAgo(crewSenseUpdatedAt))}</small>
+  </div>`;
+}
+
+async function loadCrewSense() {
+  if (
+    IS_KIOSK_MODE ||
+    crewSenseRequestInFlight ||
+    !DASHBOARD_CONFIG.crewSenseApiUrl
+  ) return;
+
+  crewSenseRequestInFlight = true;
+  try {
+    const response = await fetch(
+      `${DASHBOARD_CONFIG.crewSenseApiUrl}?t=${Date.now()}`,
+      { cache: 'no-store' }
+    );
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const data = await response.json();
+    const next = new Map();
+
+    (data.assignments || []).forEach(assignment => {
+      const key = normalizeCrewSenseAssignment(assignment.name);
+      if (!key) return;
+      const existing = next.get(key);
+      if (!existing) {
+        next.set(key, assignment);
+        return;
+      }
+      const memberKeys = new Set(
+        (existing.crew || []).map(member =>
+          String(member.id || member.name || '').toLowerCase()
+        )
+      );
+      (assignment.crew || []).forEach(member => {
+        const memberKey = String(member.id || member.name || '').toLowerCase();
+        if (memberKey && !memberKeys.has(memberKey)) {
+          existing.crew.push(member);
+          memberKeys.add(memberKey);
+        }
+      });
+    });
+
+    crewSenseByAssignment = next;
+    crewSenseUpdatedAt = data.updatedAt || new Date().toISOString();
+    crewSenseLoaded = true;
+    if (allLocations.length) renderDashboard(allLocations);
+  } catch (error) {
+    console.warn('Unable to load CrewSense assignments:', error);
+  } finally {
+    crewSenseRequestInFlight = false;
+  }
+}
+
 function buildFleetMetrics(locations) {
   const metrics = {
     engines: 0,
@@ -1807,6 +1916,7 @@ function renderDashboard(locations) {
           <strong>Home Station:</strong> ${escapeHtml(v.homeStation || '')}<br>
           <strong>Speed:</strong> ${Number(v.speed || 0).toFixed(1)} mph<br>
           <strong>Updated:</strong> ${escapeHtml(timeAgo(v.lastUpdate))}<br><br>
+          ${crewSensePopupHtml(v)}
           ${fleetHealthPopupHtml(v)}
           ${
             v.mapLink
@@ -2351,11 +2461,13 @@ document
 
 loadDashboard();
 loadFleetHealth();
+loadCrewSense();
 setInterval(
   loadDashboard,
   DASHBOARD_CONFIG.dashboardRefreshMs
 );
 setInterval(loadFleetHealth, DASHBOARD_CONFIG.fleetHealthRefreshMs);
+setInterval(loadCrewSense, DASHBOARD_CONFIG.crewSenseRefreshMs);
 
 function normalizeIncidentCoordinate(value) {
   const number = Number(value);
@@ -2958,12 +3070,14 @@ if (IS_KIOSK_MODE) {
 // remain in place, so these are safe one-time refresh requests.
 window.addEventListener('online', () => {
   loadDashboard();
+  loadCrewSense();
   checkActive911Alerts();
 });
 
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState !== 'visible') return;
   loadDashboard();
+  loadCrewSense();
   checkActive911Alerts();
 });
 

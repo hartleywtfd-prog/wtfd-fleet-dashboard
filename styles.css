@@ -289,6 +289,51 @@ button:hover,
 .leaflet-popup-content .popup-health-status.warn { color: #b45309 !important; }
 .leaflet-popup-content .popup-health-status.bad { color: #b91c1c !important; }
 
+.popup-crew {
+  margin: 8px 0;
+  padding: 8px 9px;
+  border: 1px solid #bfdbfe;
+  border-radius: 7px;
+  background: #eff6ff;
+  color: #0f172a;
+  line-height: 1.35;
+}
+
+.leaflet-popup-content .popup-crew,
+.leaflet-popup-content .popup-crew * {
+  color: #0f172a !important;
+}
+
+.popup-crew-assignment {
+  display: block;
+  margin-top: 2px;
+  color: #475569 !important;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.popup-crew ul {
+  margin: 6px 0;
+  padding: 0;
+  list-style: none;
+}
+
+.popup-crew li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 2px 0;
+  font-weight: 800;
+}
+
+.popup-crew li small {
+  color: #475569 !important;
+  font-size: 10px;
+  font-weight: 700;
+  text-align: right;
+}
+
 button:disabled,
 #forceSync:disabled {
   cursor: wait;

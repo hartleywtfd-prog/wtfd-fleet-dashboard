@@ -1,3 +1,13 @@
+# Version 5.0.0
+
+- Adds a server-side CrewSense / Vector Scheduling API integration for the regular interactive dashboard.
+- Displays the currently assigned employees and CrewSense position labels when a vehicle marker is clicked.
+- Matches the live dashboard call sign, such as `Medic 45`, to the CrewSense assignment name.
+- Supports configurable assignment-name aliases in `dashboard-config.js`.
+- Keeps the CrewSense Client ID and Client Secret in encrypted Cloudflare environment variables.
+- Does not request or display CrewSense data in kiosk mode.
+- Refreshes crew assignments every 60 seconds and uses the existing popup refresh behavior.
+
 # Version 4.9.4
 
 - Rebuilds Active911 tone matching from 2,743 actual WTFD alert records containing 117 distinct descriptions.
