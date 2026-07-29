@@ -55,7 +55,7 @@ window.WTFD_DASHBOARD_CONFIG = {
   crewSenseRefreshMs: 30 * 60 * 1000,
   // Paste the deployed Operational Readiness Apps Script /exec URL here.
   // The dashboard button stays disabled until a valid URL is supplied.
-  operationalReadinessUrl: 'https://script.google.com/macros/s/AKfycbz44RaiE0OG4xXMWd8m-kn272VDTehBmIgd6XF-rLQ2BkaplQgXM4O7kWvFVQqxOB17wA/exec',
+  operationalReadinessUrl: '',
   // Add entries only when a CrewSense assignment name differs from the
   // dashboard call sign. Example: 'Medic 45': 'Station 45 - Medic'.
   crewSenseAssignmentAliases: {},
