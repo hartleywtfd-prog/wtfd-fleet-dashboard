@@ -53,6 +53,9 @@ window.WTFD_DASHBOARD_CONFIG = {
   // CrewSense / Vector Scheduling integration (interactive dashboard only).
   crewSenseApiUrl: '/api/crewsense',
   crewSenseRefreshMs: 30 * 60 * 1000,
+  // Paste the deployed Operational Readiness Apps Script /exec URL here.
+  // The dashboard button stays disabled until a valid URL is supplied.
+  operationalReadinessUrl: '',
   // Add entries only when a CrewSense assignment name differs from the
   // dashboard call sign. Example: 'Medic 45': 'Station 45 - Medic'.
   crewSenseAssignmentAliases: {},

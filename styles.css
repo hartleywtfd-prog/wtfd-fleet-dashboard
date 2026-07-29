@@ -232,6 +232,7 @@ body {
 
 .controls {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   padding: 6px 8px 10px;
@@ -349,6 +350,44 @@ button:hover,
   font-size: 10px;
   font-weight: 700;
   text-align: right;
+}
+
+.leaflet-popup-content .popup-crew-member {
+  color: #1d4ed8 !important;
+  font-weight: 900;
+  text-decoration: none;
+}
+
+.leaflet-popup-content .popup-crew-member:hover {
+  text-decoration: underline;
+}
+
+#operationalReadinessLink.readiness-link {
+  flex: 0 0 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 38px;
+  padding: 0 12px;
+  border: 1px solid #0f766e;
+  border-radius: 7px;
+  background: #0f766e;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 900;
+  text-align: center;
+  text-decoration: none;
+}
+
+#operationalReadinessLink.readiness-link:hover {
+  background: #115e59;
+}
+
+#operationalReadinessLink.readiness-link.disabled {
+  cursor: not-allowed;
+  border-color: #94a3b8;
+  background: #cbd5e1;
+  color: #475569;
 }
 
 button:disabled,

@@ -1667,6 +1667,39 @@ function normalizeCrewSensePerson(value) {
     .trim();
 }
 
+function operationalReadinessBaseUrl() {
+  return String(DASHBOARD_CONFIG.operationalReadinessUrl || '').trim();
+}
+
+function operationalReadinessMemberUrl(member) {
+  const base = operationalReadinessBaseUrl();
+  if (!base) return '';
+  const url = new URL(base, window.location.href);
+  url.searchParams.set('view', 'member');
+  if (member?.id) url.searchParams.set('crewSenseId', String(member.id));
+  if (member?.name) url.searchParams.set('name', String(member.name));
+  return url.toString();
+}
+
+function configureOperationalReadinessLink() {
+  const link = document.getElementById('operationalReadinessLink');
+  if (!link) return;
+  const base = operationalReadinessBaseUrl();
+  if (!base) {
+    link.href = '#';
+    link.classList.add('disabled');
+    link.setAttribute('aria-disabled', 'true');
+    link.addEventListener('click', event => event.preventDefault());
+    return;
+  }
+  const url = new URL(base, window.location.href);
+  url.searchParams.set('view', 'officer');
+  link.href = url.toString();
+  link.classList.remove('disabled');
+  link.setAttribute('aria-disabled', 'false');
+  link.removeAttribute('title');
+}
+
 function crewSensePersonnelForUnit(unit) {
   const configured = crewSenseConfigValue(
     DASHBOARD_CONFIG.crewSensePersonnelAssignments,
@@ -1751,8 +1784,12 @@ function crewSensePopupHtml(location) {
 
   const members = (assignment.crew || []).map(member => {
     const positions = (member.positions || []).join(', ');
+    const reportUrl = operationalReadinessMemberUrl(member);
+    const memberName = reportUrl
+      ? `<a class="popup-crew-member" href="${escapeHtml(reportUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(member.name)}</a>`
+      : `<span>${escapeHtml(member.name)}</span>`;
     return `<li>
-      <span>${escapeHtml(member.name)}</span>
+      ${memberName}
       ${positions ? `<small>${escapeHtml(positions)}</small>` : ''}
     </li>`;
   }).join('');
@@ -2619,6 +2656,7 @@ document
 loadDashboard();
 loadFleetHealth();
 loadCrewSense();
+configureOperationalReadinessLink();
 setInterval(
   loadDashboard,
   DASHBOARD_CONFIG.dashboardRefreshMs
