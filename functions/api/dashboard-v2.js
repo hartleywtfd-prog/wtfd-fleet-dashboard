@@ -65,7 +65,19 @@ function diagnostics(locations) {
     stale: locations.filter(v => v.lastUpdate && now - new Date(v.lastUpdate).getTime() > 7200000).length,
     moving: locations.filter(v => Number(v.speed) >= 5).length,
     away: locations.filter(v => String(v.facility).toLowerCase() === 'away').length,
-    emergency: locations.filter(v => v.emergencyLights).length,
+    emergency: locations.filter(v => {
+      if (!v.emergencyLights) return false;
+      const age = v.lastUpdate
+        ? now - new Date(v.lastUpdate).getTime()
+        : Infinity;
+      if (age <= 900000) return true;
+      const facility = String(v.facility || '').trim().toLowerCase();
+      const atWtfdFacility = [
+        'station 41', 'station 42', 'station 43', 'station 44', 'station 45',
+        'headquarters', 'hq', 'fire maintenance'
+      ].includes(facility);
+      return !(Number(v.speed || 0) < 5 && atWtfdFacility);
+    }).length,
     generatedAt: new Date().toISOString()
   };
 }
@@ -80,4 +92,3 @@ function json(value, status = 200) {
 function message(error) {
   return error instanceof Error ? error.message : String(error);
 }
-

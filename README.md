@@ -1,3 +1,13 @@
+# Version 5.2.1
+
+- Prevents a last-known Samsara Emergency Lights `TRUE` value from leaving a
+  shut-down vehicle marked Responding.
+- Suppresses an emergency-light value older than 15 minutes only when the
+  vehicle is stationary at a WTFD station, Headquarters, or Fire Maintenance.
+- Does not impose a time limit on travel to a call or extended on-scene
+  operations away from a WTFD facility.
+- Applies the same protection to the standard and kiosk dashboards.
+
 # Version 5.0.9
 
 - Restores Active911 polling to every 5 seconds.

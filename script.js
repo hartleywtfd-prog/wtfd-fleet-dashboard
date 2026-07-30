@@ -1,6 +1,6 @@
 /* ===== User-adjustable dashboard settings ===== */
 const DASHBOARD_CONFIG = {
-  version: '5.2.0',
+  version: '5.2.1',
   // Fallback map view used only if the jurisdiction boundary cannot load.
   defaultCenterLat: 39.62784,
   defaultCenterLon: -84.15996,
@@ -25,6 +25,10 @@ const DASHBOARD_CONFIG = {
   // Keep time-sensitive fleet positions and alerts responsive. Less urgent
   // integrations use much longer intervals below.
   dashboardRefreshMs: 10000,
+  // Samsara can retain the last TRUE auxiliary-input value after a vehicle is
+  // shut down. This age is used only to suppress that stale state while the
+  // vehicle is stationary at a WTFD facility; it never limits call duration.
+  emergencyTelemetryMaxAgeMs: 15 * 60 * 1000,
   active911PollMs: 5000,
   active911PopupDurationMs: 15000,
   active911IncidentMarkerDurationMs: 10 * 60 * 1000,
@@ -587,6 +591,56 @@ function hasEmergencyLights(v) {
   ].includes(normalizedValue);
 }
 
+function hasOperationalEmergencyLights(v) {
+  if (!hasEmergencyLights(v)) {
+    return false;
+  }
+
+  const telemetryAgeMs = ageMinutes(v && v.lastUpdate) * 60 * 1000;
+  const maximumAgeMs = Number(
+    DASHBOARD_CONFIG.emergencyTelemetryMaxAgeMs
+  );
+
+  const telemetryIsRecent = (
+    Number.isFinite(telemetryAgeMs) &&
+    Number.isFinite(maximumAgeMs) &&
+    telemetryAgeMs <= maximumAgeMs
+  );
+
+  if (telemetryIsRecent) {
+    return true;
+  }
+
+  // Never use an arbitrary age limit to end a response away from a department
+  // facility. A unit can drive for more than 15 minutes or remain on scene for
+  // an extended period. The stale TRUE is suppressed only after the last known
+  // position places a stationary vehicle back at a WTFD facility.
+  return !(
+    Number(v && v.speed || 0) < 5 &&
+    isWtfdFacility(v && v.facility)
+  );
+}
+
+const WTFD_FACILITY_NAMES = new Set([
+  'station 41',
+  'station 42',
+  'station 43',
+  'station 44',
+  'station 45',
+  'headquarters',
+  'hq',
+  'fire maintenance'
+]);
+
+function isWtfdFacility(value) {
+  return WTFD_FACILITY_NAMES.has(
+    String(value || '')
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, ' ')
+  );
+}
+
 const PRIVATE_CHIEF_RESIDENCE_NAMES = new Set([
   'chief 40',
   'chief 40 residence',
@@ -643,7 +697,7 @@ function getStatus(v) {
 
   const age = ageMinutes(v.lastUpdate);
 
-  if (hasEmergencyLights(v)) {
+  if (hasOperationalEmergencyLights(v)) {
     return 'responding';
   }
 
