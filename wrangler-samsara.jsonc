@@ -1,0 +1,15 @@
+{
+  "name": "wtfd-samsara-sync",
+  "main": "workers/samsara-sync.js",
+  "compatibility_date": "2026-07-30",
+  "triggers": {
+    "crons": ["* * * * *"]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "wtfd-fleet",
+      "database_id": "ebd9c7d6-9089-4ead-bb53-f609e977f03f"
+    }
+  ]
+}
