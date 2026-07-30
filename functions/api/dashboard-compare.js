@@ -33,10 +33,15 @@ function compare(number, legacy, d1) {
   const distance = distanceFeet(legacy.lat, legacy.lon, d1.lat, d1.lon);
   const differences = [];
   if (distance > 100) differences.push(`location ${Math.round(distance)} ft`);
-  for (const key of ['unit','facility','gpsStatus','emergencyLights','parked']) {
+  for (const key of ['unit','facility','gpsStatus','emergencyLights']) {
     if (String(legacy[key]) !== String(d1[key])) {
       differences.push(`${key}: ${String(legacy[key])} → ${String(d1[key])}`);
     }
+  }
+  // Parked is a new optional field. Compare it only when the deployed legacy
+  // endpoint already exposes it; an absent legacy value is not a data mismatch.
+  if (legacy.parked !== undefined && String(legacy.parked) !== String(d1.parked)) {
+    differences.push(`parked: ${String(legacy.parked)} → ${String(d1.parked)}`);
   }
   return { apparatusNumber: number, result: differences.length ? 'different' : 'match', distanceFeet: Math.round(distance), differences };
 }
@@ -50,4 +55,3 @@ function distanceFeet(lat1, lon1, lat2, lon2) {
     Math.cos(rad(Number(lat1))) * Math.cos(rad(Number(lat2))) * Math.sin(dLon / 2) ** 2;
   return 20902231 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
-

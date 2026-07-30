@@ -8,7 +8,7 @@ migrate the temporary OperativeIQ CSV workflow.
 
 - `d1/schema.sql` — D1 tables
 - `d1/seed.sql` — 26 vehicles, 20 facilities, and public settings
-- `workers/samsara-sync.js` — scheduled Samsara-to-D1 synchronization
+- `workers/samsara-sync.js` — scheduled Samsara snapshot-to-D1 synchronization
 - `functions/api/dashboard-v2.js` — D1 response in the existing dashboard format
 - `functions/api/dashboard-compare.js` — old-versus-new comparison
 - `wrangler-samsara.jsonc` — separate scheduled Worker configuration

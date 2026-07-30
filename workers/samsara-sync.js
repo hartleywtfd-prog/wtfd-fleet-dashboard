@@ -1,9 +1,12 @@
-const SAMSARA_URL =
-  'https://api.samsara.com/fleet/vehicles/stats/feed?types=gps,auxInput1,auxInput2,auxInput3,auxInput4';
+const SAMSARA_URL = 'https://api.samsara.com/fleet/vehicles/stats';
+const SAMSARA_TYPES = ['gps', 'auxInput1', 'auxInput2', 'auxInput3', 'auxInput4'];
 
 export default {
   async scheduled(_controller, env, ctx) {
-    ctx.waitUntil(runSync(env));
+    ctx.waitUntil(runSync(env).catch(error => {
+      console.error('Samsara synchronization failed:', errorMessage(error));
+      throw error;
+    }));
   },
 
   async fetch(request, env) {
@@ -34,7 +37,7 @@ async function runSync(env) {
       ).all(),
       env.DB.prepare(`SELECT * FROM facilities`).all()
     ]);
-    const samsara = await getAllSamsaraVehicles(env.SAMSARA_TOKEN);
+    const samsara = await getSamsaraSnapshot(env.SAMSARA_TOKEN);
     const facilities = facilitiesResult.results || [];
     const syncTime = new Date().toISOString();
     const matchedIds = new Set();
@@ -121,11 +124,27 @@ async function runSync(env) {
   }
 }
 
-async function getAllSamsaraVehicles(token) {
+async function getSamsaraSnapshot(token) {
+  const pages = await Promise.all(
+    SAMSARA_TYPES.map(type => getSnapshotType(token, type))
+  );
+  const merged = new Map();
+  for (const page of pages) {
+    for (const vehicle of page) {
+      const id = String(vehicle.id || '');
+      if (!id) continue;
+      merged.set(id, { ...(merged.get(id) || {}), ...vehicle });
+    }
+  }
+  return [...merged.values()];
+}
+
+async function getSnapshotType(token, type) {
   const vehicles = [];
   let after = '';
   do {
     const url = new URL(SAMSARA_URL);
+    url.searchParams.set('types', type);
     if (after) url.searchParams.set('after', after);
     const response = await fetch(url, {
       headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' }
@@ -141,7 +160,9 @@ async function getAllSamsaraVehicles(token) {
 }
 
 function latest(values) {
-  if (!Array.isArray(values) || !values.length) return null;
+  if (!values) return null;
+  if (!Array.isArray(values)) return values;
+  if (!values.length) return null;
   return [...values].sort((a, b) => new Date(b.time || 0) - new Date(a.time || 0))[0];
 }
 
@@ -248,4 +269,3 @@ function mapLink(lat, lon) {
 function errorMessage(error) {
   return error instanceof Error ? error.message : String(error);
 }
-
