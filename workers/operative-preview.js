@@ -71,18 +71,28 @@ async function inspectSwagger(env) {
     }
 
     const paths = Object.entries(specification.paths || {})
-      .filter(([apiPath]) => /unit|call.?sign|assign|apparatus|vehicle|service.?status/i.test(apiPath))
       .map(([apiPath, methods]) => ({
         path: apiPath,
-        methods: Object.keys(methods || {}).filter(method => /^(get|post)$/i.test(method))
-      }));
+        operations: Object.entries(methods || {})
+          .filter(([method]) => /^(get|post)$/i.test(method))
+          .map(([method, operation]) => ({
+            method: method.toUpperCase(),
+            operationId: operation?.operationId || '',
+            summary: operation?.summary || '',
+            tags: operation?.tags || []
+          }))
+      }))
+      .filter(item => item.operations.length);
+    const assignmentPattern = /unit|call.?sign|assign|apparatus|vehicle|service.?status|fleet|shift/i;
+    const candidatePaths = paths.filter(item => assignmentPattern.test(JSON.stringify(item)));
 
     return {
       success: true,
       swaggerPath: path,
       title: specification.info?.title || '',
       version: specification.info?.version || '',
-      candidatePaths: paths,
+      candidatePaths,
+      allResourcePaths: paths,
       attempts
     };
   }
