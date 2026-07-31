@@ -22,7 +22,11 @@ export default {
 
     try {
       if (url.pathname === '/inspect') {
-        return json(await inspectSwagger(env));
+        return json(await inspectSwagger(
+          env,
+          url.searchParams.get('q') || '',
+          url.searchParams.get('compact') === '1'
+        ));
       }
 
       if (url.pathname === '/preview') {
@@ -47,7 +51,7 @@ function authorized(request, env) {
     request.headers.get('Authorization') === `Bearer ${env.SYNC_ADMIN_TOKEN}`;
 }
 
-async function inspectSwagger(env) {
+async function inspectSwagger(env, searchText, compact) {
   const token = await getAccessToken(env);
   const attempts = [];
 
@@ -85,13 +89,30 @@ async function inspectSwagger(env) {
       .filter(item => item.operations.length);
     const assignmentPattern = /unit|call.?sign|assign|apparatus|vehicle|service.?status|fleet|shift/i;
     const candidatePaths = paths.filter(item => assignmentPattern.test(JSON.stringify(item)));
+    const query = String(searchText || '').trim().toLowerCase();
+    const searchedPaths = query
+      ? paths.filter(item => JSON.stringify(item).toLowerCase().includes(query))
+      : candidatePaths;
+
+    if (compact) {
+      return {
+        success: true,
+        swaggerPath: path,
+        title: specification.info?.title || '',
+        version: specification.info?.version || '',
+        query,
+        totalResourceCount: paths.length,
+        matchCount: searchedPaths.length,
+        resourcePaths: searchedPaths
+      };
+    }
 
     return {
       success: true,
       swaggerPath: path,
       title: specification.info?.title || '',
       version: specification.info?.version || '',
-      candidatePaths,
+      candidatePaths: searchedPaths,
       allResourcePaths: paths,
       attempts
     };
