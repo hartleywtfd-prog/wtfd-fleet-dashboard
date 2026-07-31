@@ -98,3 +98,9 @@ until:
 
 Stage 1 requires no rollback because the live endpoint is unchanged. If the new
 Worker misbehaves, disable its cron trigger; Apps Script continues operating.
+
+## Stage 2 preview
+
+The direct OperativeIQ API discovery and read-only comparison package is
+documented in `OPERATIVE_STAGE2_PREVIEW.md`. It is intentionally separate from
+the Stage 1 Samsara Worker and does not change the production assignment feed.

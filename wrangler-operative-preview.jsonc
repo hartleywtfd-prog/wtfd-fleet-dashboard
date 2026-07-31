@@ -1,0 +1,13 @@
+{
+  "name": "wtfd-operative-preview",
+  "main": "workers/operative-preview.js",
+  "compatibility_date": "2026-07-31",
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "wtfd-fleet",
+      "database_id": "ebd9c7d6-9089-4ead-bb53-f609e977f03f"
+    }
+  ]
+}
+
