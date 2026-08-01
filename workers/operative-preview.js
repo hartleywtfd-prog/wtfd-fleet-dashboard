@@ -105,7 +105,8 @@ export default {
       if (url.pathname === '/preview-incomplete-checks') {
         return json(await previewIncompleteChecks(
           env,
-          validatedDateParameter(url.searchParams.get('date'))
+          validatedDateParameter(url.searchParams.get('date')),
+          url.searchParams.get('compact') === '1'
         ));
       }
 
@@ -145,7 +146,7 @@ export default {
           '/inspect-models?q=call',
           '/inspect-incomplete-checks',
           '/probe-incomplete-checks',
-          '/preview-incomplete-checks?date=YYYY-MM-DD',
+          '/preview-incomplete-checks?date=YYYY-MM-DD&compact=1',
           '/probe',
           '/probe-linkage',
           '/preview?path=/api/...',
@@ -320,7 +321,7 @@ async function probeIncompleteChecks(env) {
   };
 }
 
-async function previewIncompleteChecks(env, requestedDate) {
+async function previewIncompleteChecks(env, requestedDate, compact = false) {
   const token = await getAccessToken(env);
   const reportDate = requestedDate || easternDateKey(new Date());
   const dailyShiftPath = '/api/daily-shifts?' + new URLSearchParams({
@@ -384,6 +385,20 @@ async function previewIncompleteChecks(env, requestedDate) {
       questionaryId: state.questionaryId,
       currentState,
       sourceStatus: state.status ?? '',
+      schedulerType: state.schedulerType ?? null,
+      schedulerSubType: state.schedulerSubType ?? null,
+      dayValue: state.dayValue ?? null,
+      monthValue: state.monthValue ?? null,
+      weekValue: state.weekValue ?? null,
+      sunday: state.sunday ?? null,
+      monday: state.monday ?? null,
+      tuesday: state.tuesday ?? null,
+      wednesday: state.wednesday ?? null,
+      thursday: state.thursday ?? null,
+      friday: state.friday ?? null,
+      saturday: state.saturday ?? null,
+      startDate: state.startDate ?? null,
+      endDate: state.endDate ?? null,
       wasCompletedLastShift: state.wasCompletedLastShift ?? null,
       lastCompletedDateTime: state.lastCompletedDateTime ?? null,
       shiftClosed: shift.closed ?? null,
@@ -414,7 +429,7 @@ async function previewIncompleteChecks(env, requestedDate) {
     stateValueCounts: countValues(rows, 'currentState'),
     sourceStatusCounts: countValues(rows, 'sourceStatus'),
     incompleteRows,
-    scheduledRows: rows,
+    ...(compact ? {} : { scheduledRows: rows }),
     diagnostics: {
       unjoinedShiftIdCount: unjoinedShiftIds.size,
       unjoinedShiftIds: [...unjoinedShiftIds].slice(0, 25)
@@ -482,13 +497,19 @@ function dateKey(value) {
 function isIncompleteQuestionnaireState(value) {
   const state = normalize(value);
   if (!state) return false;
+  if (state === '1') return true;
+  if (['0', '3'].includes(state)) return false;
   if (/NOT.?COMPLET|INCOMPLETE|PENDING|MISSED|OVERDUE/.test(state)) return true;
   if (/COMPLETED|COMPLETE|DONE|PASSED/.test(state)) return false;
-  return ['0', 'FALSE', 'NO'].includes(state);
+  return ['FALSE', 'NO'].includes(state);
 }
 
 function incompleteStateLabel(value) {
-  return isIncompleteQuestionnaireState(value) ? 'Not Completed' : String(value ?? '').trim();
+  const state = normalize(value);
+  if (isIncompleteQuestionnaireState(value)) return 'Not Completed';
+  if (state === '3') return 'Completed';
+  if (state === '0') return 'Not Due';
+  return String(value ?? '').trim();
 }
 
 function countValues(rows, field) {
