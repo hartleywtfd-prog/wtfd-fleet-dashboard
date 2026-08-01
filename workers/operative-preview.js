@@ -102,6 +102,13 @@ export default {
         return json(await probeIncompleteChecks(env));
       }
 
+      if (url.pathname === '/preview-incomplete-checks') {
+        return json(await previewIncompleteChecks(
+          env,
+          validatedDateParameter(url.searchParams.get('date'))
+        ));
+      }
+
       if (url.pathname === '/preview') {
         const endpoint = validatedApiPath(
           url.searchParams.get('path') || env.OPERATIVE_ASSIGNMENTS_PATH
@@ -138,6 +145,7 @@ export default {
           '/inspect-models?q=call',
           '/inspect-incomplete-checks',
           '/probe-incomplete-checks',
+          '/preview-incomplete-checks?date=YYYY-MM-DD',
           '/probe',
           '/probe-linkage',
           '/preview?path=/api/...',
@@ -211,7 +219,7 @@ async function inspectModels(env, searchText) {
 }
 
 async function inspectIncompleteChecks(env) {
-  const { specification, swaggerPath } = await loadSwagger(env);
+  const { specification, swaggerPath } = await loadSwagger(env, null, false);
   const schemas = specification.components?.schemas || specification.definitions || {};
   const paths = Object.entries(specification.paths || {})
     .map(([apiPath, methods]) => ({
@@ -312,7 +320,114 @@ async function probeIncompleteChecks(env) {
   };
 }
 
-async function loadSwagger(env, existingToken = null) {
+async function previewIncompleteChecks(env, requestedDate) {
+  const token = await getAccessToken(env);
+  const reportDate = requestedDate || easternDateKey(new Date());
+  const dailyShiftPath = '/api/daily-shifts?' + new URLSearchParams({
+    '$select': [
+      'id', 'shift', 'truckId', 'entryDate', 'entryTime', 'status', 'closed',
+      'createdTime', 'lastModificationTime'
+    ].join(','),
+    '$orderby': 'entryDate desc,entryTime desc'
+  }).toString();
+
+  const [states, shifts, units, unitStatuses, unitLocations] = await Promise.all([
+    fetchAll('/api/daily-shift-questionaries-state?$orderby=id desc', token, 5000),
+    fetchAll(dailyShiftPath, token, 3000),
+    fetchAll('/api/units', token, 500),
+    fetchAll('/api/unit-statuses', token, 500),
+    fetchAll('/api/unit-locations', token, 500)
+  ]);
+
+  const shiftsById = new Map(shifts.map(item => [String(item.id), item]));
+  const unitsById = new Map(units.map(item => [String(item.id), item]));
+  const statusesById = new Map(unitStatuses.map(item => [String(item.id), item]));
+  const locationsById = new Map();
+  for (const location of unitLocations) {
+    for (const key of [location.id, location.roomId]) {
+      if (key !== null && key !== undefined && key !== '') {
+        locationsById.set(String(key), location);
+      }
+    }
+  }
+
+  const rows = [];
+  const unjoinedShiftIds = new Set();
+  for (const state of states) {
+    const shift = shiftsById.get(String(state.shiftId));
+    if (!shift) {
+      unjoinedShiftIds.add(String(state.shiftId));
+      continue;
+    }
+    if (dateKey(shift.entryDate) !== reportDate) continue;
+    if (!normalizeBoolean(state.isScheduled)) continue;
+
+    const unit = unitsById.get(String(shift.truckId)) || {};
+    const locationKey = [unit.locationId, unit.roomId]
+      .find(value => value !== null && value !== undefined && value !== '');
+    const location = locationsById.get(String(locationKey ?? '')) || {};
+    const serviceStatus =
+      statusesById.get(String(unit.truckStatusId))?.truckStatusName ||
+      unit.fleetStatus || unit.status || '';
+    const currentState = state.currentState ?? '';
+    rows.push({
+      date: reportDate,
+      locationName: location.locationName || location.locationDescription || shift.shift || '',
+      unitNumber: unit.truckNumber || `Truck ID ${shift.truckId}`,
+      inServiceStatus: serviceStatus,
+      questionnaireName: state.questionaryName || '',
+      status: incompleteStateLabel(currentState),
+      incomplete: isIncompleteQuestionnaireState(currentState),
+      stateId: state.id,
+      shiftId: state.shiftId,
+      truckId: shift.truckId,
+      questionaryId: state.questionaryId,
+      currentState,
+      sourceStatus: state.status ?? '',
+      wasCompletedLastShift: state.wasCompletedLastShift ?? null,
+      lastCompletedDateTime: state.lastCompletedDateTime ?? null,
+      shiftClosed: shift.closed ?? null,
+      shiftStatus: shift.status ?? ''
+    });
+  }
+
+  rows.sort((a, b) =>
+    String(a.locationName).localeCompare(String(b.locationName)) ||
+    String(a.unitNumber).localeCompare(String(b.unitNumber)) ||
+    String(a.questionnaireName).localeCompare(String(b.questionnaireName))
+  );
+  const incompleteRows = rows.filter(item => item.incomplete);
+
+  return {
+    success: true,
+    mode: 'READ_ONLY_INCOMPLETE_CHECK_PREVIEW',
+    reportDate,
+    sourceCounts: {
+      questionnaireStates: states.length,
+      dailyShifts: shifts.length,
+      units: units.length,
+      unitStatuses: unitStatuses.length,
+      unitLocations: unitLocations.length
+    },
+    scheduledRowCount: rows.length,
+    incompleteRowCount: incompleteRows.length,
+    stateValueCounts: countValues(rows, 'currentState'),
+    sourceStatusCounts: countValues(rows, 'sourceStatus'),
+    incompleteRows,
+    scheduledRows: rows,
+    diagnostics: {
+      unjoinedShiftIdCount: unjoinedShiftIds.size,
+      unjoinedShiftIds: [...unjoinedShiftIds].slice(0, 25)
+    },
+    csvTargetColumns: [
+      'Date', 'Location Name', 'Unit Number', 'In-Service Status',
+      'Questionnaire Name', 'Status'
+    ],
+    note: 'Joined questionnaire states to daily shifts, units, statuses, and locations. No OperativeIQ or D1 data was changed.'
+  };
+}
+
+async function loadSwagger(env, existingToken = null, requirePaths = true) {
   const token = existingToken || await getAccessToken(env);
   const attempts = [];
   for (const path of SWAGGER_CANDIDATES) {
@@ -324,7 +439,9 @@ async function loadSwagger(env, existingToken = null) {
     if (!response.ok) continue;
     try {
       const specification = JSON.parse(text);
-      if (Object.keys(specification.paths || {}).length) {
+      const pathCount = Object.keys(specification.paths || {}).length;
+      const schemas = specification.components?.schemas || specification.definitions || {};
+      if (pathCount || (!requirePaths && Object.keys(schemas).length)) {
         return { specification, swaggerPath: path, attempts };
       }
     } catch (_error) {
@@ -332,6 +449,55 @@ async function loadSwagger(env, existingToken = null) {
     }
   }
   throw new Error(`No supported Swagger JSON document was found: ${JSON.stringify(attempts)}`);
+}
+
+function validatedDateParameter(value) {
+  const text = String(value || '').trim();
+  if (!text) return '';
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) {
+    throw new Error('The date parameter must use YYYY-MM-DD.');
+  }
+  return text;
+}
+
+function easternDateKey(date) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit'
+  }).formatToParts(date);
+  const values = Object.fromEntries(parts.map(item => [item.type, item.value]));
+  return `${values.year}-${values.month}-${values.day}`;
+}
+
+function dateKey(value) {
+  const text = String(value || '').trim();
+  const iso = text.match(/\d{4}-\d{2}-\d{2}/);
+  if (iso) return iso[0];
+  const us = text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (us) return `${us[3]}-${us[1].padStart(2, '0')}-${us[2].padStart(2, '0')}`;
+  const millis = new Date(text.replace(/^[A-Za-z]+,\s*/, '')).getTime();
+  if (Number.isFinite(millis)) return easternDateKey(new Date(millis));
+  return '';
+}
+
+function isIncompleteQuestionnaireState(value) {
+  const state = normalize(value);
+  if (!state) return false;
+  if (/NOT.?COMPLET|INCOMPLETE|PENDING|MISSED|OVERDUE/.test(state)) return true;
+  if (/COMPLETED|COMPLETE|DONE|PASSED/.test(state)) return false;
+  return ['0', 'FALSE', 'NO'].includes(state);
+}
+
+function incompleteStateLabel(value) {
+  return isIncompleteQuestionnaireState(value) ? 'Not Completed' : String(value ?? '').trim();
+}
+
+function countValues(rows, field) {
+  const counts = {};
+  for (const row of rows) {
+    const key = String(row[field] ?? '').trim() || '(blank)';
+    counts[key] = (counts[key] || 0) + 1;
+  }
+  return counts;
 }
 
 function responseModelNames(operation) {
