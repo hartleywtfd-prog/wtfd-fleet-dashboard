@@ -4,9 +4,69 @@ const PAGE_SIZE = 200;
 const IGNORED_APPARATUS = new Set(['F140']);
 const SWAGGER_CANDIDATES = [
   '/swagger/docs/v1',
+  '/swagger/docs/v2',
   '/swagger/v1/swagger.json',
   '/swagger/v2/swagger.json',
-  '/swagger/swagger.json'
+  '/swagger/swagger.json',
+  '/swagger.json',
+  '/openapi.json'
+];
+const ASSIGNMENT_RESOURCE_CANDIDATES = [
+  '/api/call-signs',
+  '/api/callsigns',
+  '/api/unit-assignments',
+  '/api/unitassignments',
+  '/api/assignments',
+  '/api/unit-statuses',
+  '/api/unitstatuses',
+  '/api/truck-statuses',
+  '/api/truckstatuses',
+  '/api/unit-service-statuses',
+  '/api/unitservicestatuses',
+  '/api/unit-shifts',
+  '/api/unitshifts',
+  '/api/shift-units',
+  '/api/shiftunits',
+  '/api/shifts',
+  '/api/crew-assignments',
+  '/api/crewassignments',
+  '/api/crews',
+  '/api/status-board',
+  '/api/statusboard'
+];
+const LINKAGE_RESOURCE_CANDIDATES = [
+  '/api/unit-call-sign',
+  '/api/unit-call-sign-history',
+  '/api/unit-call-sign-histories',
+  '/api/unit-call-sign-assignments',
+  '/api/unit-call-sign-links',
+  '/api/unit-call-sign-records',
+  '/api/unit-call-sign-logs',
+  '/api/call-sign-assignments',
+  '/api/call-sign-history',
+  '/api/call-sign-histories',
+  '/api/call-sign-units',
+  '/api/truck-call-signs',
+  '/api/truckcallsigns',
+  '/api/truck-call-sign-assignments',
+  '/api/truckcallsignassignments',
+  '/api/truck-call-sign-history',
+  '/api/truckcallsignhistory',
+  '/api/call-sign-trucks',
+  '/api/truck-assignments',
+  '/api/truckassignments',
+  '/api/unit-history',
+  '/api/unit-histories',
+  '/api/unit-logs',
+  '/api/unit-activities',
+  '/api/truck-history',
+  '/api/truck-histories',
+  '/api/truck-logs',
+  '/api/truck-activities',
+  '/api/unit-status-history',
+  '/api/unit-status-histories',
+  '/api/reports/unit-call-signs',
+  '/api/unit-call-signs-report'
 ];
 
 let cachedToken = null;
@@ -29,6 +89,10 @@ export default {
         ));
       }
 
+      if (url.pathname === '/inspect-models') {
+        return json(await inspectModels(env, url.searchParams.get('q') || ''));
+      }
+
       if (url.pathname === '/preview') {
         const endpoint = validatedApiPath(
           url.searchParams.get('path') || env.OPERATIVE_ASSIGNMENTS_PATH
@@ -36,19 +100,511 @@ export default {
         return json(await previewAssignments(env, endpoint));
       }
 
+      if (url.pathname === '/preview-live-assignments') {
+        return json(await previewLiveAssignments(env));
+      }
+
+      if (url.pathname === '/sync-live-assignments') {
+        if (!normalizeBoolean(env.OPERATIVE_APPLY_ENABLED)) {
+          return json({
+            error: 'OperativeIQ assignment writes are disabled.',
+            requiredSetting: 'OPERATIVE_APPLY_ENABLED=true'
+          }, 409);
+        }
+        return json(await applyLiveAssignments(env));
+      }
+
+      if (url.pathname === '/probe') {
+        return json(await probeAssignmentResources(env));
+      }
+
+      if (url.pathname === '/probe-linkage') {
+        return json(await probeLinkageResources(env));
+      }
+
       return json({
         error: 'Not found',
-        routes: ['/inspect', '/preview?path=/api/...']
+        routes: [
+          '/inspect',
+          '/inspect-models?q=call',
+          '/probe',
+          '/probe-linkage',
+          '/preview?path=/api/...',
+          '/preview-live-assignments',
+          '/sync-live-assignments'
+        ]
       }, 404);
     } catch (error) {
       return json({ error: errorMessage(error) }, 500);
     }
+  },
+
+  async scheduled(_controller, env, ctx) {
+    if (!normalizeBoolean(env.OPERATIVE_APPLY_ENABLED)) {
+      console.log('OperativeIQ scheduled assignment sync skipped: OPERATIVE_APPLY_ENABLED is false.');
+      return;
+    }
+
+    ctx.waitUntil(runScheduledAssignmentSync(env));
   }
 };
+
+async function runScheduledAssignmentSync(env) {
+  try {
+    const result = await applyLiveAssignments(env);
+    console.log(JSON.stringify({
+      event: 'operative_assignment_sync_completed',
+      changedCount: result.changedCount,
+      warningCount: result.warnings?.length || 0,
+      timestamp: result.timestamp
+    }));
+  } catch (error) {
+    console.error(JSON.stringify({
+      event: 'operative_assignment_sync_failed',
+      error: errorMessage(error),
+      timestamp: new Date().toISOString()
+    }));
+    throw error;
+  }
+}
+
+async function inspectModels(env, searchText) {
+  const token = await getAccessToken(env);
+  const response = await fetch(RESOURCE_ROOT + '/swagger/v1/swagger.json', {
+    headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' }
+  });
+  const text = await response.text();
+  if (!response.ok) {
+    throw new Error(`OperativeIQ Swagger request failed (${response.status}): ${safeApiError(text)}`);
+  }
+  const specification = JSON.parse(text);
+  const schemas = specification.components?.schemas || specification.definitions || {};
+  const query = String(searchText || '').trim().toLowerCase();
+  const models = Object.entries(schemas)
+    .map(([name, schema]) => ({
+      name,
+      properties: Object.keys(schema?.properties || {}),
+      required: schema?.required || []
+    }))
+    .filter(model => !query || JSON.stringify(model).toLowerCase().includes(query));
+
+  return {
+    success: true,
+    mode: 'READ_ONLY_MODEL_INSPECTION',
+    query,
+    totalSchemaCount: Object.keys(schemas).length,
+    matchCount: models.length,
+    models,
+    note: 'OpenAPI model names and property names only. No records or D1 data were changed.'
+  };
+}
+
+async function previewLiveAssignments(env) {
+  if (!env.DB) throw new Error('D1 binding DB is not configured.');
+  const token = await getAccessToken(env);
+  const dailyShiftPath = '/api/daily-shifts?' + new URLSearchParams({
+    '$select': [
+      'id', 'shift', 'truckId', 'entryDate', 'entryTime', 'crewId', 'locked',
+      'status', 'lastModificationTime', 'createdTime', 'closed', 'callSignId'
+    ].join(','),
+    '$orderby': 'entryDate desc,entryTime desc'
+  }).toString();
+
+  const [units, callSigns, unitStatuses, dailyShifts, vehiclesResult] = await Promise.all([
+    fetchAll('/api/units?$select=id,truckNumber,status,truckStatusId,fleetStatus', token, 500),
+    fetchAll('/api/call-signs?$select=id,description,status', token, 500),
+    fetchAll('/api/unit-statuses?$select=id,truckStatusName,status', token, 500),
+    fetchAll(dailyShiftPath, token, 1000),
+    env.DB.prepare(`
+      SELECT apparatus_number,primary_assignment,current_assignment,fleet_active,dashboard_visible
+      FROM vehicles
+      ORDER BY apparatus_number
+    `).all()
+  ]);
+
+  const unitsById = new Map(units.map(unit => [String(unit.id), unit]));
+  const callSignsById = new Map(callSigns.map(item => [String(item.id), item]));
+  const unitStatusesById = new Map(unitStatuses.map(item => [String(item.id), item]));
+  const latestByApparatus = new Map();
+  const warnings = [];
+  let joinedCount = 0;
+
+  for (const shift of dailyShifts) {
+    const unit = unitsById.get(String(shift.truckId));
+    const callSign = callSignsById.get(String(shift.callSignId));
+    if (!unit || !callSign) continue;
+    const apparatus = apparatusNumber(unit.truckNumber);
+    if (!apparatus || IGNORED_APPARATUS.has(apparatus)) continue;
+    joinedCount += 1;
+    const record = {
+      apparatusNumber: apparatus,
+      truckId: shift.truckId,
+      truckNumber: unit.truckNumber,
+      callSignId: shift.callSignId,
+      callSign: normalizeCallSign(callSign.description),
+      shiftId: shift.id,
+      shiftName: shift.shift,
+      entryDate: shift.entryDate,
+      entryTime: shift.entryTime,
+      createdTime: shift.createdTime,
+      lastModificationTime: shift.lastModificationTime,
+      status: shift.status,
+      closed: shift.closed,
+      shiftOpen: !normalizeBoolean(shift.closed),
+      unitServiceStatus:
+        unitStatusesById.get(String(unit.truckStatusId))?.truckStatusName ||
+        unit.fleetStatus ||
+        '',
+      timestampMillis: dailyShiftMillis(shift)
+    };
+    const current = latestByApparatus.get(apparatus);
+    if (!current || newerJoinedAssignment(record, current)) {
+      latestByApparatus.set(apparatus, record);
+    }
+  }
+
+  const configured = new Map(
+    (vehiclesResult.results || []).map(row => [String(row.apparatus_number).toUpperCase(), row])
+  );
+  const assignments = [...latestByApparatus.values()]
+    .sort((a, b) => a.apparatusNumber.localeCompare(b.apparatusNumber));
+  const newestAssignmentMillis = assignments.reduce(
+    (maximum, item) => Math.max(maximum, item.timestampMillis || 0),
+    0
+  );
+  const freshCutoffMillis = newestAssignmentMillis - (72 * 60 * 60 * 1000);
+  const differences = [];
+
+  for (const assignment of assignments) {
+    assignment.fresh = assignment.timestampMillis >= freshCutoffMillis;
+    assignment.unitServiceClass = statusClass(assignment.unitServiceStatus);
+  }
+
+  const callSignOwners = new Map();
+  for (const assignment of assignments) {
+    if (!assignment.fresh || !assignmentKey(assignment.callSign)) continue;
+    const key = assignmentKey(assignment.callSign);
+    const currentOwner = callSignOwners.get(key);
+    if (!currentOwner || strongerCallSignOwner(assignment, currentOwner)) {
+      callSignOwners.set(key, assignment);
+    }
+  }
+
+  for (const assignment of assignments) {
+    assignment.isCallSignOwner =
+      callSignOwners.get(assignmentKey(assignment.callSign)) === assignment;
+    const vehicle = configured.get(assignment.apparatusNumber);
+    if (!vehicle) {
+      warnings.push(`${assignment.apparatusNumber} is not present in D1 vehicles.`);
+      continue;
+    }
+    const current = vehicle.current_assignment || vehicle.primary_assignment || '';
+    const proposed = proposedAssignment(assignment, current);
+    assignment.currentAssignment = current;
+    assignment.proposedAssignment = proposed;
+    if (!proposed) continue;
+    if (assignmentKey(current) !== assignmentKey(proposed)) {
+      differences.push({
+        apparatusNumber: assignment.apparatusNumber,
+        currentAssignment: current,
+        proposedAssignment: proposed,
+        shiftOpen: assignment.shiftOpen,
+        unitServiceStatus: assignment.unitServiceStatus,
+        unitServiceClass: assignment.unitServiceClass,
+        shiftId: assignment.shiftId,
+        entryDate: assignment.entryDate,
+        entryTime: assignment.entryTime,
+        reason: assignment.unitServiceClass === 'inactive'
+          ? 'Unit unavailable'
+          : assignment.isCallSignOwner
+            ? 'Newest active call-sign owner'
+            : 'Call sign reassigned to another apparatus'
+      });
+    }
+  }
+
+  return {
+    success: true,
+    mode: 'JOINED_ASSIGNMENT_PREVIEW_ONLY',
+    sourceCounts: {
+      units: units.length,
+      callSigns: callSigns.length,
+      unitStatuses: unitStatuses.length,
+      dailyShifts: dailyShifts.length,
+      joinedDailyShifts: joinedCount
+    },
+    assignmentCount: assignments.length,
+    freshnessHours: 72,
+    newestAssignmentMillis,
+    assignments,
+    differences,
+    warnings,
+    note: 'Joined truckId to units and callSignId to call signs. No D1 data was changed.'
+  };
+}
+
+function strongerCallSignOwner(candidate, current) {
+  const rank = assignment => {
+    if (assignment.unitServiceClass === 'active') return 3;
+    if (assignment.unitServiceClass === 'unknown') return 2;
+    return 1;
+  };
+  const rankDifference = rank(candidate) - rank(current);
+  if (rankDifference !== 0) return rankDifference > 0;
+  return newerJoinedAssignment(candidate, current);
+}
+
+function proposedAssignment(assignment, currentAssignment) {
+  if (assignment.unitServiceClass === 'inactive') {
+    return `Vehicle ${assignment.apparatusNumber}`;
+  }
+  if (!assignment.fresh) return null;
+  if (assignment.isCallSignOwner) return assignment.callSign;
+  if (assignmentKey(currentAssignment) === assignmentKey(assignment.callSign)) {
+    return `Vehicle ${assignment.apparatusNumber}`;
+  }
+  return null;
+}
+
+async function applyLiveAssignments(env) {
+  await ensureOperativeTables(env);
+  const startedAt = new Date().toISOString();
+  const run = await env.DB.prepare(`
+    INSERT INTO operative_sync_runs(started_at,mode,status)
+    VALUES(?,'live','running') RETURNING id
+  `).bind(startedAt).first();
+
+  try {
+    const preview = await previewLiveAssignments(env);
+    const now = new Date().toISOString();
+    const writes = [];
+    let changedCount = 0;
+
+    for (const assignment of preview.assignments) {
+      if (!assignment.currentAssignment) continue;
+      const changed = assignment.proposedAssignment &&
+        assignmentKey(assignment.currentAssignment) !== assignmentKey(assignment.proposedAssignment);
+      if (changed) {
+        changedCount += 1;
+        writes.push(env.DB.prepare(`
+          UPDATE vehicles
+          SET current_assignment=?,updated_at=?
+          WHERE apparatus_number=?
+        `).bind(assignment.proposedAssignment, now, assignment.apparatusNumber));
+      }
+
+      writes.push(env.DB.prepare(`
+        INSERT INTO operative_assignment_state(
+          apparatus_number,operative_unit_number,call_sign,created_at,shift_id,
+          service_status,last_seen_at,accepted
+        ) VALUES(?,?,?,?,?,?,?,?)
+        ON CONFLICT(apparatus_number) DO UPDATE SET
+          operative_unit_number=excluded.operative_unit_number,
+          call_sign=excluded.call_sign,
+          created_at=excluded.created_at,
+          shift_id=excluded.shift_id,
+          service_status=excluded.service_status,
+          last_seen_at=excluded.last_seen_at,
+          accepted=excluded.accepted
+      `).bind(
+        assignment.apparatusNumber,
+        assignment.truckNumber,
+        assignment.callSign,
+        assignment.entryDate || assignment.createdTime || '',
+        assignment.shiftId,
+        assignment.unitServiceStatus,
+        now,
+        assignment.proposedAssignment ? 1 : 0
+      ));
+    }
+
+    if (writes.length) await env.DB.batch(writes);
+    await env.DB.prepare(`
+      UPDATE operative_sync_runs
+      SET completed_at=?,status='success',record_count=?,difference_count=?,warnings_json=?
+      WHERE id=?
+    `).bind(
+      new Date().toISOString(),
+      preview.assignmentCount,
+      changedCount,
+      JSON.stringify(preview.warnings || []),
+      run.id
+    ).run();
+
+    return {
+      success: true,
+      mode: 'LIVE_D1_ASSIGNMENT_SYNC',
+      changedCount,
+      changes: preview.differences,
+      warnings: preview.warnings,
+      timestamp: now
+    };
+  } catch (error) {
+    await env.DB.prepare(`
+      UPDATE operative_sync_runs
+      SET completed_at=?,status='failed',error_message=?
+      WHERE id=?
+    `).bind(new Date().toISOString(), errorMessage(error), run.id).run();
+    throw error;
+  }
+}
+
+async function ensureOperativeTables(env) {
+  await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS operative_assignment_state (
+      apparatus_number TEXT PRIMARY KEY,
+      operative_unit_number TEXT,
+      call_sign TEXT NOT NULL,
+      created_at TEXT,
+      shift_id INTEGER,
+      service_status TEXT,
+      last_seen_at TEXT NOT NULL,
+      accepted INTEGER NOT NULL DEFAULT 0,
+      FOREIGN KEY (apparatus_number) REFERENCES vehicles(apparatus_number)
+    )
+  `).run();
+  await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS operative_sync_runs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      started_at TEXT NOT NULL,
+      completed_at TEXT,
+      mode TEXT NOT NULL DEFAULT 'preview',
+      status TEXT NOT NULL,
+      endpoint TEXT,
+      record_count INTEGER NOT NULL DEFAULT 0,
+      difference_count INTEGER NOT NULL DEFAULT 0,
+      warnings_json TEXT,
+      error_message TEXT
+    )
+  `).run();
+}
+
+function activeDailyShift(shift) {
+  if (normalizeBoolean(shift.closed)) return false;
+  const status = normalize(shift.status);
+  return !['0', 'INACTIVE', 'CLOSED', 'DELETED', 'CANCELLED', 'CANCELED'].includes(status);
+}
+
+function dailyShiftMillis(shift) {
+  const dateText = String(shift.entryDate || '').trim();
+  const timeText = String(shift.entryTime || '').trim();
+  const dateMatch = dateText.match(/\d{4}-\d{2}-\d{2}/);
+  const timeMatch = timeText.match(/\d{1,2}:\d{2}(?::\d{2}(?:\.\d+)?)?/);
+  if (dateMatch && timeMatch) {
+    const normalizedTime = timeMatch[0].split('.')[0].padStart(8, '0');
+    const combined = new Date(`${dateMatch[0]}T${normalizedTime}`).getTime();
+    if (Number.isFinite(combined)) return combined;
+  }
+  for (const value of [shift.entryDate, shift.lastModificationTime, shift.createdTime]) {
+    const millis = new Date(value || 0).getTime();
+    if (Number.isFinite(millis)) return millis;
+  }
+  return 0;
+}
+
+function newerJoinedAssignment(candidate, current) {
+  if (candidate.timestampMillis !== current.timestampMillis) {
+    return candidate.timestampMillis > current.timestampMillis;
+  }
+  return Number(candidate.shiftId || 0) > Number(current.shiftId || 0);
+}
 
 function authorized(request, env) {
   return Boolean(env.SYNC_ADMIN_TOKEN) &&
     request.headers.get('Authorization') === `Bearer ${env.SYNC_ADMIN_TOKEN}`;
+}
+
+async function probeLinkageResources(env) {
+  const token = await getAccessToken(env);
+  const availableResources = [];
+  const statusCounts = {};
+
+  for (const path of LINKAGE_RESOURCE_CANDIDATES) {
+    const url = new URL(RESOURCE_ROOT + path);
+    url.searchParams.set('$top', '1');
+    url.searchParams.set('$skip', '0');
+    const response = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' }
+    });
+    const text = await response.text();
+    statusCounts[response.status] = (statusCounts[response.status] || 0) + 1;
+    if (response.status === 404) continue;
+
+    const result = {
+      path,
+      status: response.status,
+      overallCount: numericHeader(response.headers.get('X-Overall-Count'))
+    };
+    if (response.ok) {
+      try {
+        const records = arrayPayload(JSON.parse(text));
+        result.returnedCount = records.length;
+        result.fields = Object.keys(records[0] || {});
+      } catch (error) {
+        result.parseError = errorMessage(error);
+      }
+    } else {
+      result.error = safeApiError(text);
+    }
+    availableResources.push(result);
+  }
+
+  return {
+    success: true,
+    mode: 'READ_ONLY_LINKAGE_PROBE',
+    testedCount: LINKAGE_RESOURCE_CANDIDATES.length,
+    statusCounts,
+    availableResources,
+    note: 'Only non-404 resources are returned. No D1 data was changed.'
+  };
+}
+
+async function probeAssignmentResources(env) {
+  const token = await getAccessToken(env);
+  const results = [];
+
+  for (const path of ASSIGNMENT_RESOURCE_CANDIDATES) {
+    const url = new URL(RESOURCE_ROOT + path);
+    url.searchParams.set('$top', '1');
+    url.searchParams.set('$skip', '0');
+    const response = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' }
+    });
+    const text = await response.text();
+    const result = {
+      path,
+      status: response.status,
+      overallCount: numericHeader(response.headers.get('X-Overall-Count'))
+    };
+
+    if (response.ok) {
+      try {
+        const records = arrayPayload(JSON.parse(text));
+        result.returnedCount = records.length;
+        result.fields = Object.keys(records[0] || {});
+      } catch (error) {
+        result.parseError = errorMessage(error);
+      }
+    } else if (response.status !== 404) {
+      result.error = safeApiError(text);
+    }
+
+    results.push(result);
+  }
+
+  return {
+    success: true,
+    mode: 'READ_ONLY_PROBE',
+    testedCount: results.length,
+    availableResources: results.filter(item => item.status !== 404),
+    results,
+    note: 'Each candidate was requested with $top=1. No D1 data was changed.'
+  };
+}
+
+function numericHeader(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
 }
 
 async function inspectSwagger(env, searchText, compact) {
@@ -93,6 +649,12 @@ async function inspectSwagger(env, searchText, compact) {
     const searchedPaths = query
       ? paths.filter(item => JSON.stringify(item).toLowerCase().includes(query))
       : candidatePaths;
+    attempts[attempts.length - 1].topLevelKeys = Object.keys(specification);
+    attempts[attempts.length - 1].resourceCount = paths.length;
+
+    // Some OperativeIQ Swagger locations return a valid but empty document.
+    // Keep searching instead of treating the first HTTP 200 as authoritative.
+    if (!paths.length) continue;
 
     if (compact) {
       return {
@@ -218,7 +780,7 @@ async function getAccessToken(env) {
   return cachedToken;
 }
 
-async function fetchAll(endpoint, token) {
+async function fetchAll(endpoint, token, maxRecords = 20000) {
   const records = [];
   let skip = 0;
   let overall = null;
@@ -239,12 +801,12 @@ async function fetchAll(endpoint, token) {
     records.push(...page);
     const headerTotal = Number(response.headers.get('X-Overall-Count'));
     if (Number.isFinite(headerTotal)) overall = headerTotal;
-    if (!page.length || page.length < PAGE_SIZE || (overall !== null && records.length >= overall)) break;
+    if (!page.length || page.length < PAGE_SIZE || records.length >= maxRecords) break;
     skip += page.length;
-    if (skip > 20000) throw new Error('OperativeIQ pagination exceeded the 20,000-record safety limit.');
+    if (skip > maxRecords) throw new Error(`OperativeIQ pagination exceeded the ${maxRecords}-record safety limit.`);
   }
 
-  return records;
+  return records.slice(0, maxRecords);
 }
 
 function arrayPayload(payload) {
@@ -333,6 +895,12 @@ function assignmentKey(value) {
 
 function normalize(value) {
   return String(value || '').trim().toUpperCase().replace(/\s+/g, ' ');
+}
+
+function normalizeBoolean(value) {
+  if (value === true) return true;
+  if (value === false || value === null || value === undefined) return false;
+  return ['TRUE', '1', 'YES', 'Y', 'ON'].includes(normalize(value));
 }
 
 function dateMillis(value) {

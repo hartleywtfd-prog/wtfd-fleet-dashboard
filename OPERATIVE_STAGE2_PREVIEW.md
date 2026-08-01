@@ -1,9 +1,9 @@
-# OperativeIQ Stage 2 - Cloudflare preview
+# OperativeIQ Stage 2 - Cloudflare assignment sync
 
-This stage authenticates directly to the OperativeIQ production API and
-compares API assignments with D1. It does not change `vehicles`, does not
-change `/api/dashboard-v2`, does not add a cron trigger, and does not affect
-the live Apps Script dashboard or its emailed CSV import.
+This stage authenticates directly to the OperativeIQ production API, compares
+API assignments with D1, and can update D1 every five minutes after the write
+guard is explicitly enabled. It does not change `/api/dashboard-v2` and does
+not affect the live Apps Script dashboard or its emailed CSV import.
 
 ## 1. Create the preview tables
 
@@ -82,7 +82,27 @@ The duplicate-call-sign release rules, F131/Safety 40 fallback, and actual D1
 writes will be added only after the real API endpoint and field names pass this
 preview.
 
-## Production remains unchanged
+## 5. Enable the five-minute assignment sync
+
+The scheduled event is deployed in a disabled state unless this Worker
+variable is set to `true`:
+
+```text
+OPERATIVE_APPLY_ENABLED=true
+```
+
+When the variable is false or absent, each scheduled event exits without
+calling OperativeIQ or writing D1. Keep it false until
+`/preview-live-assignments` returns the expected assignments. The protected
+`/sync-live-assignments` route uses the same guard.
+
+The schedule is configured in `wrangler-operative-preview.jsonc` as:
+
+```text
+*/5 * * * *
+```
+
+## Production dashboard remains unchanged
 
 Continue running all of the following:
 
@@ -91,6 +111,5 @@ Continue running all of the following:
 - Apps Script OperativeIQ email trigger
 - Live dashboard `/api/dashboard`
 
-Do not add a cron trigger to this preview Worker and do not cut over the visible
-dashboard.
-
+Do not cut over the visible dashboard until the D1 comparison and operational
+checks are complete.
