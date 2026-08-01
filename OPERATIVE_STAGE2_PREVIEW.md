@@ -67,6 +67,29 @@ curl -G \
 The preview returns detected source fields, normalized record counts, proposed
 assignment differences, and warnings. It does not update D1.
 
+## Daily Incomplete Checks discovery
+
+The protected preview Worker also includes two read-only routes for replacing
+the emailed `Daily Incomplete Checks.csv` process.
+
+First, inspect matching OpenAPI paths and models:
+
+```bash
+curl -H "Authorization: Bearer YOUR_SYNC_ADMIN_TOKEN" \
+  "https://wtfd-operative-preview.YOUR_SUBDOMAIN.workers.dev/inspect-incomplete-checks"
+```
+
+Then probe matching GET resources with one-record requests:
+
+```bash
+curl -H "Authorization: Bearer YOUR_SYNC_ADMIN_TOKEN" \
+  "https://wtfd-operative-preview.YOUR_SUBDOMAIN.workers.dev/probe-incomplete-checks"
+```
+
+Both routes are metadata-only and do not write OperativeIQ or D1 data. The
+discovery response preserves the CSV target fields: `Date`, `Location Name`,
+`Unit Number`, `In-Service Status`, `Questionnaire Name`, and `Status`.
+
 ## Existing assignment rules preserved in preview
 
 - Match physical vehicles by F-number from OperativeIQ Unit Number.

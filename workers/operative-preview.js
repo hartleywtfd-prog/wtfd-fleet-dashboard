@@ -68,6 +68,7 @@ const LINKAGE_RESOURCE_CANDIDATES = [
   '/api/reports/unit-call-signs',
   '/api/unit-call-signs-report'
 ];
+const INCOMPLETE_CHECK_PATTERN = /inspection|questionnaire|check.?list|check|completion|complete|front.?line|schedule/i;
 
 let cachedToken = null;
 let cachedTokenExpiresAt = 0;
@@ -91,6 +92,14 @@ export default {
 
       if (url.pathname === '/inspect-models') {
         return json(await inspectModels(env, url.searchParams.get('q') || ''));
+      }
+
+      if (url.pathname === '/inspect-incomplete-checks') {
+        return json(await inspectIncompleteChecks(env));
+      }
+
+      if (url.pathname === '/probe-incomplete-checks') {
+        return json(await probeIncompleteChecks(env));
       }
 
       if (url.pathname === '/preview') {
@@ -127,6 +136,8 @@ export default {
         routes: [
           '/inspect',
           '/inspect-models?q=call',
+          '/inspect-incomplete-checks',
+          '/probe-incomplete-checks',
           '/probe',
           '/probe-linkage',
           '/preview?path=/api/...',
@@ -197,6 +208,162 @@ async function inspectModels(env, searchText) {
     models,
     note: 'OpenAPI model names and property names only. No records or D1 data were changed.'
   };
+}
+
+async function inspectIncompleteChecks(env) {
+  const { specification, swaggerPath } = await loadSwagger(env);
+  const schemas = specification.components?.schemas || specification.definitions || {};
+  const paths = Object.entries(specification.paths || {})
+    .map(([apiPath, methods]) => ({
+      path: apiPath,
+      operations: Object.entries(methods || {})
+        .filter(([method]) => /^(get|post)$/i.test(method))
+        .map(([method, operation]) => ({
+          method: method.toUpperCase(),
+          operationId: operation?.operationId || '',
+          summary: operation?.summary || '',
+          tags: operation?.tags || [],
+          responseModels: responseModelNames(operation)
+        }))
+    }))
+    .filter(item => INCOMPLETE_CHECK_PATTERN.test(JSON.stringify(item)));
+  const models = Object.entries(schemas)
+    .map(([name, schema]) => ({
+      name,
+      properties: Object.keys(schema?.properties || {}),
+      required: schema?.required || []
+    }))
+    .filter(model => INCOMPLETE_CHECK_PATTERN.test(JSON.stringify(model)));
+
+  return {
+    success: true,
+    mode: 'READ_ONLY_INCOMPLETE_CHECK_DISCOVERY',
+    swaggerPath,
+    pathCount: paths.length,
+    modelCount: models.length,
+    paths,
+    models,
+    csvTarget: {
+      columns: [
+        'Date', 'Location Name', 'Unit Number', 'In-Service Status',
+        'Questionnaire Name', 'Status'
+      ],
+      targetStatus: 'Not Completed'
+    },
+    note: 'OpenAPI metadata only. No OperativeIQ records or D1 data were changed.'
+  };
+}
+
+async function probeIncompleteChecks(env) {
+  const token = await getAccessToken(env);
+  const { specification, swaggerPath } = await loadSwagger(env, token);
+  const candidates = Object.entries(specification.paths || {})
+    .flatMap(([apiPath, methods]) => Object.entries(methods || {})
+      .filter(([method, operation]) =>
+        method.toLowerCase() === 'get' &&
+        !apiPath.includes('{') &&
+        INCOMPLETE_CHECK_PATTERN.test(JSON.stringify({ apiPath, operation }))
+      )
+      .map(([_method, operation]) => ({
+        path: apiPath,
+        operationId: operation?.operationId || '',
+        summary: operation?.summary || '',
+        tags: operation?.tags || []
+      })))
+    .slice(0, 30);
+  const results = [];
+
+  for (const candidate of candidates) {
+    const url = new URL(RESOURCE_ROOT + candidate.path);
+    url.searchParams.set('$top', '1');
+    url.searchParams.set('$skip', '0');
+    const response = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' }
+    });
+    const text = await response.text();
+    const result = {
+      ...candidate,
+      status: response.status,
+      overallCount: numericHeader(response.headers.get('X-Overall-Count'))
+    };
+    if (response.ok) {
+      try {
+        const records = arrayPayload(JSON.parse(text));
+        result.returnedCount = records.length;
+        result.fields = Object.keys(records[0] || {});
+        result.sample = redactDiscoverySample(records[0] || {});
+      } catch (error) {
+        result.parseError = errorMessage(error);
+      }
+    } else {
+      result.error = safeApiError(text);
+    }
+    results.push(result);
+  }
+
+  return {
+    success: true,
+    mode: 'READ_ONLY_INCOMPLETE_CHECK_PROBE',
+    swaggerPath,
+    testedCount: results.length,
+    availableResources: results.filter(item => item.status !== 404),
+    results,
+    note: 'GET-only metadata probes with $top=1. No OperativeIQ records or D1 data were changed.'
+  };
+}
+
+async function loadSwagger(env, existingToken = null) {
+  const token = existingToken || await getAccessToken(env);
+  const attempts = [];
+  for (const path of SWAGGER_CANDIDATES) {
+    const response = await fetch(RESOURCE_ROOT + path, {
+      headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' }
+    });
+    const text = await response.text();
+    attempts.push({ path, status: response.status });
+    if (!response.ok) continue;
+    try {
+      const specification = JSON.parse(text);
+      if (Object.keys(specification.paths || {}).length) {
+        return { specification, swaggerPath: path, attempts };
+      }
+    } catch (_error) {
+      // Continue to the next documented Swagger location.
+    }
+  }
+  throw new Error(`No supported Swagger JSON document was found: ${JSON.stringify(attempts)}`);
+}
+
+function responseModelNames(operation) {
+  const names = new Set();
+  for (const response of Object.values(operation?.responses || {})) {
+    const candidates = [
+      response?.schema?.$ref,
+      response?.schema?.items?.$ref,
+      response?.content?.['application/json']?.schema?.$ref,
+      response?.content?.['application/json']?.schema?.items?.$ref
+    ];
+    for (const value of candidates) {
+      if (value) names.add(String(value).split('/').pop());
+    }
+  }
+  return [...names];
+}
+
+function redactDiscoverySample(source) {
+  const result = {};
+  for (const [key, value] of Object.entries(source || {})) {
+    if (/token|secret|password|credential/i.test(key)) {
+      result[key] = '[REDACTED]';
+    } else if (value === null || ['string', 'number', 'boolean'].includes(typeof value)) {
+      result[key] = value;
+    } else if (Array.isArray(value)) {
+      result[key] = `[Array(${value.length})]`;
+    } else {
+      result[key] = '[Object]';
+    }
+  }
+  return result;
 }
 
 async function previewLiveAssignments(env) {
