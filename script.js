@@ -1,6 +1,6 @@
 /* ===== User-adjustable dashboard settings ===== */
 const DASHBOARD_CONFIG = {
-  version: '5.2.1',
+  version: '5.3.0',
   // Fallback map view used only if the jurisdiction boundary cannot load.
   defaultCenterLat: 39.62784,
   defaultCenterLon: -84.15996,
@@ -248,7 +248,7 @@ function showKioskCursorTemporarily() {
 }
 
 function apiRequest(action) {
-  const endpoint = action === 'sync' ? '/api/sync' : '/api/dashboard';
+  const endpoint = action === 'sync' ? '/api/sync' : '/api/dashboard-v2';
   const separator = endpoint.includes('?') ? '&' : '?';
   const url = `${endpoint}${separator}_=${Date.now()}`;
 
