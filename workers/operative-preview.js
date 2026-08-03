@@ -69,7 +69,32 @@ const LINKAGE_RESOURCE_CANDIDATES = [
   '/api/unit-call-signs-report'
 ];
 const INCOMPLETE_CHECK_PATTERN = /inspection|questionnaire|check.?list|check|completion|complete|front.?line|schedule/i;
-const DEFAULT_OPERATIONAL_CHECK_PATTERN = '(?:UTV.*Check\\s*List|Daily\\s+Engine|Admin\\s+Battalion\\s+Daily)';
+const DEFAULT_OPERATIONAL_CHECK_PATTERN = '^(?:Battalion\\s+.*Daily\\s+Check|Chief\\s+Officer\\s+Daily\\s+Unit\\s+Inspection|Medic\\s+Unit\\s+Daily|Daily\\s+Ladder\\s+Truck\\s+Inspection|Daily\\s+Engine|Admin\\s+Battalion\\s+Daily|UTV.*Check\\s*List)$';
+const INCOMPLETE_ASSIGNMENT_RESOURCE_CANDIDATES = [
+  '/api/vh-questionary-trucks',
+  '/api/vh-questionaries-trucks',
+  '/api/vh-questionary-units',
+  '/api/vh-questionaries-units',
+  '/api/vh-questionary-assets',
+  '/api/vh-questionaries-assets',
+  '/api/vh-questionary-asset-classes',
+  '/api/vh-questionaries-asset-classes',
+  '/api/questionary-trucks',
+  '/api/questionaries-trucks',
+  '/api/questionary-units',
+  '/api/questionaries-units',
+  '/api/questionary-assets',
+  '/api/questionaries-assets',
+  '/api/unit-questionaries',
+  '/api/truck-questionaries',
+  '/api/vehicle-questionaries',
+  '/api/vehicle-questionnaires',
+  '/api/unit-questionnaires',
+  '/api/truck-questionnaires',
+  '/api/vh-questionaries',
+  '/api/daily-shift-questionaries-state',
+  '/api/vh-answers'
+];
 const SHEET_HEADERS = [
   'Date', 'Location Name', 'Unit Number', 'In-Service Status',
   'Questionnaire Name', 'Status'
@@ -107,6 +132,10 @@ export default {
 
       if (url.pathname === '/probe-incomplete-checks') {
         return json(await probeIncompleteChecks(env));
+      }
+
+      if (url.pathname === '/probe-incomplete-assignment-sources') {
+        return json(await probeIncompleteAssignmentSources(env));
       }
 
       if (url.pathname === '/preview-incomplete-checks') {
@@ -180,6 +209,7 @@ export default {
           '/inspect-models?q=call',
           '/inspect-incomplete-checks',
           '/probe-incomplete-checks',
+          '/probe-incomplete-assignment-sources',
           '/preview-incomplete-checks?date=YYYY-MM-DD&compact=1',
           '/preview-current-incomplete-checks?at=ISO_TIMESTAMP',
           '/sync-incomplete-checks',
@@ -390,6 +420,110 @@ async function probeIncompleteChecks(env) {
     results,
     note: 'GET-only metadata probes with $top=1. No OperativeIQ records or D1 data were changed.'
   };
+}
+
+async function probeIncompleteAssignmentSources(env) {
+  const token = await getAccessToken(env);
+  const { specification, swaggerPath } = await loadSwagger(env, token, false);
+  const schemas = specification.components?.schemas || specification.definitions || {};
+  const candidateModels = Object.entries(schemas)
+    .map(([name, schema]) => ({
+      name,
+      properties: Object.keys(schema?.properties || {}),
+      required: schema?.required || []
+    }))
+    .filter(model => {
+      const text = JSON.stringify(model).toLowerCase();
+      const checkRelated = /question|inspection|schedule/.test(text);
+      const assignmentRelated = /unit|truck|vehicle|asset|class|shift|location/.test(text);
+      return checkRelated && assignmentRelated;
+    });
+
+  const resourceCandidates = new Set(INCOMPLETE_ASSIGNMENT_RESOURCE_CANDIDATES);
+  for (const model of candidateModels) {
+    for (const path of modelApiResourceCandidates(model.name)) {
+      resourceCandidates.add(path);
+    }
+  }
+
+  // Auth + Swagger consume two Worker subrequests. Keep this bounded below the
+  // Cloudflare free-plan 50-subrequest ceiling.
+  const paths = [...resourceCandidates].slice(0, 45);
+  const results = [];
+  for (let offset = 0; offset < paths.length; offset += 8) {
+    const batch = paths.slice(offset, offset + 8);
+    results.push(...await Promise.all(batch.map(path => probeReadOnlyResource(path, token))));
+  }
+
+  const statusCounts = {};
+  for (const result of results) {
+    const key = String(result.status);
+    statusCounts[key] = (statusCounts[key] || 0) + 1;
+  }
+
+  return {
+    success: true,
+    mode: 'READ_ONLY_INCOMPLETE_ASSIGNMENT_SOURCE_PROBE',
+    swaggerPath,
+    candidateModelCount: candidateModels.length,
+    candidateModels,
+    testedResourceCount: results.length,
+    statusCounts,
+    availableResources: results.filter(item => item.status !== 404),
+    results,
+    findingNeeded: 'A resource that enumerates due unit/questionnaire assignments even when no state or answer exists.',
+    note: 'GET-only probes with $top=1. No OperativeIQ, D1, or Google Sheets data was changed.'
+  };
+}
+
+async function probeReadOnlyResource(path, token) {
+  const url = new URL(RESOURCE_ROOT + path);
+  url.searchParams.set('$top', '1');
+  url.searchParams.set('$skip', '0');
+  const response = await fetch(url, {
+    headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' }
+  });
+  const text = await response.text();
+  const result = {
+    path,
+    status: response.status,
+    overallCount: numericHeader(response.headers.get('X-Overall-Count'))
+  };
+  if (!response.ok) {
+    result.error = safeApiError(text);
+    return result;
+  }
+
+  try {
+    const payload = JSON.parse(text);
+    const records = arrayPayload(payload);
+    result.returnedCount = records.length;
+    result.fields = Object.keys(records[0] || {});
+    result.sample = redactDiscoverySample(records[0] || {});
+  } catch (error) {
+    result.parseError = errorMessage(error);
+  }
+  return result;
+}
+
+function modelApiResourceCandidates(modelName) {
+  const trimmed = String(modelName || '')
+    .replace(/^(?:Ems|Api)/, '')
+    .replace(/Model$/, '');
+  const slug = trimmed
+    .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
+    .replace(/([A-Z]+)([A-Z][a-z])/g, '$1-$2')
+    .toLowerCase();
+  if (!slug) return [];
+
+  const variants = new Set([slug]);
+  if (slug.endsWith('s')) variants.add(slug.slice(0, -1));
+  else variants.add(`${slug}s`);
+  for (const value of [...variants]) {
+    variants.add(value.replace(/questionary/g, 'questionnaire'));
+    variants.add(value.replace(/questionaries/g, 'questionnaires'));
+  }
+  return [...variants].map(value => `/api/${value}`);
 }
 
 async function previewIncompleteChecks(env, requestedDate, compact = false) {
@@ -875,7 +1009,7 @@ function dateKey(value) {
 function isIncompleteQuestionnaireState(value) {
   const state = normalize(value);
   if (!state) return false;
-  if (state === '1') return true;
+  if (['1', '2'].includes(state)) return true;
   if (['0', '3'].includes(state)) return false;
   if (/NOT.?COMPLET|INCOMPLETE|PENDING|MISSED|OVERDUE/.test(state)) return true;
   if (/COMPLETED|COMPLETE|DONE|PASSED/.test(state)) return false;
