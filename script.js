@@ -1,6 +1,6 @@
 /* ===== User-adjustable dashboard settings ===== */
 const DASHBOARD_CONFIG = {
-  version: '5.3.1',
+  version: '5.3.2',
   // Fallback map view used only if the jurisdiction boundary cannot load.
   defaultCenterLat: 39.62784,
   defaultCenterLon: -84.15996,
@@ -1774,11 +1774,17 @@ function crewSensePersonnelForUnit(unit) {
     );
     if (!member) continue;
 
-    // If the person is actively placed on an operational unit, that live
-    // assignment wins. This prevents Safety 40 or Training 40 from also
-    // displaying when its normal assignee is filling Battalion 40.
+    // Training 40 and Safety 40 can fill Battalion 40; suppress only those
+    // two standing assignments when CrewSense actively places the person on
+    // another operational unit. Permanent chief and staff mappings remain
+    // visible as configured.
     const sourceIsOperational = /^(?:e|m|l|bc|c|s|t)\d+$/.test(sourceKey);
-    if (sourceIsOperational && sourceKey !== targetAssignment) return null;
+    const canTemporarilyCoverBattalion = /^(?:training|safety)\s*40$/i.test(unit);
+    if (
+      canTemporarilyCoverBattalion &&
+      sourceIsOperational &&
+      sourceKey !== targetAssignment
+    ) return null;
 
     return {
       id: `personnel-${member.id || normalizeCrewSensePerson(member.name)}`,
@@ -1789,7 +1795,23 @@ function crewSensePersonnelForUnit(unit) {
     };
   }
 
-  return null;
+  // Permanent command and staff assignments must still appear when the
+  // CrewSense schedule response omits the person (for example, an admin
+  // schedule not returned in the active window). The first configured name is
+  // the canonical display name; additional entries can be spelling aliases.
+  const fallbackName = names.find(name => String(name || '').trim());
+  if (!fallbackName) return null;
+  return {
+    id: `personnel-config-${normalizeCrewSensePerson(fallbackName)}`,
+    name: unit,
+    crew: [{
+      id: '',
+      name: fallbackName,
+      positions: []
+    }],
+    standardPersonnelAssignment: true,
+    sourceAssignment: 'Configured permanent assignment'
+  };
 }
 
 function crewSenseAssignmentFor(location) {
