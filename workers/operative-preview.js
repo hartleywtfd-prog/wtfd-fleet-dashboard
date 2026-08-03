@@ -836,9 +836,10 @@ async function previewInferredOperationalChecks(env, requestedInstant = null) {
       ),
       currentAssignment,
       assignmentRecordFound,
-      assignmentCompatible: assignmentRecordFound
-        ? assignmentMatchesOperationalCheck(template.questionnaireName, currentAssignment)
-        : null
+      assignmentCompatible: assignmentMatchesOperationalCheck(
+        template.questionnaireName,
+        currentAssignment
+      )
     });
   }
 
