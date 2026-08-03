@@ -145,6 +145,13 @@ export default {
         ));
       }
 
+      if (url.pathname === '/preview-inferred-operational-checks') {
+        return json(await previewInferredOperationalChecks(
+          env,
+          validatedInstantParameter(url.searchParams.get('at'))
+        ));
+      }
+
       if (url.pathname === '/preview-incomplete-checks') {
         return json(await previewIncompleteChecks(
           env,
@@ -218,6 +225,7 @@ export default {
           '/probe-incomplete-checks',
           '/probe-incomplete-assignment-sources',
           '/probe-operational-question-linkage?at=ISO_TIMESTAMP',
+          '/preview-inferred-operational-checks?at=ISO_TIMESTAMP',
           '/preview-incomplete-checks?date=YYYY-MM-DD&compact=1',
           '/preview-current-incomplete-checks?at=ISO_TIMESTAMP',
           '/sync-incomplete-checks',
@@ -702,6 +710,151 @@ function linkageAssignment(unit, link, statusesById, locationsById) {
     questionaryId: link.questionaryId,
     questionnaireName: link.questionnaireName,
     questionCount: link.questionCount
+  };
+}
+
+async function previewInferredOperationalChecks(env, requestedInstant = null) {
+  const token = await getAccessToken(env);
+  const at = requestedInstant || new Date();
+  const shiftWindow = activeEasternShift(at);
+  const dailyShiftPath = '/api/daily-shifts?' + new URLSearchParams({
+    '$select': [
+      'id', 'shift', 'truckId', 'entryDate', 'entryTime', 'status', 'closed',
+      'createdTime', 'lastModificationTime'
+    ].join(','),
+    '$orderby': 'entryDate desc,entryTime desc'
+  }).toString();
+  const [states, shifts, units, unitStatuses, unitLocations] = await Promise.all([
+    fetchAll('/api/daily-shift-questionaries-state?$orderby=id desc', token, 5000),
+    fetchAll(dailyShiftPath, token, 3000),
+    fetchAll('/api/units', token, 500),
+    fetchAll('/api/unit-statuses', token, 500),
+    fetchAll('/api/unit-locations', token, 500)
+  ]);
+
+  const operationalPattern = operationalCheckPattern(env);
+  const shiftsById = new Map(shifts.map(item => [String(item.id), item]));
+  const unitsById = new Map(units.map(item => [String(item.id), item]));
+  const statusesById = new Map(unitStatuses.map(item => [String(item.id), item]));
+  const locationsById = new Map();
+  for (const location of unitLocations) {
+    for (const key of [location.id, location.roomId]) {
+      if (key !== null && key !== undefined && key !== '') {
+        locationsById.set(String(key), location);
+      }
+    }
+  }
+
+  const templates = new Map();
+  const currentStates = new Map();
+  const unjoinedShiftIds = new Set();
+  for (const state of states) {
+    const sourceShift = shiftsById.get(String(state.shiftId));
+    if (!sourceShift) {
+      unjoinedShiftIds.add(String(state.shiftId));
+      continue;
+    }
+    const unit = unitsById.get(String(sourceShift.truckId));
+    if (!unit || !normalizeBoolean(state.isScheduled)) continue;
+    const questionnaireName = state.questionaryName || '';
+    if (!operationalPattern.test(questionnaireName)) continue;
+    const key = `${unit.id}|${state.questionaryId}`;
+    const candidate = {
+      ...state,
+      questionnaireName,
+      tuesday: state.tuesday ?? state.tusday ?? false,
+      unit,
+      sourceShift
+    };
+    if (!templates.has(key)) templates.set(key, candidate);
+    if (dateKey(sourceShift.entryDate) === shiftWindow.shiftKey && !currentStates.has(key)) {
+      currentStates.set(key, candidate);
+    }
+  }
+
+  const configuredIncomplete = [];
+  let currentStateMatchCount = 0;
+  let completedCurrentCount = 0;
+  let notDueCurrentCount = 0;
+  for (const [key, template] of templates) {
+    const unit = template.unit;
+    const inServiceStatus =
+      statusesById.get(String(unit.truckStatusId))?.truckStatusName ||
+      unit.fleetStatus || unit.status || '';
+    if (statusClass(inServiceStatus) !== 'active') continue;
+
+    const current = currentStates.get(key) || null;
+    if (current) currentStateMatchCount += 1;
+    if (current && !isIncompleteQuestionnaireState(current.currentState)) {
+      if (normalize(current.currentState) === '3') completedCurrentCount += 1;
+      else notDueCurrentCount += 1;
+      continue;
+    }
+
+    const locationKey = [unit.locationId, unit.roomId]
+      .find(value => value !== null && value !== undefined && value !== '');
+    const location = locationsById.get(String(locationKey ?? '')) || {};
+    configuredIncomplete.push({
+      date: shiftWindow.shiftKey,
+      locationName: location.locationName || location.locationDescription || template.sourceShift.shift || '',
+      unitNumber: unit.truckNumber || `Truck ID ${unit.id}`,
+      inServiceStatus,
+      questionnaireName: template.questionnaireName,
+      status: 'Not Completed',
+      unitId: unit.id,
+      questionaryId: template.questionaryId,
+      currentState: current?.currentState ?? null,
+      currentStateId: current?.id ?? null,
+      currentShiftId: current?.shiftId ?? null,
+      inferredFromStateId: template.id,
+      inferredFromShiftId: template.shiftId,
+      inferredFromDate: dateKey(template.sourceShift.entryDate),
+      schedulerType: template.schedulerType ?? null,
+      scheduledToday: assignedOnShiftDate(template, shiftWindow.shiftKey),
+      missingCurrentState: !current
+    });
+  }
+
+  const sortRows = rows => rows.sort((a, b) =>
+    String(a.locationName).localeCompare(String(b.locationName)) ||
+    String(a.unitNumber).localeCompare(String(b.unitNumber)) ||
+    String(a.questionnaireName).localeCompare(String(b.questionnaireName))
+  );
+  const allOperationalRows = sortRows([...configuredIncomplete]);
+  const scheduleDueRows = sortRows(configuredIncomplete.filter(item => item.scheduledToday));
+
+  return {
+    success: true,
+    mode: 'READ_ONLY_INFERRED_OPERATIONAL_CHECK_PREVIEW',
+    evaluatedAt: at.toISOString(),
+    shiftKey: shiftWindow.shiftKey,
+    operationalPattern: operationalPattern.source,
+    sourceCounts: {
+      questionnaireStates: states.length,
+      dailyShifts: shifts.length,
+      units: units.length,
+      inferredOperationalAssignments: templates.size,
+      currentStateMatches: currentStateMatchCount,
+      completedCurrent: completedCurrentCount,
+      notDueCurrent: notDueCurrentCount
+    },
+    hypotheses: {
+      allConfiguredOperational: {
+        rule: 'Recent unit/questionnaire assignment; missing state is incomplete.',
+        recordCount: allOperationalRows.length,
+        rows: allOperationalRows
+      },
+      scheduledTodayOnly: {
+        rule: 'Recent assignment plus questionnaire schedule due for this shift date.',
+        recordCount: scheduleDueRows.length,
+        rows: scheduleDueRows
+      }
+    },
+    diagnostics: {
+      unjoinedShiftIdCount: unjoinedShiftIds.size,
+      unjoinedShiftIds: [...unjoinedShiftIds].slice(0, 25)
+    },
+    note: 'Historical state records are used only to infer expected operational assignments. No OperativeIQ, D1, or Google Sheets data was changed.'
   };
 }
 
