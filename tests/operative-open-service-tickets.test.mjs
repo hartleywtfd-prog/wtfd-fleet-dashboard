@@ -36,25 +36,6 @@ globalThis.fetch = async input => {
   if (url.hostname === 'auth.operativeiqfrontline.com') {
     return Response.json({ access_token: 'operative-test-token', expires_in: 3600 });
   }
-  if (url.pathname.endsWith('/swagger/v1/swagger.json')) {
-    return Response.json({
-      paths: {
-        '/api/service-desk-tickets': {
-          get: { operationId: 'GetServiceDeskTickets', summary: 'Service Desk tickets' }
-        }
-      },
-      components: {
-        schemas: {
-          ServiceDeskTicketModel: {
-            properties: {
-              id: {}, createdDate: {}, assetDescription: {}, ticketName: {},
-              unitName: {}, description: {}, status: {}
-            }
-          }
-        }
-      }
-    });
-  }
   if (/\/swagger|\/openapi\.json$/.test(url.pathname)) {
     return new Response('not found', { status: 404 });
   }
@@ -86,6 +67,7 @@ const response = await worker.fetch(new Request(
 assert.equal(response.status, 200);
 const preview = await response.json();
 assert.equal(preview.endpoint, '/api/service-desk-tickets');
+assert.equal(preview.endpointSource, 'SWAGGER_AUTO_DISCOVERY');
 assert.equal(preview.recordCount, 2);
 assert.deepEqual(preview.headers, [
   'Created', 'Asset Description', 'Ticket Name',

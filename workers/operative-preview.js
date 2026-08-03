@@ -424,7 +424,16 @@ async function inspectModels(env, searchText) {
 
 async function probeOpenServiceTickets(env) {
   const token = await getAccessToken(env);
-  const { specification, swaggerPath } = await loadSwagger(env, token);
+  let specification = { paths: {}, components: { schemas: {} } };
+  let swaggerPath = '';
+  let swaggerError = '';
+  try {
+    const loaded = await loadSwagger(env, token);
+    specification = loaded.specification;
+    swaggerPath = loaded.swaggerPath;
+  } catch (error) {
+    swaggerError = errorMessage(error);
+  }
   const candidates = serviceTicketResourceCandidates(specification).slice(0, 30);
   const results = [];
 
@@ -445,11 +454,13 @@ async function probeOpenServiceTickets(env) {
     success: true,
     mode: 'READ_ONLY_OPEN_SERVICE_TICKET_PROBE',
     swaggerPath,
+    swaggerAvailable: Boolean(swaggerPath),
+    swaggerError,
     testedCount: ranked.length,
     availableResources: ranked.filter(result => result.status !== 404),
     recommendedResource: ranked.find(result => result.status >= 200 && result.status < 300 && result.ticketFieldScore >= 4) || null,
     results: ranked,
-    note: 'GET-only probes with $top=1. No OperativeIQ, D1, Gmail, or Google Sheets data was changed.'
+    note: 'GET-only probes with $top=1. Swagger is optional. No OperativeIQ, D1, Gmail, or Google Sheets data was changed.'
   };
 }
 

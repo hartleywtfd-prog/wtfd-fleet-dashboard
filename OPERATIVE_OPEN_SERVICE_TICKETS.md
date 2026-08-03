@@ -45,6 +45,10 @@ Use the `recommendedResource.path` value as the Worker variable:
 OPERATIVE_SERVICE_TICKETS_PATH=/api/VERIFIED_RESOURCE
 ```
 
+The probe does not require Swagger. If OperativeIQ returns 404 for every
+Swagger location, the Worker continues with its bounded list of known Service
+Desk resource paths and reports the Swagger failure as diagnostic information.
+
 ## 3. Compare the read-only preview
 
 ```bash
@@ -94,4 +98,3 @@ The existing 30-minute cron will then clear and replace columns A:F on the
 - `/open-service-tickets` - normalized read-only open-ticket data
 - `/preview-open-service-tickets` - alias of the read-only route
 - `/export-open-service-tickets` - separately guarded Google Sheets export
-
