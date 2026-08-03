@@ -69,7 +69,7 @@ const LINKAGE_RESOURCE_CANDIDATES = [
   '/api/unit-call-signs-report'
 ];
 const INCOMPLETE_CHECK_PATTERN = /inspection|questionnaire|check.?list|check|completion|complete|front.?line|schedule/i;
-const DEFAULT_OPERATIONAL_CHECK_PATTERN = '^(?:Battalion\\s+.*Daily\\s+Check|Chief\\s+Officer\\s+Daily\\s+Unit\\s+Inspection|Medic\\s+Unit\\s+Daily|Daily\\s+Ladder\\s+Truck\\s+Inspection|Daily\\s+Engine|Admin\\s+Battalion\\s+Daily|UTV.*Check\\s*List)$';
+const DEFAULT_OPERATIONAL_CHECK_PATTERN = '^(?:Medic\\s+Unit\\s+Daily|Daily\\s+Ladder\\s+Truck\\s+Inspection|Daily\\s+Engine|Admin\\s+Battalion\\s+Daily|UTV.*Check\\s*List)$';
 const INCOMPLETE_ASSIGNMENT_RESOURCE_CANDIDATES = [
   '/api/vh-questionary-trucks',
   '/api/vh-questionaries-trucks',
@@ -744,6 +744,18 @@ async function previewInferredOperationalChecks(env, requestedInstant = null) {
       }
     }
   }
+  let d1Assignments = [];
+  if (env.DB) {
+    const result = await env.DB.prepare(`
+      SELECT apparatus_number,primary_assignment,current_assignment
+      FROM vehicles
+    `).all();
+    d1Assignments = result.results || [];
+  }
+  const assignmentByApparatus = new Map(d1Assignments.map(item => [
+    String(item.apparatus_number || '').toUpperCase(),
+    item.current_assignment || item.primary_assignment || ''
+  ]));
 
   const templates = new Map();
   const currentStates = new Map();
@@ -756,6 +768,7 @@ async function previewInferredOperationalChecks(env, requestedInstant = null) {
     }
     const unit = unitsById.get(String(sourceShift.truckId));
     if (!unit || !normalizeBoolean(state.isScheduled)) continue;
+    if (dateKey(sourceShift.entryDate) > shiftWindow.shiftKey) continue;
     const questionnaireName = state.questionaryName || '';
     if (!operationalPattern.test(questionnaireName)) continue;
     const key = `${unit.id}|${state.questionaryId}`;
@@ -794,6 +807,9 @@ async function previewInferredOperationalChecks(env, requestedInstant = null) {
     const locationKey = [unit.locationId, unit.roomId]
       .find(value => value !== null && value !== undefined && value !== '');
     const location = locationsById.get(String(locationKey ?? '')) || {};
+    const apparatus = apparatusNumber(unit.truckNumber);
+    const assignmentRecordFound = assignmentByApparatus.has(apparatus);
+    const currentAssignment = assignmentByApparatus.get(apparatus) || '';
     configuredIncomplete.push({
       date: shiftWindow.shiftKey,
       locationName: location.locationName || location.locationDescription || template.sourceShift.shift || '',
@@ -811,7 +827,18 @@ async function previewInferredOperationalChecks(env, requestedInstant = null) {
       inferredFromDate: dateKey(template.sourceShift.entryDate),
       schedulerType: template.schedulerType ?? null,
       scheduledToday: assignedOnShiftDate(template, shiftWindow.shiftKey),
-      missingCurrentState: !current
+      missingCurrentState: !current,
+      lastCompletedDateTime: template.lastCompletedDateTime ?? null,
+      completedFromLastCompletedDateTime: !current && completedDuringShift(
+        template.lastCompletedDateTime,
+        shiftWindow.shiftKey,
+        shiftWindow.nextShiftKey
+      ),
+      currentAssignment,
+      assignmentRecordFound,
+      assignmentCompatible: assignmentRecordFound
+        ? assignmentMatchesOperationalCheck(template.questionnaireName, currentAssignment)
+        : null
     });
   }
 
@@ -822,6 +849,11 @@ async function previewInferredOperationalChecks(env, requestedInstant = null) {
   );
   const allOperationalRows = sortRows([...configuredIncomplete]);
   const scheduleDueRows = sortRows(configuredIncomplete.filter(item => item.scheduledToday));
+  const reportAlignedRows = sortRows(configuredIncomplete.filter(item =>
+    normalize(item.inServiceStatus) === 'IN-SERVICE' &&
+    item.assignmentCompatible !== false &&
+    !item.completedFromLastCompletedDateTime
+  ));
 
   return {
     success: true,
@@ -848,6 +880,11 @@ async function previewInferredOperationalChecks(env, requestedInstant = null) {
         rule: 'Recent assignment plus questionnaire schedule due for this shift date.',
         recordCount: scheduleDueRows.length,
         rows: scheduleDueRows
+      },
+      reportAligned: {
+        rule: 'Configured operational check; exact In-Service status; current assignment compatible; no completion during active 07:00 shift.',
+        recordCount: reportAlignedRows.length,
+        rows: reportAlignedRows
       }
     },
     diagnostics: {
@@ -856,6 +893,34 @@ async function previewInferredOperationalChecks(env, requestedInstant = null) {
     },
     note: 'Historical state records are used only to infer expected operational assignments. No OperativeIQ, D1, or Google Sheets data was changed.'
   };
+}
+
+function completedDuringShift(value, shiftKey, nextShiftKey) {
+  const text = String(value || '').trim();
+  if (!text) return false;
+  if (/[zZ]$|[+-]\d{2}:?\d{2}$/.test(text)) {
+    const instant = new Date(text);
+    return Number.isFinite(instant.getTime()) && activeEasternShift(instant).shiftKey === shiftKey;
+  }
+  const match = text.match(/^(\d{4}-\d{2}-\d{2})[T ](\d{1,2})/);
+  if (!match) return false;
+  const hour = Number(match[2]);
+  return (match[1] === shiftKey && hour >= 7) ||
+    (match[1] === nextShiftKey && hour < 7);
+}
+
+function assignmentMatchesOperationalCheck(questionnaireName, assignment) {
+  const name = normalize(questionnaireName);
+  const role = normalize(assignment);
+  if (/UTV.*CHECK.?LIST/.test(name)) return true;
+  if (!role) return false;
+  if (/CHIEF OFFICER DAILY UNIT INSPECTION/.test(name)) return /(^|\s)(CHIEF|C)\s*4\d/.test(role);
+  if (/BATTALION 40 DAILY CHECK/.test(name)) return /BATTALION\s*40|(^|\s)B\s*40/.test(role);
+  if (/ADMIN BATTALION DAILY/.test(name)) return /TRAINING\s*40|SAFETY\s*40/.test(role);
+  if (/MEDIC UNIT DAILY/.test(name)) return /(^|\s)(MEDIC|M)\s*\d/.test(role);
+  if (/DAILY LADDER TRUCK INSPECTION/.test(name)) return /(^|\s)(LADDER|L)\s*\d/.test(role);
+  if (/DAILY ENGINE/.test(name)) return /(^|\s)(ENGINE|E)\s*\d/.test(role);
+  return null;
 }
 
 async function previewIncompleteChecks(env, requestedDate, compact = false) {
@@ -982,13 +1047,9 @@ async function previewIncompleteChecks(env, requestedDate, compact = false) {
 async function previewCurrentIncompleteChecks(env, requestedInstant = null) {
   const at = requestedInstant || new Date();
   const shift = activeEasternShift(at);
-  const source = await previewIncompleteChecks(env, shift.shiftKey, false);
+  const source = await previewInferredOperationalChecks(env, at);
   const operationalPattern = operationalCheckPattern(env);
-  const rows = (source.scheduledRows || [])
-    .filter(row => row.incomplete)
-    .filter(row => statusClass(row.inServiceStatus) === 'active')
-    .filter(row => operationalPattern.test(String(row.questionnaireName || '')))
-    .filter(row => assignedOnShiftDate(row, shift.shiftKey))
+  const rows = (source.hypotheses?.reportAligned?.rows || [])
     .map(row => ({
       date: shift.shiftKey,
       locationName: row.locationName,
@@ -996,13 +1057,15 @@ async function previewCurrentIncompleteChecks(env, requestedInstant = null) {
       inServiceStatus: row.inServiceStatus,
       questionnaireName: row.questionnaireName,
       status: 'Not Completed',
-      stateId: row.stateId,
-      shiftId: row.shiftId,
-      truckId: row.truckId,
+      stateId: row.currentStateId || row.inferredFromStateId,
+      shiftId: row.currentShiftId || row.inferredFromShiftId,
+      truckId: row.unitId,
       questionaryId: row.questionaryId,
       currentState: row.currentState,
       schedulerType: row.schedulerType,
-      schedulerSubType: row.schedulerSubType
+      schedulerSubType: row.schedulerSubType ?? null,
+      missingCurrentState: row.missingCurrentState,
+      currentAssignment: row.currentAssignment
     }));
 
   rows.sort((a, b) =>
@@ -1022,13 +1085,13 @@ async function previewCurrentIncompleteChecks(env, requestedInstant = null) {
     nextShiftKey: shift.nextShiftKey,
     nextShiftStartLabel: `${shift.nextShiftKey} 07:00 America/New_York`,
     operationalPattern: operationalPattern.source,
-    sourceScheduledCount: source.scheduledRowCount,
+    sourceScheduledCount: source.sourceCounts?.inferredOperationalAssignments || 0,
     recordCount: rows.length,
     columns: SHEET_HEADERS,
     rows,
     sheetRows: rows.map(sheetRowValues),
     diagnostics: source.diagnostics,
-    note: 'Current 07:00 shift only; completed, out-of-service, non-operational, and other-day checks are excluded. No D1 or Google Sheets data was changed.'
+    note: 'Current 07:00 shift only; recent assignments are inferred from OperativeIQ history and reconciled with current D1 assignments. Completed, non-In-Service, stale-role, and non-operational checks are excluded. No D1 or Google Sheets data was changed.'
   };
 }
 
