@@ -145,6 +145,10 @@ export default {
         ));
       }
 
+      if (url.pathname === '/probe-turnout-gear') {
+        return json(await probeTurnoutGear(env));
+      }
+
       if (url.pathname === '/preview-inferred-operational-checks') {
         return json(await previewInferredOperationalChecks(
           env,
@@ -225,6 +229,7 @@ export default {
           '/probe-incomplete-checks',
           '/probe-incomplete-assignment-sources',
           '/probe-operational-question-linkage?at=ISO_TIMESTAMP',
+          '/probe-turnout-gear',
           '/preview-inferred-operational-checks?at=ISO_TIMESTAMP',
           '/preview-incomplete-checks?date=YYYY-MM-DD&compact=1',
           '/preview-current-incomplete-checks?at=ISO_TIMESTAMP',
@@ -489,6 +494,142 @@ async function probeIncompleteAssignmentSources(env) {
     results,
     findingNeeded: 'A resource that enumerates due unit/questionnaire assignments even when no state or answer exists.',
     note: 'GET-only probes with $top=1. No OperativeIQ, D1, or Google Sheets data was changed.'
+  };
+}
+
+async function probeTurnoutGear(env) {
+  const token = await getAccessToken(env);
+  const [items, fixedAssets] = await Promise.all([
+    fetchAll('/api/items', token, 5000),
+    fetchAll('/api/fixed-assets', token, 5000)
+  ]);
+
+  const itemIdValue = source => source?.id ?? source?.itemId ?? source?.itemID ?? null;
+  const fixedItemIdValue = source => source?.itemId ?? source?.itemID ?? source?.id ?? null;
+  const textValue = (source, keys) => {
+    for (const key of keys) {
+      const value = source?.[key];
+      if (value !== null && value !== undefined && String(value).trim()) return String(value).trim();
+    }
+    return '';
+  };
+  const gearPattern = /\b(coat|pant|turnout|bunker|fire\s*gear|helmet|hood|boot|glove)\b/i;
+  const fixedAssetsByItem = new Map();
+
+  for (const record of fixedAssets) {
+    const itemId = fixedItemIdValue(record);
+    if (itemId === null || itemId === undefined || itemId === '') continue;
+    const key = String(itemId);
+    if (!fixedAssetsByItem.has(key)) fixedAssetsByItem.set(key, []);
+    fixedAssetsByItem.get(key).push(record);
+  }
+
+  const gearItems = items.filter(item => gearPattern.test([
+    item?.itemName,
+    item?.itemNumber,
+    item?.partUpc,
+    item?.assetDescription,
+    item?.internalPartNumber,
+    item?.modelNumber
+  ].filter(Boolean).join(' ')));
+
+  const candidates = gearItems.slice(0, 40).map(item => {
+    const itemId = itemIdValue(item);
+    const maintenance = fixedAssetsByItem.get(String(itemId)) || [];
+    maintenance.sort((a, b) => String(
+      b?.performPreventativeMaintenanceEnterDate || b?.createdDate || b?.createdTime || ''
+    ).localeCompare(String(
+      a?.performPreventativeMaintenanceEnterDate || a?.createdDate || a?.createdTime || ''
+    )));
+    const latest = maintenance[0] || {};
+
+    return {
+      itemId,
+      itemName: textValue(item, ['itemName', 'name']),
+      itemNumber: textValue(item, ['itemNumber', 'internalPartNumber']),
+      partUpc: textValue(item, ['partUpc', 'partUPC', 'barCodeNumber']),
+      assetDescription: textValue(item, ['assetDescription', 'description']),
+      assetClassId: item?.assetClassId ?? null,
+      preventativeMaintenance: item?.preventativeMaintenance ?? null,
+      preventativeMaintenanceFrequency: item?.preventativeMaintenanceFrequency ?? null,
+      preventativeMaintenanceNextPmdate: item?.preventativeMaintenanceNextPmdate ?? null,
+      preventativeMaintenanceHistoryPmdate: item?.preventativeMaintenanceHistoryPmdate ?? null,
+      fixedAssetRecordCount: maintenance.length,
+      latestMaintenanceDate: latest?.performPreventativeMaintenanceEnterDate || latest?.createdDate || null,
+      latestMaintenanceType: latest?.type ?? null,
+      latestMaintenanceStatusId: latest?.statusId ?? null
+    };
+  });
+
+  const sampleItemId = candidates.find(item => item.itemId !== null)?.itemId
+    ?? fixedAssets.map(fixedItemIdValue).find(value => value !== null && value !== undefined && value !== '')
+    ?? items.map(itemIdValue).find(value => value !== null && value !== undefined && value !== '');
+  const assignmentProbes = [];
+
+  if (sampleItemId !== null && sampleItemId !== undefined && sampleItemId !== '') {
+    const id = encodeURIComponent(String(sampleItemId));
+    const paths = [
+      `/api/items/${id}`,
+      `/api/items/${id}/checked-out`,
+      `/api/items/${id}/checked-out-assets`,
+      `/api/items/${id}/checkout`,
+      `/api/items/${id}/location`,
+      `/api/items/${id}/locations`,
+      `/api/fixed-assets/${id}`,
+      `/api/fixed-assets/${id}/checked-out`,
+      `/api/item-locations?$filter=itemId eq ${id}&$top=5`,
+      `/api/item-location?$filter=itemId eq ${id}&$top=5`,
+      `/api/checkouts?$filter=itemId eq ${id}&$top=5`,
+      `/api/checkout?$filter=itemId eq ${id}&$top=5`
+    ];
+
+    for (const path of paths) {
+      const response = await fetch(RESOURCE_ROOT + path, {
+        headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' }
+      });
+      const text = await response.text();
+      const probe = { path, status: response.status };
+      if (response.ok) {
+        try {
+          const payload = JSON.parse(text);
+          const records = Array.isArray(payload)
+            ? payload
+            : arrayPayload(payload);
+          probe.returnedCount = records.length;
+          probe.fields = Object.keys(records[0] || {});
+          probe.sample = redactDiscoverySample(records[0] || {});
+        } catch (_error) {
+          try {
+            const payload = JSON.parse(text);
+            probe.fields = Object.keys(payload || {});
+            probe.sample = redactDiscoverySample(payload || {});
+          } catch (error) {
+            probe.parseError = errorMessage(error);
+          }
+        }
+      } else {
+        probe.error = safeApiError(text);
+      }
+      assignmentProbes.push(probe);
+    }
+  }
+
+  return {
+    success: true,
+    mode: 'READ_ONLY_TURNOUT_GEAR_PROBE',
+    sourceCounts: {
+      items: items.length,
+      fixedAssets: fixedAssets.length,
+      gearItems: gearItems.length
+    },
+    itemFields: Object.keys(items[0] || {}).filter(key =>
+      /id|item|part|asset|preventative|service|location|crew|assign|issue|status/i.test(key)
+    ),
+    fixedAssetFields: Object.keys(fixedAssets[0] || {}),
+    sampleItemId: sampleItemId ?? null,
+    candidates,
+    assignmentProbes,
+    note: 'Read-only item, fixed-asset, and assignment-route inspection. No OperativeIQ, D1, Gmail, or Google Sheets data was changed.'
   };
 }
 
