@@ -1,6 +1,6 @@
 /* ===== User-adjustable dashboard settings ===== */
 const DASHBOARD_CONFIG = {
-  version: '5.3.0',
+  version: '5.3.1',
   // Fallback map view used only if the jurisdiction boundary cannot load.
   defaultCenterLat: 39.62784,
   defaultCenterLon: -84.15996,
@@ -247,8 +247,8 @@ function showKioskCursorTemporarily() {
   }, DASHBOARD_CONFIG.kioskCursorHideMs);
 }
 
-function apiRequest(action) {
-  const endpoint = action === 'sync' ? '/api/sync' : '/api/dashboard-v2';
+function apiRequest() {
+  const endpoint = '/api/dashboard-v2';
   const separator = endpoint.includes('?') ? '&' : '?';
   const url = `${endpoint}${separator}_=${Date.now()}`;
 
@@ -2519,7 +2519,7 @@ function renderKioskStatusBoard(locations, metrics, gps, noGps, stale) {
   }
 }
 
-function forceSync() {
+function refreshData() {
   const refresh =
     document.getElementById(
       'lastRefresh'
@@ -2527,7 +2527,7 @@ function forceSync() {
 
   if (refresh) {
     refresh.innerText =
-      'Syncing...';
+      'Refreshing...';
   }
 
   const forceButton =
@@ -2539,15 +2539,7 @@ function forceSync() {
     forceButton.disabled = true;
   }
 
-  apiRequest('sync')
-    .then(() => loadDashboard())
-    .catch(error => {
-      if (refresh) {
-        refresh.innerText =
-          'Sync error: ' +
-          error.message;
-      }
-    })
+  loadDashboard()
     .finally(() => {
       if (forceButton) {
         forceButton.disabled = false;
@@ -2688,7 +2680,7 @@ const forceButton =
 if (forceButton) {
   forceButton.addEventListener(
     'click',
-    forceSync
+    refreshData
   );
 }
 

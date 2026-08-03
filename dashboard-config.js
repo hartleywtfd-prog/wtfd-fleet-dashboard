@@ -5,7 +5,7 @@
  * Rules are checked from top to bottom against the Active911 description.
  */
 window.WTFD_DASHBOARD_CONFIG = {
-  version: '5.3.0',
+  version: '5.3.1',
   alertSoundEnabled: true,
   alertSoundUrl: 'sounds/dispatch-chime.wav',
   alertSoundVolume: 1.0,
