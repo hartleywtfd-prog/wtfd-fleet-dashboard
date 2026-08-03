@@ -69,6 +69,20 @@ const LINKAGE_RESOURCE_CANDIDATES = [
   '/api/unit-call-signs-report'
 ];
 const INCOMPLETE_CHECK_PATTERN = /inspection|questionnaire|check.?list|check|completion|complete|front.?line|schedule/i;
+const SERVICE_TICKET_PATTERN = /service.?desk|service.?ticket|support.?ticket|help.?desk|ticket|support.?request|repair.?request/i;
+const SERVICE_TICKET_RESOURCE_CANDIDATES = [
+  '/api/service-tickets',
+  '/api/servicetickets',
+  '/api/service-desk-tickets',
+  '/api/servicedesktickets',
+  '/api/tickets',
+  '/api/support-tickets',
+  '/api/supporttickets',
+  '/api/help-desk-tickets',
+  '/api/helpdesktickets',
+  '/api/service-requests',
+  '/api/servicerequests'
+];
 const DEFAULT_OPERATIONAL_CHECK_PATTERN = '^(?:Medic\\s+Unit\\s+Daily|Daily\\s+Ladder\\s+Truck\\s+Inspection|Daily\\s+Engine|Admin\\s+Battalion\\s+Daily|UTV.*Check\\s*List)$';
 const INCOMPLETE_ASSIGNMENT_RESOURCE_CANDIDATES = [
   '/api/vh-questionary-trucks',
@@ -99,6 +113,10 @@ const SHEET_HEADERS = [
   'Date', 'Location Name', 'Unit Number', 'In-Service Status',
   'Questionnaire Name', 'Status'
 ];
+const SERVICE_TICKET_SHEET_HEADERS = [
+  'Created', 'Asset Description', 'Ticket Name',
+  'Unit Name', 'Description', 'Status'
+];
 
 let cachedToken = null;
 let cachedTokenExpiresAt = 0;
@@ -124,6 +142,27 @@ export default {
 
       if (url.pathname === '/inspect-models') {
         return json(await inspectModels(env, url.searchParams.get('q') || ''));
+      }
+
+      if (url.pathname === '/probe-open-service-tickets') {
+        return json(await probeOpenServiceTickets(env));
+      }
+
+      if (
+        url.pathname === '/open-service-tickets' ||
+        url.pathname === '/preview-open-service-tickets'
+      ) {
+        return json(await previewOpenServiceTickets(env));
+      }
+
+      if (url.pathname === '/export-open-service-tickets') {
+        if (!normalizeBoolean(env.OPEN_SERVICE_TICKETS_SHEETS_EXPORT_ENABLED)) {
+          return json({
+            error: 'Open-service-ticket Google Sheets export is disabled.',
+            requiredSetting: 'OPEN_SERVICE_TICKETS_SHEETS_EXPORT_ENABLED=true'
+          }, 409);
+        }
+        return json(await exportOpenServiceTicketsToSheets(env));
       }
 
       if (url.pathname === '/inspect-incomplete-checks') {
@@ -236,6 +275,10 @@ export default {
         routes: [
           '/inspect',
           '/inspect-models?q=call',
+          '/probe-open-service-tickets',
+          '/open-service-tickets',
+          '/preview-open-service-tickets',
+          '/export-open-service-tickets',
           '/inspect-incomplete-checks',
           '/probe-incomplete-checks',
           '/probe-incomplete-assignment-sources',
@@ -277,6 +320,12 @@ export default {
         tasks.push(runScheduledIncompleteCheckSync(env));
       } else {
         console.log('Incomplete-check sync skipped: INCOMPLETE_CHECKS_D1_ENABLED is false.');
+      }
+
+      if (normalizeBoolean(env.OPEN_SERVICE_TICKETS_SHEETS_EXPORT_ENABLED)) {
+        tasks.push(runScheduledOpenServiceTicketExport(env));
+      } else {
+        console.log('Open-service-ticket export skipped: OPEN_SERVICE_TICKETS_SHEETS_EXPORT_ENABLED is false.');
       }
     }
 
@@ -323,6 +372,25 @@ async function runScheduledIncompleteCheckSync(env) {
   }
 }
 
+async function runScheduledOpenServiceTicketExport(env) {
+  try {
+    const result = await exportOpenServiceTicketsToSheets(env);
+    console.log(JSON.stringify({
+      event: 'operative_open_service_tickets_export_completed',
+      recordCount: result.rowCount,
+      endpoint: result.endpoint,
+      timestamp: result.timestamp
+    }));
+  } catch (error) {
+    console.error(JSON.stringify({
+      event: 'operative_open_service_tickets_export_failed',
+      error: errorMessage(error),
+      timestamp: new Date().toISOString()
+    }));
+    throw error;
+  }
+}
+
 async function inspectModels(env, searchText) {
   const token = await getAccessToken(env);
   const response = await fetch(RESOURCE_ROOT + '/swagger/v1/swagger.json', {
@@ -352,6 +420,220 @@ async function inspectModels(env, searchText) {
     models,
     note: 'OpenAPI model names and property names only. No records or D1 data were changed.'
   };
+}
+
+async function probeOpenServiceTickets(env) {
+  const token = await getAccessToken(env);
+  const { specification, swaggerPath } = await loadSwagger(env, token);
+  const candidates = serviceTicketResourceCandidates(specification).slice(0, 30);
+  const results = [];
+
+  for (let offset = 0; offset < candidates.length; offset += 6) {
+    const batch = candidates.slice(offset, offset + 6);
+    results.push(...await Promise.all(batch.map(path => probeReadOnlyResource(path, token))));
+  }
+
+  const ranked = results
+    .map(result => ({ ...result, ticketFieldScore: serviceTicketProbeScore(result) }))
+    .sort((a, b) =>
+      b.ticketFieldScore - a.ticketFieldScore ||
+      Number(b.returnedCount || 0) - Number(a.returnedCount || 0) ||
+      a.path.localeCompare(b.path)
+    );
+
+  return {
+    success: true,
+    mode: 'READ_ONLY_OPEN_SERVICE_TICKET_PROBE',
+    swaggerPath,
+    testedCount: ranked.length,
+    availableResources: ranked.filter(result => result.status !== 404),
+    recommendedResource: ranked.find(result => result.status >= 200 && result.status < 300 && result.ticketFieldScore >= 4) || null,
+    results: ranked,
+    note: 'GET-only probes with $top=1. No OperativeIQ, D1, Gmail, or Google Sheets data was changed.'
+  };
+}
+
+async function previewOpenServiceTickets(env) {
+  const token = await getAccessToken(env);
+  const resolved = await resolveServiceTicketResource(env, token);
+  const sourceRecords = await fetchAll(resolved.path, token, 5000);
+  const selected = new Map();
+
+  for (const source of sourceRecords) {
+    const row = normalizeServiceTicket(source);
+    if (!isOpenServiceTicket(row.status)) continue;
+    const key = row.ticketId || [
+      row.created, row.assetDescription, row.ticketName,
+      row.unitName, row.description
+    ].join('|');
+    if (!selected.has(key)) selected.set(key, row);
+  }
+
+  const rows = [...selected.values()].sort((a, b) =>
+    a.createdMillis - b.createdMillis ||
+    a.ticketName.localeCompare(b.ticketName) ||
+    a.unitName.localeCompare(b.unitName)
+  ).map(({ createdMillis, ...row }) => row);
+
+  return {
+    success: true,
+    mode: 'READ_ONLY_OPEN_SERVICE_TICKETS',
+    endpoint: resolved.path,
+    endpointSource: resolved.source,
+    sourceRecordCount: sourceRecords.length,
+    recordCount: rows.length,
+    headers: SERVICE_TICKET_SHEET_HEADERS,
+    rows,
+    detectedSourceFields: resolved.fields,
+    timestamp: new Date().toISOString(),
+    note: 'Open Service Desk tickets only. No OperativeIQ, D1, Gmail, or Google Sheets data was changed.'
+  };
+}
+
+async function resolveServiceTicketResource(env, token) {
+  const configured = String(env.OPERATIVE_SERVICE_TICKETS_PATH || '').trim();
+  if (configured) {
+    const path = validatedApiPath(configured);
+    const result = await probeReadOnlyResource(path, token);
+    if (result.status < 200 || result.status >= 300) {
+      throw new Error(`Configured service-ticket resource failed (${result.status}): ${result.error || path}`);
+    }
+    if (serviceTicketProbeScore(result) < 4) {
+      throw new Error(`Configured service-ticket resource does not expose the expected ticket fields: ${path}`);
+    }
+    return { path, source: 'OPERATIVE_SERVICE_TICKETS_PATH', fields: result.fields || [] };
+  }
+
+  const probe = await probeOpenServiceTickets(env);
+  const selected = probe.recommendedResource;
+  if (!selected) {
+    throw new Error('No readable OperativeIQ Service Desk ticket resource was identified. Run /probe-open-service-tickets and set OPERATIVE_SERVICE_TICKETS_PATH to the verified resource.');
+  }
+  return { path: selected.path, source: 'SWAGGER_AUTO_DISCOVERY', fields: selected.fields || [] };
+}
+
+function serviceTicketResourceCandidates(specification) {
+  const result = new Set(SERVICE_TICKET_RESOURCE_CANDIDATES);
+  for (const [apiPath, methods] of Object.entries(specification?.paths || {})) {
+    if (apiPath.includes('{')) continue;
+    const getOperation = Object.entries(methods || {})
+      .find(([method]) => method.toLowerCase() === 'get')?.[1];
+    if (!getOperation) continue;
+    if (SERVICE_TICKET_PATTERN.test(JSON.stringify({ apiPath, getOperation }))) {
+      result.add(apiPath);
+    }
+  }
+
+  const schemas = specification?.components?.schemas || specification?.definitions || {};
+  for (const [name, schema] of Object.entries(schemas)) {
+    if (!SERVICE_TICKET_PATTERN.test(JSON.stringify({ name, schema }))) continue;
+    for (const path of modelApiResourceCandidates(name)) result.add(path);
+  }
+  return [...result].filter(path => path.startsWith('/api/'));
+}
+
+function serviceTicketProbeScore(result) {
+  if (result.status < 200 || result.status >= 300 || result.parseError) return -1;
+  const fields = (result.fields || []).map(normalizeServiceTicketKey);
+  let score = SERVICE_TICKET_PATTERN.test(result.path || '') ? 2 : 0;
+  if (fields.some(value => /ticketname|subject|title|requestname/.test(value))) score += 2;
+  if (fields.some(value => /description|details|issue/.test(value))) score += 2;
+  if (fields.some(value => /status/.test(value))) score += 1;
+  if (fields.some(value => /created|opened|submitted|entrydate/.test(value))) score += 1;
+  if (fields.some(value => /asset|unit|truck|vehicle|location/.test(value))) score += 1;
+  if (fields.some(value => /ticketid|serviceticketid/.test(value))) score += 1;
+  return score;
+}
+
+function normalizeServiceTicket(source) {
+  const fields = flattenServiceTicketFields(source);
+  const createdValue = serviceTicketValue(fields, [
+    'createdDateTime', 'createdDate', 'createdTime', 'dateCreated',
+    'createdOn', 'openedDate', 'submittedDate', 'entryDate', 'date'
+  ]);
+  const status = serviceTicketValue(fields, [
+    'statusName', 'ticketStatusName', 'serviceTicketStatusName',
+    'ticketStatus', 'serviceTicketStatus', 'currentStatus', 'status.name', 'status'
+  ]);
+  return {
+    ticketId: serviceTicketValue(fields, ['ticketId', 'serviceTicketId', 'serviceDeskTicketId', 'id']),
+    created: serviceTicketDisplayDate(createdValue),
+    assetDescription: serviceTicketValue(fields, [
+      'assetDescription', 'assetName', 'fixedAssetDescription',
+      'asset.description', 'asset.name', 'itemDescription'
+    ]),
+    ticketName: serviceTicketValue(fields, [
+      'ticketName', 'serviceTicketName', 'requestName', 'subject', 'title', 'name'
+    ]),
+    unitName: serviceTicketValue(fields, [
+      'unitName', 'truckName', 'vehicleName', 'unitDescription',
+      'unit.unitName', 'unit.truckNumber', 'truck.truckNumber', 'vehicle.name',
+      'locationName'
+    ]),
+    description: serviceTicketValue(fields, [
+      'ticketDescription', 'serviceTicketDescription', 'issueDescription',
+      'requestDescription', 'description', 'details'
+    ]),
+    status: status || 'Open',
+    createdMillis: serviceTicketDateMillis(createdValue)
+  };
+}
+
+function flattenServiceTicketFields(source) {
+  const result = new Map();
+  const visit = (value, path, depth) => {
+    if (value === null || value === undefined || depth > 2) return;
+    if (Array.isArray(value)) return;
+    if (typeof value !== 'object') {
+      const text = String(value).trim();
+      if (!text) return;
+      const fullKey = normalizeServiceTicketKey(path.join('.'));
+      const leafKey = normalizeServiceTicketKey(path[path.length - 1]);
+      if (fullKey && !result.has(fullKey)) result.set(fullKey, text);
+      if (leafKey && !result.has(leafKey)) result.set(leafKey, text);
+      return;
+    }
+    for (const [key, child] of Object.entries(value)) visit(child, [...path, key], depth + 1);
+  };
+  visit(source || {}, [], 0);
+  return result;
+}
+
+function serviceTicketValue(fields, names) {
+  for (const name of names) {
+    const value = fields.get(normalizeServiceTicketKey(name));
+    if (value !== undefined && value !== null && String(value).trim()) return String(value).trim();
+  }
+  return '';
+}
+
+function normalizeServiceTicketKey(value) {
+  return String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+function isOpenServiceTicket(value) {
+  const status = normalize(value);
+  return !/(?:CLOSED|RESOLVED|COMPLETED|COMPLETE|CANCELLED|CANCELED|VOID|DELETED)/.test(status);
+}
+
+function serviceTicketDateMillis(value) {
+  const numeric = Number(value);
+  if (Number.isFinite(numeric) && numeric > 20000 && numeric < 60000) {
+    return Date.UTC(1899, 11, 30) + numeric * 86400000;
+  }
+  const millis = new Date(String(value || '')).getTime();
+  return Number.isFinite(millis) ? millis : 0;
+}
+
+function serviceTicketDisplayDate(value) {
+  const text = String(value || '').trim();
+  const dateOnly = text.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (dateOnly) return `${dateOnly[2]}/${dateOnly[3]}/${dateOnly[1]}`;
+  const millis = serviceTicketDateMillis(value);
+  if (!millis) return text;
+  return new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York', month: '2-digit', day: '2-digit', year: 'numeric'
+  }).format(new Date(millis));
 }
 
 async function inspectIncompleteChecks(env) {
@@ -1663,6 +1945,66 @@ async function exportIncompleteChecksToSheets(env, requestedShiftKey = '') {
   };
 }
 
+async function exportOpenServiceTicketsToSheets(env) {
+  if (!normalizeBoolean(env.OPEN_SERVICE_TICKETS_SHEETS_EXPORT_ENABLED)) {
+    throw new Error('OPEN_SERVICE_TICKETS_SHEETS_EXPORT_ENABLED must be true before Google Sheets writes are allowed.');
+  }
+  if (!String(env.OPERATIVE_SERVICE_TICKETS_PATH || '').trim()) {
+    throw new Error('OPERATIVE_SERVICE_TICKETS_PATH must be set to the verified resource before scheduled Google Sheets exports are enabled.');
+  }
+  validateGoogleSheetsConfiguration(env, 'OPEN_SERVICE_TICKETS_SPREADSHEET_ID');
+
+  const preview = await previewOpenServiceTickets(env);
+  const values = [
+    SERVICE_TICKET_SHEET_HEADERS,
+    ...preview.rows.map(row => [
+      row.created,
+      row.assetDescription,
+      row.ticketName,
+      row.unitName,
+      row.description,
+      row.status
+    ])
+  ];
+  const token = await getGoogleAccessToken(env);
+  const spreadsheetId = String(env.OPEN_SERVICE_TICKETS_SPREADSHEET_ID).trim();
+  const tabName = String(env.OPEN_SERVICE_TICKETS_TAB_NAME || 'Open Service Tickets').trim();
+  const range = `'${tabName.replace(/'/g, "''")}'!A:F`;
+  const encodedRange = encodeURIComponent(range);
+  const base = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}/values/${encodedRange}`;
+
+  const clearResponse = await fetch(`${base}:clear`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: '{}'
+  });
+  const clearText = await clearResponse.text();
+  if (!clearResponse.ok) {
+    throw new Error(`Google Sheets clear failed (${clearResponse.status}): ${safeApiError(clearText)}`);
+  }
+
+  const updateResponse = await fetch(`${base}?valueInputOption=RAW`, {
+    method: 'PUT',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ range, majorDimension: 'ROWS', values })
+  });
+  const updateText = await updateResponse.text();
+  if (!updateResponse.ok) {
+    throw new Error(`Google Sheets update failed (${updateResponse.status}): ${safeApiError(updateText)}`);
+  }
+
+  return {
+    success: true,
+    mode: 'GOOGLE_SHEETS_OPEN_SERVICE_TICKET_EXPORT',
+    endpoint: preview.endpoint,
+    spreadsheetId,
+    tabName,
+    rowCount: preview.recordCount,
+    updatedRange: JSON.parse(updateText)?.updatedRange || range,
+    timestamp: new Date().toISOString()
+  };
+}
+
 async function ensureIncompleteCheckTables(env) {
   await env.DB.prepare(`
     CREATE TABLE IF NOT EXISTS operative_incomplete_checks (
@@ -2445,18 +2787,27 @@ async function previewAssignments(env, endpoint) {
   };
 }
 
-function validateGoogleSheetsConfiguration(env) {
+function validateGoogleSheetsConfiguration(env, spreadsheetVariable = 'GOOGLE_SHEETS_SPREADSHEET_ID') {
   for (const name of [
     'GOOGLE_SERVICE_ACCOUNT_EMAIL',
     'GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY',
-    'GOOGLE_SHEETS_SPREADSHEET_ID'
+    spreadsheetVariable
+  ]) {
+    if (!String(env[name] || '').trim()) throw new Error(`${name} is not configured.`);
+  }
+}
+
+function validateGoogleServiceAccountConfiguration(env) {
+  for (const name of [
+    'GOOGLE_SERVICE_ACCOUNT_EMAIL',
+    'GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY'
   ]) {
     if (!String(env[name] || '').trim()) throw new Error(`${name} is not configured.`);
   }
 }
 
 async function getGoogleAccessToken(env) {
-  validateGoogleSheetsConfiguration(env);
+  validateGoogleServiceAccountConfiguration(env);
   const now = Date.now();
   if (cachedGoogleToken && now < cachedGoogleTokenExpiresAt - 60000) {
     return cachedGoogleToken;
