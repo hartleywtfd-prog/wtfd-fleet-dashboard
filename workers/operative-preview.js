@@ -726,8 +726,10 @@ async function previewTurnoutGear(env, requestedInstant = null) {
         ?? valueByPattern(management, /^preventativemainten.*date$/i);
       const daysValue = valueByNames(management, ['days_Until_Next_Preventative_Maintenace'])
         ?? valueByPattern(management, /^daysuntilnextpreventativemainten/i);
-      const nextDate = dateKey(nextValue);
-      const lastDate = dateKey(lastValue);
+      // Dynamic-view maintenance values are UTC timestamps. The OperativeIQ
+      // report renders them in America/New_York, which can be the prior date.
+      const nextDate = dynamicViewDateKey(nextValue);
+      const lastDate = dynamicViewDateKey(lastValue);
       const parsedDays = Number(String(daysValue ?? '').replace(/[^0-9.-]/g, ''));
       const daysLeft = Number.isFinite(parsedDays) && text(daysValue)
         ? parsedDays
@@ -767,7 +769,7 @@ async function previewTurnoutGear(env, requestedInstant = null) {
       }
 
       const row = {
-        issuedTo: location,
+        issuedTo: location.replace(/^Crew:\s*/i, '').trim(),
         gearIdentifier: text(valueByNames(asset, ['asset_Tag_Number']))
           || text(valueByNames(management, ['asset_Tag___Part_UPC'])),
         lastServiceDate: lastDate,
@@ -1741,6 +1743,18 @@ function dateKey(value) {
   const millis = new Date(text.replace(/^[A-Za-z]+,\s*/, '')).getTime();
   if (Number.isFinite(millis)) return easternDateKey(new Date(millis));
   return '';
+}
+
+function dynamicViewDateKey(value) {
+  const text = String(value || '').trim();
+  if (!text) return '';
+
+  // Preserve true date-only values. Convert timestamps to the report's
+  // America/New_York calendar date so the Sheet matches OperativeIQ.
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
+  const millis = new Date(text).getTime();
+  if (Number.isFinite(millis)) return easternDateKey(new Date(millis));
+  return dateKey(text);
 }
 
 function isIncompleteQuestionnaireState(value) {
