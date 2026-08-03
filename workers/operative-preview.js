@@ -156,6 +156,10 @@ export default {
         ));
       }
 
+      if (url.pathname === '/preview-crew-emails') {
+        return json(await previewCrewEmails(env));
+      }
+
       if (url.pathname === '/preview-inferred-operational-checks') {
         return json(await previewInferredOperationalChecks(
           env,
@@ -238,6 +242,7 @@ export default {
           '/probe-operational-question-linkage?at=ISO_TIMESTAMP',
           '/probe-turnout-gear',
           '/preview-turnout-gear?at=ISO_TIMESTAMP',
+          '/preview-crew-emails',
           '/preview-inferred-operational-checks?at=ISO_TIMESTAMP',
           '/preview-incomplete-checks?date=YYYY-MM-DD&compact=1',
           '/preview-current-incomplete-checks?at=ISO_TIMESTAMP',
@@ -832,6 +837,79 @@ async function previewTurnoutGear(env, requestedInstant = null) {
     ]),
     diagnostics,
     note: 'Read-only dynamic-view join preview. No OperativeIQ, D1, Gmail, or Google Sheets data was changed.'
+  };
+}
+
+async function previewCrewEmails(env) {
+  const token = await getAccessToken(env);
+  const crewRows = await fetchAll('/api/crews', token, 10000);
+  const text = value => value === null || value === undefined ? '' : String(value).trim();
+  const active = value => {
+    if (value === true || value === 1) return true;
+    return /^(true|1|yes|active)$/i.test(text(value));
+  };
+  const validEmail = value => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(text(value));
+  const statusValueCounts = {};
+  const diagnostics = {
+    inactive: 0,
+    missingName: 0,
+    missingOrInvalidEmail: 0,
+    duplicateEmail: 0
+  };
+  const selected = new Map();
+  const seenEmails = new Set();
+
+  for (const crew of crewRows) {
+    const statusKey = text(crew?.status) || '(blank)';
+    statusValueCounts[statusKey] = (statusValueCounts[statusKey] || 0) + 1;
+
+    if (!active(crew?.status)) {
+      diagnostics.inactive++;
+      continue;
+    }
+
+    const firstName = text(crew?.firstName);
+    const lastName = text(crew?.lastName);
+    const email = text(crew?.email).toLowerCase();
+    if (!firstName || !lastName) {
+      diagnostics.missingName++;
+      continue;
+    }
+    if (!validEmail(email)) {
+      diagnostics.missingOrInvalidEmail++;
+      continue;
+    }
+
+    if (seenEmails.has(email)) diagnostics.duplicateEmail++;
+    seenEmails.add(email);
+    const recordKey = crew?.id ?? `${firstName}|${lastName}|${email}`;
+    selected.set(recordKey, {
+      crewId: crew?.id ?? null,
+      employeeId: text(crew?.employeeId),
+      firstName,
+      lastName,
+      fullName: `${firstName} ${lastName}`,
+      operativeLocationName: `${lastName} ${firstName}`,
+      email,
+      status: crew?.status
+    });
+  }
+
+  const rows = [...selected.values()].sort((a, b) =>
+    a.lastName.localeCompare(b.lastName) || a.firstName.localeCompare(b.firstName)
+  );
+
+  return {
+    success: true,
+    mode: 'READ_ONLY_CREW_EMAIL_PREVIEW',
+    sourceRecordCount: crewRows.length,
+    activeEmailCount: rows.length,
+    rows,
+    diagnostics: {
+      ...diagnostics,
+      statusValueCounts
+    },
+    note: 'Active OperativeIQ crew names and email addresses only. No OperativeIQ, D1, Gmail, or Google Sheets data was changed.'
   };
 }
 
