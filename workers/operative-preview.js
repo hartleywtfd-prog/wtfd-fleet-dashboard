@@ -149,6 +149,13 @@ export default {
         return json(await probeTurnoutGear(env));
       }
 
+      if (url.pathname === '/preview-turnout-gear') {
+        return json(await previewTurnoutGear(
+          env,
+          validatedInstantParameter(url.searchParams.get('at'))
+        ));
+      }
+
       if (url.pathname === '/preview-inferred-operational-checks') {
         return json(await previewInferredOperationalChecks(
           env,
@@ -230,6 +237,7 @@ export default {
           '/probe-incomplete-assignment-sources',
           '/probe-operational-question-linkage?at=ISO_TIMESTAMP',
           '/probe-turnout-gear',
+          '/preview-turnout-gear?at=ISO_TIMESTAMP',
           '/preview-inferred-operational-checks?at=ISO_TIMESTAMP',
           '/preview-incomplete-checks?date=YYYY-MM-DD&compact=1',
           '/preview-current-incomplete-checks?at=ISO_TIMESTAMP',
@@ -630,6 +638,198 @@ async function probeTurnoutGear(env) {
     candidates,
     assignmentProbes,
     note: 'Read-only item, fixed-asset, and assignment-route inspection. No OperativeIQ, D1, Gmail, or Google Sheets data was changed.'
+  };
+}
+
+async function previewTurnoutGear(env, requestedInstant = null) {
+  const token = await getAccessToken(env);
+  const at = requestedInstant || new Date();
+  const todayKey = easternDateKey(at);
+  const filter = encodeURIComponent("asset_Class eq 'Turnout Gear'");
+  const [managementRows, assetRows] = await Promise.all([
+    fetchAll(`/api/dynamic-views/vw_Asset_Management?$filter=${filter}`, token, 20000),
+    fetchAll(`/api/dynamic-views/vw_Assets_All?$filter=${filter}`, token, 20000)
+  ]);
+
+  const normalizedKey = value => String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const valueByNames = (source, names) => {
+    const wanted = new Set(names.map(normalizedKey));
+    for (const [key, value] of Object.entries(source || {})) {
+      if (wanted.has(normalizedKey(key))) return value;
+    }
+    return null;
+  };
+  const valueByPattern = (source, pattern) => {
+    for (const [key, value] of Object.entries(source || {})) {
+      if (pattern.test(normalizedKey(key))) return value;
+    }
+    return null;
+  };
+  const text = value => value === null || value === undefined ? '' : String(value).trim();
+  const joinKey = value => text(value).toUpperCase().replace(/\s+/g, ' ');
+  const active = value => {
+    if (value === true || value === 1) return true;
+    return /^(true|1|yes|active)$/i.test(text(value));
+  };
+  const dayDifference = (fromKey, toKey) => {
+    if (!fromKey || !toKey) return null;
+    const from = Date.parse(`${fromKey}T00:00:00Z`);
+    const to = Date.parse(`${toKey}T00:00:00Z`);
+    return Number.isFinite(from) && Number.isFinite(to)
+      ? Math.round((to - from) / 86400000)
+      : null;
+  };
+
+  const managementByTag = new Map();
+  for (const row of managementRows) {
+    const tag = joinKey(valueByNames(row, ['asset_Tag___Part_UPC', 'assetTagPartUpc']));
+    if (!tag) continue;
+    if (!managementByTag.has(tag)) managementByTag.set(tag, []);
+    managementByTag.get(tag).push(row);
+  }
+
+  const diagnostics = {
+    missingJoin: 0,
+    wrongAssetClass: 0,
+    wrongCategory: 0,
+    wrongSubcategory: 0,
+    inactivePart: 0,
+    blankLocation: 0,
+    supplyWarehouse: 0,
+    missingNextServiceDate: 0,
+    outsideThirtyDays: 0,
+    duplicateAssetTag: 0
+  };
+  const selected = new Map();
+
+  for (const asset of assetRows) {
+    const tag = joinKey(valueByNames(asset, ['asset_Tag_Number', 'assetTagNumber']));
+    if (!tag) {
+      diagnostics.missingJoin++;
+      continue;
+    }
+    const matchingManagementRows = managementByTag.get(tag) || [];
+    if (!matchingManagementRows.length) {
+      diagnostics.missingJoin++;
+      continue;
+    }
+
+    for (const management of matchingManagementRows) {
+      const assetClass = text(valueByNames(asset, ['asset_Class']) || valueByNames(management, ['asset_Class']));
+      const category = text(valueByNames(asset, ['category']) || valueByNames(management, ['category']));
+      const subcategory = text(valueByNames(asset, ['subcategory']) || valueByNames(management, ['subcategory']));
+      const location = text(valueByNames(asset, ['location']));
+      const partStatus = valueByNames(management, ['part_Status_Active']);
+      const nextValue = valueByNames(management, ['next_Preventative_Maintenace_Date'])
+        ?? valueByPattern(management, /^nextpreventativemainten.*date$/i);
+      const lastValue = valueByNames(management, ['preventative_Maintenace_Date'])
+        ?? valueByPattern(management, /^preventativemainten.*date$/i);
+      const daysValue = valueByNames(management, ['days_Until_Next_Preventative_Maintenace'])
+        ?? valueByPattern(management, /^daysuntilnextpreventativemainten/i);
+      const nextDate = dateKey(nextValue);
+      const lastDate = dateKey(lastValue);
+      const parsedDays = Number(String(daysValue ?? '').replace(/[^0-9.-]/g, ''));
+      const daysLeft = Number.isFinite(parsedDays) && text(daysValue)
+        ? parsedDays
+        : dayDifference(todayKey, nextDate);
+
+      if (normalize(assetClass) !== 'TURNOUT GEAR') {
+        diagnostics.wrongAssetClass++;
+        continue;
+      }
+      if (category && normalize(category) !== 'TURNOUT GEAR') {
+        diagnostics.wrongCategory++;
+        continue;
+      }
+      if (!/^(coat|pant|pants)$/i.test(subcategory)) {
+        diagnostics.wrongSubcategory++;
+        continue;
+      }
+      if (!active(partStatus)) {
+        diagnostics.inactivePart++;
+        continue;
+      }
+      if (!location) {
+        diagnostics.blankLocation++;
+        continue;
+      }
+      if (/supply\s*room|turnout\s*gear\s*supply\s*warehouse/i.test(location)) {
+        diagnostics.supplyWarehouse++;
+        continue;
+      }
+      if (!nextDate) {
+        diagnostics.missingNextServiceDate++;
+        continue;
+      }
+      if (!Number.isFinite(daysLeft) || daysLeft < 0 || daysLeft > 30) {
+        diagnostics.outsideThirtyDays++;
+        continue;
+      }
+
+      const row = {
+        issuedTo: location,
+        gearIdentifier: text(valueByNames(asset, ['asset_Tag_Number']))
+          || text(valueByNames(management, ['asset_Tag___Part_UPC'])),
+        lastServiceDate: lastDate,
+        nextServiceDate: nextDate,
+        daysLeft,
+        assetClass,
+        category,
+        subcategory,
+        partDescription: text(valueByNames(management, ['part_Description']))
+          || text(valueByNames(asset, ['asset_Description'])),
+        partStatusActive: active(partStatus),
+        locationStatus: text(valueByNames(asset, ['location_Status'])),
+        plannedDecommissionDate: dateKey(
+          valueByNames(management, ['planned_Decommission_Date'])
+          || valueByNames(asset, ['planned_Decommission_Date'])
+        )
+      };
+
+      if (selected.has(tag)) diagnostics.duplicateAssetTag++;
+      selected.set(tag, row);
+    }
+  }
+
+  const rows = [...selected.values()].sort((a, b) =>
+    a.issuedTo.localeCompare(b.issuedTo)
+    || a.gearIdentifier.localeCompare(b.gearIdentifier)
+  );
+  const assetTagSet = new Set(
+    assetRows.map(asset => joinKey(valueByNames(asset, ['asset_Tag_Number']))).filter(Boolean)
+  );
+
+  return {
+    success: true,
+    mode: 'READ_ONLY_TURNOUT_GEAR_PREVIEW',
+    timezone: 'America/New_York',
+    evaluatedAt: at.toISOString(),
+    reportDate: todayKey,
+    sourceCounts: {
+      assetManagement: managementRows.length,
+      assetsAll: assetRows.length,
+      joinedAssetTags: [...managementByTag.keys()].filter(key => assetTagSet.has(key)).length
+    },
+    filters: {
+      assetClass: 'Turnout Gear',
+      category: 'Turnout Gear when populated',
+      subcategories: ['Coat', 'Pant', 'Pants'],
+      partStatusActive: true,
+      daysUntilNextPreventativeMaintenance: { minimum: 0, maximum: 30 },
+      excludedLocationPattern: 'Supply Room / Turnout Gear Supply Warehouse'
+    },
+    recordCount: rows.length,
+    columns: ['Issued To', 'Gear Identifier', 'Last Service Date', 'Next Service Date', 'Days Left'],
+    rows,
+    sheetRows: rows.map(row => [
+      row.issuedTo,
+      row.gearIdentifier,
+      displayDate(row.lastServiceDate),
+      displayDate(row.nextServiceDate),
+      row.daysLeft
+    ]),
+    diagnostics,
+    note: 'Read-only dynamic-view join preview. No OperativeIQ, D1, Gmail, or Google Sheets data was changed.'
   };
 }
 
