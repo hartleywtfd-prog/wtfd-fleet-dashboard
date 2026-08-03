@@ -69,9 +69,16 @@ const LINKAGE_RESOURCE_CANDIDATES = [
   '/api/unit-call-signs-report'
 ];
 const INCOMPLETE_CHECK_PATTERN = /inspection|questionnaire|check.?list|check|completion|complete|front.?line|schedule/i;
+const DEFAULT_OPERATIONAL_CHECK_PATTERN = '(?:UTV.*Check\\s*List|Daily\\s+Engine|Admin\\s+Battalion\\s+Daily)';
+const SHEET_HEADERS = [
+  'Date', 'Location Name', 'Unit Number', 'In-Service Status',
+  'Questionnaire Name', 'Status'
+];
 
 let cachedToken = null;
 let cachedTokenExpiresAt = 0;
+let cachedGoogleToken = null;
+let cachedGoogleTokenExpiresAt = 0;
 
 export default {
   async fetch(request, env) {
@@ -108,6 +115,33 @@ export default {
           validatedDateParameter(url.searchParams.get('date')),
           url.searchParams.get('compact') === '1'
         ));
+      }
+
+      if (url.pathname === '/preview-current-incomplete-checks') {
+        return json(await previewCurrentIncompleteChecks(
+          env,
+          validatedInstantParameter(url.searchParams.get('at'))
+        ));
+      }
+
+      if (url.pathname === '/sync-incomplete-checks') {
+        if (!normalizeBoolean(env.INCOMPLETE_CHECKS_D1_ENABLED)) {
+          return json({
+            error: 'Incomplete-check D1 writes are disabled.',
+            requiredSetting: 'INCOMPLETE_CHECKS_D1_ENABLED=true'
+          }, 409);
+        }
+        return json(await syncIncompleteChecks(env));
+      }
+
+      if (url.pathname === '/export-incomplete-checks') {
+        if (!normalizeBoolean(env.GOOGLE_SHEETS_EXPORT_ENABLED)) {
+          return json({
+            error: 'Google Sheets export is disabled.',
+            requiredSetting: 'GOOGLE_SHEETS_EXPORT_ENABLED=true'
+          }, 409);
+        }
+        return json(await exportIncompleteChecksToSheets(env));
       }
 
       if (url.pathname === '/preview') {
@@ -147,6 +181,9 @@ export default {
           '/inspect-incomplete-checks',
           '/probe-incomplete-checks',
           '/preview-incomplete-checks?date=YYYY-MM-DD&compact=1',
+          '/preview-current-incomplete-checks?at=ISO_TIMESTAMP',
+          '/sync-incomplete-checks',
+          '/export-incomplete-checks',
           '/probe',
           '/probe-linkage',
           '/preview?path=/api/...',
@@ -159,13 +196,27 @@ export default {
     }
   },
 
-  async scheduled(_controller, env, ctx) {
-    if (!normalizeBoolean(env.OPERATIVE_APPLY_ENABLED)) {
-      console.log('OperativeIQ scheduled assignment sync skipped: OPERATIVE_APPLY_ENABLED is false.');
-      return;
+  async scheduled(controller, env, ctx) {
+    const tasks = [];
+    const cron = String(controller?.cron || '');
+
+    if (cron === '*/5 * * * *') {
+      if (normalizeBoolean(env.OPERATIVE_APPLY_ENABLED)) {
+        tasks.push(runScheduledAssignmentSync(env));
+      } else {
+        console.log('OperativeIQ scheduled assignment sync skipped: OPERATIVE_APPLY_ENABLED is false.');
+      }
     }
 
-    ctx.waitUntil(runScheduledAssignmentSync(env));
+    if (cron === '*/30 * * * *') {
+      if (normalizeBoolean(env.INCOMPLETE_CHECKS_D1_ENABLED)) {
+        tasks.push(runScheduledIncompleteCheckSync(env));
+      } else {
+        console.log('Incomplete-check sync skipped: INCOMPLETE_CHECKS_D1_ENABLED is false.');
+      }
+    }
+
+    if (tasks.length) ctx.waitUntil(Promise.all(tasks));
   }
 };
 
@@ -181,6 +232,26 @@ async function runScheduledAssignmentSync(env) {
   } catch (error) {
     console.error(JSON.stringify({
       event: 'operative_assignment_sync_failed',
+      error: errorMessage(error),
+      timestamp: new Date().toISOString()
+    }));
+    throw error;
+  }
+}
+
+async function runScheduledIncompleteCheckSync(env) {
+  try {
+    const result = await syncIncompleteChecks(env);
+    console.log(JSON.stringify({
+      event: 'operative_incomplete_checks_sync_completed',
+      shiftKey: result.shiftKey,
+      recordCount: result.recordCount,
+      sheetsExported: result.sheetsExported,
+      timestamp: result.timestamp
+    }));
+  } catch (error) {
+    console.error(JSON.stringify({
+      event: 'operative_incomplete_checks_sync_failed',
       error: errorMessage(error),
       timestamp: new Date().toISOString()
     }));
@@ -440,6 +511,313 @@ async function previewIncompleteChecks(env, requestedDate, compact = false) {
     ],
     note: 'Joined questionnaire states to daily shifts, units, statuses, and locations. No OperativeIQ or D1 data was changed.'
   };
+}
+
+async function previewCurrentIncompleteChecks(env, requestedInstant = null) {
+  const at = requestedInstant || new Date();
+  const shift = activeEasternShift(at);
+  const source = await previewIncompleteChecks(env, shift.shiftKey, false);
+  const operationalPattern = operationalCheckPattern(env);
+  const rows = (source.scheduledRows || [])
+    .filter(row => row.incomplete)
+    .filter(row => statusClass(row.inServiceStatus) === 'active')
+    .filter(row => operationalPattern.test(String(row.questionnaireName || '')))
+    .filter(row => assignedOnShiftDate(row, shift.shiftKey))
+    .map(row => ({
+      date: shift.shiftKey,
+      locationName: row.locationName,
+      unitNumber: row.unitNumber,
+      inServiceStatus: row.inServiceStatus,
+      questionnaireName: row.questionnaireName,
+      status: 'Not Completed',
+      stateId: row.stateId,
+      shiftId: row.shiftId,
+      truckId: row.truckId,
+      questionaryId: row.questionaryId,
+      currentState: row.currentState,
+      schedulerType: row.schedulerType,
+      schedulerSubType: row.schedulerSubType
+    }));
+
+  rows.sort((a, b) =>
+    String(a.locationName).localeCompare(String(b.locationName)) ||
+    String(a.unitNumber).localeCompare(String(b.unitNumber)) ||
+    String(a.questionnaireName).localeCompare(String(b.questionnaireName))
+  );
+
+  return {
+    success: true,
+    mode: 'READ_ONLY_CURRENT_SHIFT_OPERATIONAL_CHECKS',
+    timezone: 'America/New_York',
+    shiftChangeHour: 7,
+    evaluatedAt: at.toISOString(),
+    shiftKey: shift.shiftKey,
+    shiftStartLabel: `${shift.shiftKey} 07:00 America/New_York`,
+    nextShiftKey: shift.nextShiftKey,
+    nextShiftStartLabel: `${shift.nextShiftKey} 07:00 America/New_York`,
+    operationalPattern: operationalPattern.source,
+    sourceScheduledCount: source.scheduledRowCount,
+    recordCount: rows.length,
+    columns: SHEET_HEADERS,
+    rows,
+    sheetRows: rows.map(sheetRowValues),
+    diagnostics: source.diagnostics,
+    note: 'Current 07:00 shift only; completed, out-of-service, non-operational, and other-day checks are excluded. No D1 or Google Sheets data was changed.'
+  };
+}
+
+async function syncIncompleteChecks(env) {
+  if (!env.DB) throw new Error('D1 binding DB is not configured.');
+  if (!normalizeBoolean(env.INCOMPLETE_CHECKS_D1_ENABLED)) {
+    throw new Error('INCOMPLETE_CHECKS_D1_ENABLED must be true before D1 writes are allowed.');
+  }
+
+  await ensureIncompleteCheckTables(env);
+  const startedAt = new Date().toISOString();
+  const run = await env.DB.prepare(`
+    INSERT INTO operative_incomplete_check_runs(started_at,status,mode)
+    VALUES(?,'running','d1') RETURNING id
+  `).bind(startedAt).first();
+
+  try {
+    const preview = await previewCurrentIncompleteChecks(env);
+    const now = new Date().toISOString();
+    const writes = [env.DB.prepare('DELETE FROM operative_incomplete_checks')];
+
+    for (const row of preview.rows) {
+      writes.push(env.DB.prepare(`
+        INSERT INTO operative_incomplete_checks(
+          shift_key,state_id,shift_id,truck_id,questionary_id,report_date,
+          location_name,unit_number,in_service_status,questionnaire_name,
+          check_status,last_seen_at
+        ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)
+      `).bind(
+        preview.shiftKey,
+        row.stateId,
+        row.shiftId,
+        row.truckId,
+        row.questionaryId,
+        row.date,
+        row.locationName,
+        row.unitNumber,
+        row.inServiceStatus,
+        row.questionnaireName,
+        row.status,
+        now
+      ));
+    }
+
+    await env.DB.batch(writes);
+    let sheetResult = null;
+    if (normalizeBoolean(env.GOOGLE_SHEETS_EXPORT_ENABLED)) {
+      sheetResult = await exportIncompleteChecksToSheets(env, preview.shiftKey);
+    }
+
+    await env.DB.prepare(`
+      UPDATE operative_incomplete_check_runs
+      SET completed_at=?,status='success',shift_key=?,record_count=?,
+          sheets_exported=?,sheets_row_count=?
+      WHERE id=?
+    `).bind(
+      new Date().toISOString(),
+      preview.shiftKey,
+      preview.recordCount,
+      sheetResult ? 1 : 0,
+      sheetResult?.rowCount || 0,
+      run.id
+    ).run();
+
+    return {
+      success: true,
+      mode: 'D1_CURRENT_SHIFT_INCOMPLETE_CHECK_SYNC',
+      shiftKey: preview.shiftKey,
+      recordCount: preview.recordCount,
+      sheetsExported: Boolean(sheetResult),
+      sheetResult,
+      rows: preview.rows,
+      timestamp: now
+    };
+  } catch (error) {
+    await env.DB.prepare(`
+      UPDATE operative_incomplete_check_runs
+      SET completed_at=?,status='failed',error_message=?
+      WHERE id=?
+    `).bind(new Date().toISOString(), errorMessage(error), run.id).run();
+    throw error;
+  }
+}
+
+async function exportIncompleteChecksToSheets(env, requestedShiftKey = '') {
+  if (!env.DB) throw new Error('D1 binding DB is not configured.');
+  if (!normalizeBoolean(env.GOOGLE_SHEETS_EXPORT_ENABLED)) {
+    throw new Error('GOOGLE_SHEETS_EXPORT_ENABLED must be true before Google Sheets writes are allowed.');
+  }
+  validateGoogleSheetsConfiguration(env);
+
+  const shiftKey = requestedShiftKey || activeEasternShift(new Date()).shiftKey;
+  const result = await env.DB.prepare(`
+    SELECT report_date,location_name,unit_number,in_service_status,
+           questionnaire_name,check_status
+    FROM operative_incomplete_checks
+    WHERE shift_key=?
+    ORDER BY location_name,unit_number,questionnaire_name
+  `).bind(shiftKey).all();
+  const values = [
+    SHEET_HEADERS,
+    ...(result.results || []).map(row => [
+      displayDate(row.report_date),
+      row.location_name,
+      row.unit_number,
+      row.in_service_status,
+      row.questionnaire_name,
+      row.check_status
+    ])
+  ];
+  const token = await getGoogleAccessToken(env);
+  const spreadsheetId = String(env.GOOGLE_SHEETS_SPREADSHEET_ID).trim();
+  const tabName = String(env.GOOGLE_SHEETS_TAB_NAME || 'Incomplete Daily Checks').trim();
+  const range = `'${tabName.replace(/'/g, "''")}'!A:F`;
+  const encodedRange = encodeURIComponent(range);
+  const base = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}/values/${encodedRange}`;
+
+  const clearResponse = await fetch(`${base}:clear`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: '{}'
+  });
+  const clearText = await clearResponse.text();
+  if (!clearResponse.ok) {
+    throw new Error(`Google Sheets clear failed (${clearResponse.status}): ${safeApiError(clearText)}`);
+  }
+
+  const updateResponse = await fetch(`${base}?valueInputOption=RAW`, {
+    method: 'PUT',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ range, majorDimension: 'ROWS', values })
+  });
+  const updateText = await updateResponse.text();
+  if (!updateResponse.ok) {
+    throw new Error(`Google Sheets update failed (${updateResponse.status}): ${safeApiError(updateText)}`);
+  }
+
+  return {
+    success: true,
+    mode: 'GOOGLE_SHEETS_INCOMPLETE_CHECK_EXPORT',
+    shiftKey,
+    spreadsheetId,
+    tabName,
+    rowCount: Math.max(0, values.length - 1),
+    updatedRange: JSON.parse(updateText)?.updatedRange || range,
+    timestamp: new Date().toISOString()
+  };
+}
+
+async function ensureIncompleteCheckTables(env) {
+  await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS operative_incomplete_checks (
+      shift_key TEXT NOT NULL,
+      state_id INTEGER NOT NULL,
+      shift_id INTEGER,
+      truck_id INTEGER,
+      questionary_id INTEGER,
+      report_date TEXT NOT NULL,
+      location_name TEXT NOT NULL,
+      unit_number TEXT NOT NULL,
+      in_service_status TEXT NOT NULL,
+      questionnaire_name TEXT NOT NULL,
+      check_status TEXT NOT NULL,
+      last_seen_at TEXT NOT NULL,
+      PRIMARY KEY (shift_key,state_id)
+    )
+  `).run();
+  await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS operative_incomplete_check_runs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      started_at TEXT NOT NULL,
+      completed_at TEXT,
+      status TEXT NOT NULL,
+      mode TEXT NOT NULL,
+      shift_key TEXT,
+      record_count INTEGER NOT NULL DEFAULT 0,
+      sheets_exported INTEGER NOT NULL DEFAULT 0,
+      sheets_row_count INTEGER NOT NULL DEFAULT 0,
+      error_message TEXT
+    )
+  `).run();
+}
+
+function operationalCheckPattern(env) {
+  const source = String(env.OPERATIVE_OPERATIONAL_CHECK_PATTERN || DEFAULT_OPERATIONAL_CHECK_PATTERN).trim();
+  try {
+    return new RegExp(source, 'i');
+  } catch (error) {
+    throw new Error(`OPERATIVE_OPERATIONAL_CHECK_PATTERN is invalid: ${errorMessage(error)}`);
+  }
+}
+
+function assignedOnShiftDate(row, shiftKey) {
+  const schedulerType = Number(row.schedulerType);
+  if (schedulerType === 1) return true;
+  if (schedulerType === 2) {
+    const weekday = easternWeekdayFromDateKey(shiftKey);
+    return normalizeBoolean(row[weekday]);
+  }
+
+  // Operational questionnaires with an explicit daily name remain supported if
+  // OperativeIQ omits scheduler metadata. Other schedules are excluded rather
+  // than accidentally carrying them into the next 07:00 shift.
+  return !Number.isFinite(schedulerType) && /\bdaily\b/i.test(String(row.questionnaireName || ''));
+}
+
+function activeEasternShift(date) {
+  const parts = easternParts(date);
+  const localDateKey = `${parts.year}-${parts.month}-${parts.day}`;
+  const shiftKey = Number(parts.hour) < 7 ? addDaysToDateKey(localDateKey, -1) : localDateKey;
+  return { shiftKey, nextShiftKey: addDaysToDateKey(shiftKey, 1) };
+}
+
+function easternParts(date) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23'
+  }).formatToParts(date);
+  return Object.fromEntries(parts.map(item => [item.type, item.value]));
+}
+
+function addDaysToDateKey(value, days) {
+  const [year, month, day] = String(value).split('-').map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day + days));
+  return date.toISOString().slice(0, 10);
+}
+
+function easternWeekdayFromDateKey(value) {
+  const [year, month, day] = String(value).split('-').map(Number);
+  return ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'][
+    new Date(Date.UTC(year, month - 1, day, 12)).getUTCDay()
+  ];
+}
+
+function validatedInstantParameter(value) {
+  const text = String(value || '').trim();
+  if (!text) return null;
+  const instant = new Date(text);
+  if (!Number.isFinite(instant.getTime())) {
+    throw new Error('The at parameter must be a valid ISO timestamp.');
+  }
+  return instant;
+}
+
+function sheetRowValues(row) {
+  return [
+    displayDate(row.date), row.locationName, row.unitNumber,
+    row.inServiceStatus, row.questionnaireName, row.status
+  ];
+}
+
+function displayDate(value) {
+  const match = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return match ? `${Number(match[2])}/${Number(match[3])}/${match[1]}` : String(value || '');
 }
 
 async function loadSwagger(env, existingToken = null, requirePaths = true) {
@@ -1102,6 +1480,90 @@ async function previewAssignments(env, endpoint) {
     detectedSourceFields: Object.keys(sample),
     note: 'No D1 assignments were changed.'
   };
+}
+
+function validateGoogleSheetsConfiguration(env) {
+  for (const name of [
+    'GOOGLE_SERVICE_ACCOUNT_EMAIL',
+    'GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY',
+    'GOOGLE_SHEETS_SPREADSHEET_ID'
+  ]) {
+    if (!String(env[name] || '').trim()) throw new Error(`${name} is not configured.`);
+  }
+}
+
+async function getGoogleAccessToken(env) {
+  validateGoogleSheetsConfiguration(env);
+  const now = Date.now();
+  if (cachedGoogleToken && now < cachedGoogleTokenExpiresAt - 60000) {
+    return cachedGoogleToken;
+  }
+
+  const issuedAt = Math.floor(now / 1000);
+  const header = { alg: 'RS256', typ: 'JWT' };
+  const claim = {
+    iss: String(env.GOOGLE_SERVICE_ACCOUNT_EMAIL).trim(),
+    scope: 'https://www.googleapis.com/auth/spreadsheets',
+    aud: 'https://oauth2.googleapis.com/token',
+    iat: issuedAt,
+    exp: issuedAt + 3600
+  };
+  const unsigned = `${base64UrlJson(header)}.${base64UrlJson(claim)}`;
+  const privateKey = await crypto.subtle.importKey(
+    'pkcs8',
+    pemPrivateKeyBytes(env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY),
+    { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
+    false,
+    ['sign']
+  );
+  const signature = await crypto.subtle.sign(
+    'RSASSA-PKCS1-v1_5',
+    privateKey,
+    new TextEncoder().encode(unsigned)
+  );
+  const assertion = `${unsigned}.${base64UrlBytes(new Uint8Array(signature))}`;
+  const response = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' },
+    body: new URLSearchParams({
+      grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+      assertion
+    })
+  });
+  const text = await response.text();
+  if (!response.ok) {
+    throw new Error(`Google authorization failed (${response.status}): ${safeApiError(text)}`);
+  }
+  const payload = JSON.parse(text);
+  if (!payload.access_token) throw new Error('Google authorization response did not include access_token.');
+  cachedGoogleToken = payload.access_token;
+  cachedGoogleTokenExpiresAt = now + Math.max(60, Number(payload.expires_in || 3600)) * 1000;
+  return cachedGoogleToken;
+}
+
+function base64UrlJson(value) {
+  return base64UrlBytes(new TextEncoder().encode(JSON.stringify(value)));
+}
+
+function base64UrlBytes(bytes) {
+  let binary = '';
+  for (let index = 0; index < bytes.length; index += 1) {
+    binary += String.fromCharCode(bytes[index]);
+  }
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+}
+
+function pemPrivateKeyBytes(value) {
+  const pem = String(value || '').replace(/\\n/g, '\n').trim();
+  const base64 = pem
+    .replace(/-----BEGIN PRIVATE KEY-----/g, '')
+    .replace(/-----END PRIVATE KEY-----/g, '')
+    .replace(/\s+/g, '');
+  if (!base64) throw new Error('GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY is invalid.');
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+  return bytes.buffer;
 }
 
 async function getAccessToken(env) {

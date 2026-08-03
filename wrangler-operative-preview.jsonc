@@ -3,7 +3,7 @@
   "main": "workers/operative-preview.js",
   "compatibility_date": "2026-07-31",
   "triggers": {
-    "crons": ["*/5 * * * *"]
+    "crons": ["*/5 * * * *", "*/30 * * * *"]
   },
   "d1_databases": [
     {
