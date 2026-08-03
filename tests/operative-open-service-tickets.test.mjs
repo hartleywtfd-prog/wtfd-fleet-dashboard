@@ -27,7 +27,8 @@ const tickets = [
     ticketName: 'Completed repair',
     unitName: 'Vehicle F129',
     description: 'Repair finished.',
-    status: 'Closed'
+    status: 6,
+    isClosed: true
   }
 ];
 
@@ -36,10 +37,24 @@ globalThis.fetch = async input => {
   if (url.hostname === 'auth.operativeiqfrontline.com') {
     return Response.json({ access_token: 'operative-test-token', expires_in: 3600 });
   }
+  if (url.pathname.endsWith('/swagger/v1/swagger.json')) {
+    return Response.json({
+      components: {
+        schemas: {
+          EmsDeskTicket: {
+            properties: {
+              id: {}, createdTime: {}, itemId: {}, ticketName: {},
+              truckId: {}, ticketDescription: {}, status: {}, isClosed: {}
+            }
+          }
+        }
+      }
+    });
+  }
   if (/\/swagger|\/openapi\.json$/.test(url.pathname)) {
     return new Response('not found', { status: 404 });
   }
-  if (url.pathname.endsWith('/api/service-desk-tickets')) return Response.json(tickets);
+  if (url.pathname.endsWith('/api/desk-tickets')) return Response.json(tickets);
   if (url.hostname === 'client.operativeiqfrontline.com' && url.pathname.startsWith('/FrontlineV_live/api/')) {
     return new Response(JSON.stringify({ error: 'not found' }), {
       status: 404,
@@ -66,7 +81,7 @@ const response = await worker.fetch(new Request(
 ), env);
 assert.equal(response.status, 200);
 const preview = await response.json();
-assert.equal(preview.endpoint, '/api/service-desk-tickets');
+assert.equal(preview.endpoint, '/api/desk-tickets');
 assert.equal(preview.endpointSource, 'SWAGGER_AUTO_DISCOVERY');
 assert.equal(preview.recordCount, 2);
 assert.deepEqual(preview.headers, [

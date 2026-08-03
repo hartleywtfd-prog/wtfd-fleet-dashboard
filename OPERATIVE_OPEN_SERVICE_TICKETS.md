@@ -45,9 +45,11 @@ Use the `recommendedResource.path` value as the Worker variable:
 OPERATIVE_SERVICE_TICKETS_PATH=/api/VERIFIED_RESOURCE
 ```
 
-The probe does not require Swagger. If OperativeIQ returns 404 for every
-Swagger location, the Worker continues with its bounded list of known Service
-Desk resource paths and reports the Swagger failure as diagnostic information.
+The probe accepts schema-only Swagger. It generates resource candidates from
+ticket model names even when the document does not publish API paths. If no
+Swagger document is available, the Worker continues with its bounded list of
+known Service Desk resource paths and reports the failure as diagnostic
+information.
 
 ## 3. Compare the read-only preview
 

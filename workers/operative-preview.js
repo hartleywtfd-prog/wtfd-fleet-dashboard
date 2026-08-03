@@ -71,6 +71,10 @@ const LINKAGE_RESOURCE_CANDIDATES = [
 const INCOMPLETE_CHECK_PATTERN = /inspection|questionnaire|check.?list|check|completion|complete|front.?line|schedule/i;
 const SERVICE_TICKET_PATTERN = /service.?desk|service.?ticket|support.?ticket|help.?desk|ticket|support.?request|repair.?request/i;
 const SERVICE_TICKET_RESOURCE_CANDIDATES = [
+  '/api/desk-tickets',
+  '/api/desktickets',
+  '/api/ems-desk-tickets',
+  '/api/emsdesktickets',
   '/api/service-tickets',
   '/api/servicetickets',
   '/api/service-desk-tickets',
@@ -428,7 +432,7 @@ async function probeOpenServiceTickets(env) {
   let swaggerPath = '';
   let swaggerError = '';
   try {
-    const loaded = await loadSwagger(env, token);
+    const loaded = await loadSwagger(env, token, false);
     specification = loaded.specification;
     swaggerPath = loaded.swaggerPath;
   } catch (error) {
@@ -472,7 +476,7 @@ async function previewOpenServiceTickets(env) {
 
   for (const source of sourceRecords) {
     const row = normalizeServiceTicket(source);
-    if (!isOpenServiceTicket(row.status)) continue;
+    if (row.isClosed || !isOpenServiceTicket(row.status)) continue;
     const key = row.ticketId || [
       row.created, row.assetDescription, row.ticketName,
       row.unitName, row.description
@@ -484,7 +488,7 @@ async function previewOpenServiceTickets(env) {
     a.createdMillis - b.createdMillis ||
     a.ticketName.localeCompare(b.ticketName) ||
     a.unitName.localeCompare(b.unitName)
-  ).map(({ createdMillis, ...row }) => row);
+  ).map(({ createdMillis, isClosed, ...row }) => row);
 
   return {
     success: true,
@@ -566,6 +570,7 @@ function normalizeServiceTicket(source) {
     'statusName', 'ticketStatusName', 'serviceTicketStatusName',
     'ticketStatus', 'serviceTicketStatus', 'currentStatus', 'status.name', 'status'
   ]);
+  const isClosed = serviceTicketValue(fields, ['isClosed', 'closed']);
   return {
     ticketId: serviceTicketValue(fields, ['ticketId', 'serviceTicketId', 'serviceDeskTicketId', 'id']),
     created: serviceTicketDisplayDate(createdValue),
@@ -586,6 +591,7 @@ function normalizeServiceTicket(source) {
       'requestDescription', 'description', 'details'
     ]),
     status: status || 'Open',
+    isClosed: normalizeBoolean(isClosed),
     createdMillis: serviceTicketDateMillis(createdValue)
   };
 }
