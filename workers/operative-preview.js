@@ -138,6 +138,13 @@ export default {
         return json(await probeIncompleteAssignmentSources(env));
       }
 
+      if (url.pathname === '/probe-operational-question-linkage') {
+        return json(await probeOperationalQuestionLinkage(
+          env,
+          validatedInstantParameter(url.searchParams.get('at'))
+        ));
+      }
+
       if (url.pathname === '/preview-incomplete-checks') {
         return json(await previewIncompleteChecks(
           env,
@@ -210,6 +217,7 @@ export default {
           '/inspect-incomplete-checks',
           '/probe-incomplete-checks',
           '/probe-incomplete-assignment-sources',
+          '/probe-operational-question-linkage?at=ISO_TIMESTAMP',
           '/preview-incomplete-checks?date=YYYY-MM-DD&compact=1',
           '/preview-current-incomplete-checks?at=ISO_TIMESTAMP',
           '/sync-incomplete-checks',
@@ -524,6 +532,145 @@ function modelApiResourceCandidates(modelName) {
     variants.add(value.replace(/questionaries/g, 'questionnaires'));
   }
   return [...variants].map(value => `/api/${value}`);
+}
+
+async function probeOperationalQuestionLinkage(env, requestedInstant = null) {
+  const token = await getAccessToken(env);
+  const at = requestedInstant || new Date();
+  const shift = activeEasternShift(at);
+  const [units, questions, questionaries, unitStatuses, unitLocations] = await Promise.all([
+    fetchAll('/api/units', token, 500),
+    fetchAll('/api/vh-questions?$orderby=id', token, 10000),
+    fetchAll('/api/vh-questionaries?$orderby=id', token, 1000),
+    fetchAll('/api/unit-statuses', token, 500),
+    fetchAll('/api/unit-locations', token, 500)
+  ]);
+
+  const operationalPattern = operationalCheckPattern(env);
+  const dueQuestionaries = questionaries
+    .map(item => ({
+      ...item,
+      questionnaireName: item.questionaryName || item.questionnaireName || '',
+      tuesday: item.tuesday ?? item.tusday ?? false
+    }))
+    .filter(item => item.status === undefined || normalizeBoolean(item.status))
+    .filter(item => normalizeBoolean(item.isScheduled))
+    .filter(item => operationalPattern.test(item.questionnaireName))
+    .filter(item => assignedOnShiftDate(item, shift.shiftKey));
+  const dueById = new Map(dueQuestionaries.map(item => [String(item.id), item]));
+
+  const statusesById = new Map(unitStatuses.map(item => [String(item.id), item]));
+  const locationsById = new Map();
+  for (const location of unitLocations) {
+    for (const key of [location.id, location.roomId]) {
+      if (key !== null && key !== undefined && key !== '') {
+        locationsById.set(String(key), location);
+      }
+    }
+  }
+  const unitsById = new Map(units.map(item => [String(item.id), item]));
+  const unitsByTypeId = new Map();
+  for (const unit of units) {
+    const key = String(unit.typeId ?? '');
+    if (!key) continue;
+    if (!unitsByTypeId.has(key)) unitsByTypeId.set(key, []);
+    unitsByTypeId.get(key).push(unit);
+  }
+
+  const links = new Map();
+  for (const question of questions) {
+    if (question.status !== undefined && !normalizeBoolean(question.status)) continue;
+    const questionary = dueById.get(String(question.questionariesId));
+    const linkValue = question.truckId;
+    if (!questionary || linkValue === null || linkValue === undefined || linkValue === '') continue;
+    const key = `${linkValue}|${questionary.id}`;
+    const current = links.get(key) || {
+      linkValue,
+      questionaryId: questionary.id,
+      questionnaireName: questionary.questionnaireName,
+      questionCount: 0
+    };
+    current.questionCount += 1;
+    links.set(key, current);
+  }
+
+  const directUnitAssignments = [];
+  const unitTypeAssignments = [];
+  let unmatchedLinkCount = 0;
+  for (const link of links.values()) {
+    const direct = unitsById.get(String(link.linkValue));
+    if (direct) directUnitAssignments.push(linkageAssignment(direct, link, statusesById, locationsById));
+
+    const typeUnits = unitsByTypeId.get(String(link.linkValue)) || [];
+    for (const unit of typeUnits) {
+      unitTypeAssignments.push(linkageAssignment(unit, link, statusesById, locationsById));
+    }
+    if (!direct && !typeUnits.length) unmatchedLinkCount += 1;
+  }
+
+  const activeOnly = rows => rows
+    .filter(item => statusClass(item.inServiceStatus) === 'active')
+    .sort((a, b) =>
+      String(a.locationName).localeCompare(String(b.locationName)) ||
+      String(a.unitNumber).localeCompare(String(b.unitNumber)) ||
+      String(a.questionnaireName).localeCompare(String(b.questionnaireName))
+    );
+  const directActive = activeOnly(directUnitAssignments);
+  const typeActive = activeOnly(unitTypeAssignments);
+
+  return {
+    success: true,
+    mode: 'READ_ONLY_OPERATIONAL_QUESTION_LINKAGE_PROBE',
+    evaluatedAt: at.toISOString(),
+    shiftKey: shift.shiftKey,
+    operationalPattern: operationalPattern.source,
+    sourceCounts: {
+      units: units.length,
+      questions: questions.length,
+      questionaries: questionaries.length,
+      dueOperationalQuestionaries: dueQuestionaries.length,
+      uniqueQuestionLinks: links.size
+    },
+    dueOperationalQuestionaries: dueQuestionaries.map(item => ({
+      id: item.id,
+      questionnaireName: item.questionnaireName,
+      schedulerType: item.schedulerType
+    })),
+    hypotheses: {
+      directUnitId: {
+        join: 'vh-questions.truckId = units.id',
+        activeAssignmentCount: directActive.length,
+        assignments: directActive
+      },
+      unitTypeId: {
+        join: 'vh-questions.truckId = units.typeId',
+        activeAssignmentCount: typeActive.length,
+        assignments: typeActive
+      }
+    },
+    unmatchedLinkCount,
+    note: 'Read-only linkage comparison. No OperativeIQ, D1, or Google Sheets data was changed.'
+  };
+}
+
+function linkageAssignment(unit, link, statusesById, locationsById) {
+  const locationKey = [unit.locationId, unit.roomId]
+    .find(value => value !== null && value !== undefined && value !== '');
+  const location = locationsById.get(String(locationKey ?? '')) || {};
+  const inServiceStatus =
+    statusesById.get(String(unit.truckStatusId))?.truckStatusName ||
+    unit.fleetStatus || unit.status || '';
+  return {
+    linkValue: link.linkValue,
+    unitId: unit.id,
+    unitTypeId: unit.typeId,
+    locationName: location.locationName || location.locationDescription || '',
+    unitNumber: unit.truckNumber || `Truck ID ${unit.id}`,
+    inServiceStatus,
+    questionaryId: link.questionaryId,
+    questionnaireName: link.questionnaireName,
+    questionCount: link.questionCount
+  };
 }
 
 async function previewIncompleteChecks(env, requestedDate, compact = false) {
