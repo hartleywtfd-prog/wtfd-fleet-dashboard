@@ -97,6 +97,8 @@ The existing 30-minute cron will then clear and replace columns A:F on the
 ## Routes
 
 - `/probe-open-service-tickets` - GET-only resource discovery
+- `/probe-service-ticket-linkage?ticketId=331` - GET-only ticket status,
+  detail, and linked-item discovery for a known ticket
 - `/open-service-tickets` - normalized read-only open-ticket data
 - `/preview-open-service-tickets` - alias of the read-only route
 - `/export-open-service-tickets` - separately guarded Google Sheets export

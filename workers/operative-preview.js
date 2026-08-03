@@ -152,6 +152,13 @@ export default {
         return json(await probeOpenServiceTickets(env));
       }
 
+      if (url.pathname === '/probe-service-ticket-linkage') {
+        return json(await probeServiceTicketLinkage(
+          env,
+          validatedPositiveIntegerParameter(url.searchParams.get('ticketId'), 'ticketId')
+        ));
+      }
+
       if (
         url.pathname === '/open-service-tickets' ||
         url.pathname === '/preview-open-service-tickets'
@@ -280,6 +287,7 @@ export default {
           '/inspect',
           '/inspect-models?q=call',
           '/probe-open-service-tickets',
+          '/probe-service-ticket-linkage?ticketId=331',
           '/open-service-tickets',
           '/preview-open-service-tickets',
           '/export-open-service-tickets',
@@ -466,6 +474,96 @@ async function probeOpenServiceTickets(env) {
     results: ranked,
     note: 'GET-only probes with $top=1. Swagger is optional. No OperativeIQ, D1, Gmail, or Google Sheets data was changed.'
   };
+}
+
+async function probeServiceTicketLinkage(env, ticketId) {
+  const token = await getAccessToken(env);
+  const encodedId = encodeURIComponent(String(ticketId));
+  const candidates = [
+    '/api/service-desk-ticket-statuses',
+    '/api/desk-ticket-statuses',
+    '/api/desk-ticket-status',
+    '/api/desk-ticket-status-meanings',
+    `/api/service-desk-tickets/${encodedId}`,
+    `/api/service-desk-tickets/${encodedId}/items`,
+    `/api/service-desk-ticket/${encodedId}`,
+    `/api/desk-tickets/${encodedId}`,
+    `/api/service-desk-ticket-items?ticketId=${encodedId}`,
+    `/api/desk-ticket-items?ticketId=${encodedId}`,
+    `/api/desk-ticket-items?$filter=${encodeURIComponent(`ticketId eq ${ticketId}`)}`
+  ];
+  const results = [];
+  for (let offset = 0; offset < candidates.length; offset += 6) {
+    const batch = candidates.slice(offset, offset + 6);
+    results.push(...await Promise.all(batch.map(path => probeServiceTicketLinkagePath(path, token))));
+  }
+
+  return {
+    success: true,
+    mode: 'READ_ONLY_SERVICE_TICKET_LINKAGE_PROBE',
+    ticketId,
+    availableResources: results.filter(result => result.status !== 404),
+    results,
+    note: 'GET-only ticket detail, item-link, and status probes. No OperativeIQ, D1, Gmail, or Google Sheets data was changed.'
+  };
+}
+
+async function probeServiceTicketLinkagePath(path, token) {
+  const url = new URL(RESOURCE_ROOT + path);
+  if (!url.pathname.match(/\/\d+(?:\/|$)/)) {
+    if (!url.searchParams.has('$top')) url.searchParams.set('$top', '20');
+    if (!url.searchParams.has('$skip')) url.searchParams.set('$skip', '0');
+  }
+  const response = await fetch(url, {
+    headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' }
+  });
+  const text = await response.text();
+  const result = {
+    path,
+    status: response.status,
+    overallCount: numericHeader(response.headers.get('X-Overall-Count'))
+  };
+  if (!response.ok) {
+    result.error = safeApiError(text);
+    return result;
+  }
+  try {
+    const payload = JSON.parse(text);
+    const records = Array.isArray(payload)
+      ? payload
+      : ['value', 'data', 'results', 'items'].find(key => Array.isArray(payload?.[key]))
+        ? arrayPayload(payload)
+        : [payload];
+    result.returnedCount = records.length;
+    result.fields = Object.keys(records[0] || {});
+    result.sample = summarizeServiceTicketLinkageValue(records[0] || {}, '', 0);
+  } catch (error) {
+    result.parseError = errorMessage(error);
+  }
+  return result;
+}
+
+function summarizeServiceTicketLinkageValue(value, key, depth) {
+  if (value === null || value === undefined) return value;
+  if (/description|body|email|comment|response/i.test(key)) return '[REDACTED_TEXT]';
+  if (Array.isArray(value)) {
+    if (value.every(item => ['string', 'number', 'boolean'].includes(typeof item))) {
+      return value.slice(0, 50);
+    }
+    return value.slice(0, 5).map(item => summarizeServiceTicketLinkageValue(item, key, depth + 1));
+  }
+  if (typeof value !== 'object') return value;
+  if (depth >= 2) return `[Object fields: ${Object.keys(value).join(', ')}]`;
+  const result = {};
+  for (const [childKey, childValue] of Object.entries(value)) {
+    if (
+      depth === 0 ||
+      /id|status|closed|name|number|item|truck|unit|location|facility|category/i.test(childKey)
+    ) {
+      result[childKey] = summarizeServiceTicketLinkageValue(childValue, childKey, depth + 1);
+    }
+  }
+  return result;
 }
 
 async function previewOpenServiceTickets(env) {
@@ -2161,6 +2259,14 @@ function validatedDateParameter(value) {
     throw new Error('The date parameter must use YYYY-MM-DD.');
   }
   return text;
+}
+
+function validatedPositiveIntegerParameter(value, name) {
+  const text = String(value || '').trim();
+  if (!/^\d+$/.test(text) || Number(text) <= 0) {
+    throw new Error(`${name} must be a positive integer.`);
+  }
+  return Number(text);
 }
 
 function easternDateKey(date) {

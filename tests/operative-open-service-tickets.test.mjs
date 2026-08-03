@@ -54,6 +54,18 @@ globalThis.fetch = async input => {
   if (/\/swagger|\/openapi\.json$/.test(url.pathname)) {
     return new Response('not found', { status: 404 });
   }
+  if (url.pathname.endsWith('/api/desk-ticket-statuses')) {
+    return Response.json([
+      { id: 2, statusName: 'Open' },
+      { id: 7, statusName: 'Pending' }
+    ]);
+  }
+  if (url.pathname.endsWith('/api/service-desk-tickets/331')) {
+    return Response.json({
+      emsDeskTicket: { id: 331, status: 2, isClosed: false },
+      itemIds: [501, 502]
+    });
+  }
   if (url.pathname.endsWith('/api/desk-tickets')) return Response.json(tickets);
   if (url.hostname === 'client.operativeiqfrontline.com' && url.pathname.startsWith('/FrontlineV_live/api/')) {
     return new Response(JSON.stringify({ error: 'not found' }), {
@@ -99,5 +111,21 @@ const blockedExport = await worker.fetch(new Request(
   { headers: { Authorization: 'Bearer admin-test-token' } }
 ), env);
 assert.equal(blockedExport.status, 409);
+
+const linkageResponse = await worker.fetch(new Request(
+  'https://worker.test/probe-service-ticket-linkage?ticketId=331',
+  { headers: { Authorization: 'Bearer admin-test-token' } }
+), env);
+assert.equal(linkageResponse.status, 200);
+const linkage = await linkageResponse.json();
+assert.equal(linkage.ticketId, 331);
+assert.deepEqual(
+  linkage.availableResources.find(item => item.path === '/api/service-desk-tickets/331')?.sample?.itemIds,
+  [501, 502]
+);
+assert.equal(
+  linkage.availableResources.find(item => item.path === '/api/desk-ticket-statuses')?.sample?.statusName,
+  'Open'
+);
 
 console.log('operative-open-service-tickets tests passed');
