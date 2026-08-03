@@ -570,11 +570,18 @@ async function probeOperationalQuestionLinkage(env, requestedInstant = null) {
   }
   const unitsById = new Map(units.map(item => [String(item.id), item]));
   const unitsByTypeId = new Map();
+  const unitsByFleetUnitTypeId = new Map();
   for (const unit of units) {
     const key = String(unit.typeId ?? '');
-    if (!key) continue;
-    if (!unitsByTypeId.has(key)) unitsByTypeId.set(key, []);
-    unitsByTypeId.get(key).push(unit);
+    if (key) {
+      if (!unitsByTypeId.has(key)) unitsByTypeId.set(key, []);
+      unitsByTypeId.get(key).push(unit);
+    }
+    const fleetKey = String(unit.fleetUnitTypeId ?? '');
+    if (fleetKey) {
+      if (!unitsByFleetUnitTypeId.has(fleetKey)) unitsByFleetUnitTypeId.set(fleetKey, []);
+      unitsByFleetUnitTypeId.get(fleetKey).push(unit);
+    }
   }
 
   const links = new Map();
@@ -596,6 +603,8 @@ async function probeOperationalQuestionLinkage(env, requestedInstant = null) {
 
   const directUnitAssignments = [];
   const unitTypeAssignments = [];
+  const fleetUnitTypeAssignments = [];
+  const unmatchedLinks = [];
   let unmatchedLinkCount = 0;
   for (const link of links.values()) {
     const direct = unitsById.get(String(link.linkValue));
@@ -605,7 +614,14 @@ async function probeOperationalQuestionLinkage(env, requestedInstant = null) {
     for (const unit of typeUnits) {
       unitTypeAssignments.push(linkageAssignment(unit, link, statusesById, locationsById));
     }
-    if (!direct && !typeUnits.length) unmatchedLinkCount += 1;
+    const fleetTypeUnits = unitsByFleetUnitTypeId.get(String(link.linkValue)) || [];
+    for (const unit of fleetTypeUnits) {
+      fleetUnitTypeAssignments.push(linkageAssignment(unit, link, statusesById, locationsById));
+    }
+    if (!direct && !typeUnits.length && !fleetTypeUnits.length) {
+      unmatchedLinkCount += 1;
+      unmatchedLinks.push(link);
+    }
   }
 
   const activeOnly = rows => rows
@@ -617,6 +633,7 @@ async function probeOperationalQuestionLinkage(env, requestedInstant = null) {
     );
   const directActive = activeOnly(directUnitAssignments);
   const typeActive = activeOnly(unitTypeAssignments);
+  const fleetTypeActive = activeOnly(fleetUnitTypeAssignments);
 
   return {
     success: true,
@@ -646,11 +663,26 @@ async function probeOperationalQuestionLinkage(env, requestedInstant = null) {
         join: 'vh-questions.truckId = units.typeId',
         activeAssignmentCount: typeActive.length,
         assignments: typeActive
+      },
+      fleetUnitTypeId: {
+        join: 'vh-questions.truckId = units.fleetUnitTypeId',
+        activeAssignmentCount: fleetTypeActive.length,
+        assignments: fleetTypeActive
       }
     },
     unmatchedLinkCount,
+    unmatchedLinks,
+    unitIdentifierValues: {
+      ids: [...new Set(units.map(item => item.id))].sort(numericSort),
+      typeIds: [...new Set(units.map(item => item.typeId).filter(value => value !== null && value !== undefined))].sort(numericSort),
+      fleetUnitTypeIds: [...new Set(units.map(item => item.fleetUnitTypeId).filter(value => value !== null && value !== undefined))].sort(numericSort)
+    },
     note: 'Read-only linkage comparison. No OperativeIQ, D1, or Google Sheets data was changed.'
   };
+}
+
+function numericSort(a, b) {
+  return Number(a) - Number(b);
 }
 
 function linkageAssignment(unit, link, statusesById, locationsById) {
