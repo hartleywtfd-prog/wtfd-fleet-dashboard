@@ -1434,8 +1434,11 @@ async function previewPhysicalDue(env, requestedInstant = null) {
         ?? valueByPattern(management, /^nextpreventativemainten.*date$/i);
       const lastValue = valueByNames(management, ['preventative_Maintenace_Date', 'preventativeMaintenanceDate'])
         ?? valueByPattern(management, /^preventativemainten.*date$/i);
-      const dueDate = dynamicViewDateKey(dueValue);
-      const lastPhysicalDate = dynamicViewDateKey(lastValue);
+      // The physical report stores month-based calendar dates at midnight UTC.
+      // Preserve the ISO date portion so 2026-01-01T00:00:00Z remains 1/1/2026
+      // instead of shifting to 12/31/2025 in America/New_York.
+      const dueDate = dateKey(dueValue);
+      const lastPhysicalDate = dateKey(lastValue);
 
       if (normalize(assetClass) !== 'STAFF') {
         diagnostics.wrongAssetClass++;

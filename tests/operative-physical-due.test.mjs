@@ -9,7 +9,7 @@ const managementRows = [
     catalog_Part: false,
     asset_Class: 'Staff',
     preventative_Maintenace_Date: '2025-01-01T05:00:00Z',
-    next_Preventative_Maintenace_Date: '2026-01-01T05:00:00Z'
+    next_Preventative_Maintenace_Date: '2026-01-01T00:00:00Z'
   },
   {
     serial___Part_Number: 'EMP-002',
