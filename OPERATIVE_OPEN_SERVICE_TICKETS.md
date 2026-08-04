@@ -28,10 +28,10 @@ matched the emailed report.
 
 ## 1. Deploy the Worker
 
-`wrangler-operative-preview.jsonc` sets the verified Service Desk path and Open
-status name directly, keeps Sheets export disabled, and sets `keep_vars: true`
-so GitHub/Wrangler deployments preserve other variables configured in the
-Cloudflare dashboard.
+`wrangler-operative-preview.jsonc` sets the verified Service Desk path, Open
+status name, destination spreadsheet, tab name, and export flag directly. It
+also sets `keep_vars: true` so GitHub/Wrangler deployments preserve other
+variables configured in the Cloudflare dashboard.
 
 ```bash
 npx wrangler deploy --config wrangler-operative-preview.jsonc
@@ -73,7 +73,7 @@ Share the destination spreadsheet with the existing
 ```text
 OPEN_SERVICE_TICKETS_SPREADSHEET_ID=1tiOyFEbDc-a0oQ2cVNPjK-7kE9QFYZrpm72vew2Ee4o
 OPEN_SERVICE_TICKETS_TAB_NAME=Open Service Tickets
-OPEN_SERVICE_TICKETS_SHEETS_EXPORT_ENABLED=false
+OPEN_SERVICE_TICKETS_SHEETS_EXPORT_ENABLED=true
 ```
 
 The existing `GOOGLE_SERVICE_ACCOUNT_EMAIL` and
