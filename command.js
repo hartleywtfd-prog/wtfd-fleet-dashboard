@@ -197,7 +197,8 @@
   }
 
   function formatClock(value, includeDate = false) {
-    const date = new Date(value);
+    const parsed = parseTimestamp(value);
+    const date = new Date(Number.isFinite(parsed) ? parsed : value);
     if (Number.isNaN(date.getTime())) return '';
     const options = includeDate
       ? { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York' }
@@ -567,5 +568,12 @@
     if (document.visibilityState === 'visible') pollActive911();
   });
 
-  window.WTFD_COMMAND_TEST = { parseUnits, incidentKey, modeForAlert, extractLinks };
+  window.WTFD_COMMAND_TEST = {
+    parseUnits,
+    incidentKey,
+    modeForAlert,
+    extractLinks,
+    parseTimestamp,
+    formatClock
+  };
 })();

@@ -79,5 +79,10 @@ assert.deepEqual(
   Array.from(helpers.extractLinks({ details: 'Preplan https://example.com/a.pdf. Map https://example.com/map' })),
   ['https://example.com/a.pdf', 'https://example.com/map']
 );
+assert.equal(
+  helpers.parseTimestamp('2026-08-04 14:26:00'),
+  Date.UTC(2026, 7, 4, 14, 26, 0)
+);
+assert.match(helpers.formatClock('2026-08-04 14:26:00', true), /10:26 AM/);
 
 console.log('Incident command helper tests passed.');

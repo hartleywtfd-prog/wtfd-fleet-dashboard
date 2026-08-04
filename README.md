@@ -8,7 +8,10 @@
   operations away from a WTFD facility.
 - Applies the same protection to the standard and kiosk dashboards.
 
-# Incident Command Phase One (0.1.1)
+# Incident Command Phase One (0.1.2)
+
+- Corrects unzoned Active911 UTC timestamps before formatting the command-board
+  Received time in America/New_York.
 
 - Fixes the empty-board view so the new-dispatch notification remains hidden
   until a different dispatch is actually received during an active command event.
