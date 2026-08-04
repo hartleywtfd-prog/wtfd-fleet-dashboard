@@ -485,6 +485,7 @@ async function probeServiceTicketLinkage(env, ticketId) {
     '/api/desk-ticket-status',
     '/api/desk-ticket-status-meanings',
     `/api/service-desk-tickets/${encodedId}`,
+    `/api/service-desk-tickets/${encodedId}/assigned-items`,
     `/api/service-desk-tickets/${encodedId}/items`,
     `/api/service-desk-ticket/${encodedId}`,
     `/api/desk-tickets/${encodedId}`,
@@ -504,7 +505,7 @@ async function probeServiceTicketLinkage(env, ticketId) {
     ticketId,
     availableResources: results.filter(result => result.status !== 404),
     results,
-    note: 'GET-only ticket detail, item-link, and status probes. No OperativeIQ, D1, Gmail, or Google Sheets data was changed.'
+    note: 'GET-only ticket detail, assigned-item, item-link, and status probes. No OperativeIQ, D1, Gmail, or Google Sheets data was changed.'
   };
 }
 
