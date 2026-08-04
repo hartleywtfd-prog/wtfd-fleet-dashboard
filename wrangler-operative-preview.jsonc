@@ -3,6 +3,11 @@
   "main": "workers/operative-preview.js",
   "compatibility_date": "2026-07-31",
   "keep_vars": true,
+  "vars": {
+    "OPERATIVE_SERVICE_TICKETS_PATH": "/api/service-desk-tickets",
+    "OPEN_SERVICE_TICKET_STATUS_NAME": "Open",
+    "OPEN_SERVICE_TICKETS_SHEETS_EXPORT_ENABLED": "false"
+  },
   "triggers": {
     "crons": ["*/5 * * * *", "*/30 * * * *"]
   },

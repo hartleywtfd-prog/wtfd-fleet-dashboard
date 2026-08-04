@@ -4,8 +4,8 @@ This workflow replaces the emailed `Open Service Tickets.xls` import with:
 
 `OperativeIQ API -> protected Cloudflare Worker -> Google Sheets API`
 
-The Worker reads Service Desk tickets, excludes closed/resolved/completed or
-cancelled records, and writes the same six report columns:
+The Worker reads Service Desk tickets, keeps records whose resolved status name
+is `Open`, and writes the same six report columns:
 
 1. Created
 2. Asset Description
@@ -28,21 +28,25 @@ matched the emailed report.
 
 ## 1. Deploy the Worker
 
+`wrangler-operative-preview.jsonc` sets the verified Service Desk path and Open
+status name directly, keeps Sheets export disabled, and sets `keep_vars: true`
+so GitHub/Wrangler deployments preserve other variables configured in the
+Cloudflare dashboard.
+
 ```bash
 npx wrangler deploy --config wrangler-operative-preview.jsonc
 ```
 
-## 2. Discover the Service Desk resource
+## 2. Verified Service Desk resource
 
 ```bash
 curl -H "Authorization: Bearer YOUR_SYNC_ADMIN_TOKEN" \
   "https://wtfd-operative-preview.YOUR_SUBDOMAIN.workers.dev/probe-open-service-tickets"
 ```
 
-Use the `recommendedResource.path` value as the Worker variable:
-
 ```text
-OPERATIVE_SERVICE_TICKETS_PATH=/api/VERIFIED_RESOURCE
+OPERATIVE_SERVICE_TICKETS_PATH=/api/service-desk-tickets
+OPEN_SERVICE_TICKET_STATUS_NAME=Open
 ```
 
 The probe accepts schema-only Swagger. It generates resource candidates from
@@ -98,7 +102,12 @@ The existing 30-minute cron will then clear and replace columns A:F on the
 
 - `/probe-open-service-tickets` - GET-only resource discovery
 - `/probe-service-ticket-linkage?ticketId=331` - GET-only ticket status,
-  detail, and linked-item discovery for a known ticket
+  detail, `/assigned-items`, and linked-item discovery for a known ticket
 - `/open-service-tickets` - normalized read-only open-ticket data
 - `/preview-open-service-tickets` - alias of the read-only route
 - `/export-open-service-tickets` - separately guarded Google Sheets export
+
+The preview resolves the numeric ticket status through
+`/api/service-desk-ticket-statuses`, keeps only status name `Open`, resolves the
+unit through `/api/units` or `/api/unit-locations`, and expands each ticket into
+one row per `/api/service-desk-tickets/{id}/assigned-items` record.
