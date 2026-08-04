@@ -135,6 +135,11 @@ main { padding: 18px; }
 .section-heading h2 { margin: 2px 0 0; font-size: 1.25rem; }
 .section-heading.compact h2 { font-size: 1.05rem; }
 .touch-hint { margin: 7px 0 12px; color: var(--muted); font-size: .8rem; }
+.panel-tools { display: flex; align-items: center; justify-content: flex-end; gap: 7px; flex-wrap: wrap; }
+.pager { display: grid; grid-template-columns: 38px minmax(62px, auto) 38px; align-items: center; gap: 5px; }
+.pager button { min-width: 38px; min-height: 38px; padding: 0; font-size: 1.5rem; line-height: 1; }
+.pager-label { color: #dce7f4; font-size: .7rem; letter-spacing: .06em; text-align: center; white-space: nowrap; }
+.full-width-pager { width: 100%; margin-top: 7px; grid-template-columns: 42px minmax(80px, 1fr) 42px; }
 .assignment-board { display: grid; grid-template-columns: repeat(3, minmax(180px, 1fr)); gap: 10px; }
 
 .assignment-card { min-height: 142px; display: flex; flex-direction: column; background: #111c2b; border: 1px solid #31425a; border-radius: 11px; overflow: hidden; }
@@ -143,6 +148,8 @@ main { padding: 18px; }
 .assignment-card header { padding: 9px 10px; display: flex; justify-content: space-between; align-items: center; gap: 8px; background: #1a2739; border-bottom: 1px solid #31425a; cursor: pointer; }
 .assignment-card h3 { margin: 0; font-size: .9rem; letter-spacing: .04em; text-transform: uppercase; }
 .assignment-card header button { min-height: 28px; width: 28px; padding: 0; background: transparent; color: var(--muted); }
+.assignment-card header button[data-remove-position], .assignment-card header button[data-remove-assignment] { min-width: 34px; min-height: 34px; color: #ff8a92; font-size: 1.25rem; }
+.assignment-card header button[data-remove-position]:hover, .assignment-card header button[data-remove-assignment]:hover { background: #4a1117; color: white; }
 .assignment-units { min-height: 96px; padding: 9px; display: flex; align-content: flex-start; gap: 7px; flex-wrap: wrap; flex: 1; }
 
 .apparatus-bank { min-height: 98px; margin-top: 12px; padding: 9px; display: flex; align-content: flex-start; flex-wrap: wrap; gap: 8px; background: #0d1623; border: 1px dashed #415570; border-radius: 10px; }
@@ -308,6 +315,12 @@ dialog::backdrop { background: rgba(0, 0, 0, .76); backdrop-filter: blur(3px); }
   .benchmark-list { margin-top: 7px; gap: 5px; }
   .benchmark-item { min-height: 46px; padding: 6px; }
   .command-log { max-height: 210px; }
+  .organization-section, .tactical-section { overflow: hidden; }
+  .tactical-section .assignment-board { grid-template-rows: repeat(3, minmax(98px, 1fr)); }
+  .tactical-section .assignment-card { min-height: 98px; }
+  .tactical-section .assignment-units { min-height: 54px; }
+  .benchmark-panel .benchmark-list { grid-template-rows: repeat(4, minmax(42px, auto)); }
+  .benchmark-panel .benchmark-item { min-height: 42px; }
 }
 
 @media print {

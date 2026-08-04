@@ -129,5 +129,10 @@ assert.equal(liftAssist.assignments.some(item => item.name === 'Fire Attack'), f
 for (const id of ['cancelManualIncidentButton', 'cancelAddPositionButton', 'cancelAddAssignmentButton']) {
   assert.match(html, new RegExp(`<button[^>]*id="${id}"[^>]*type="button"`));
 }
+assert.equal(helpers.PAGE_SIZES.assignment, 9);
+assert.equal(helpers.PAGE_SIZES.bank, 9);
+assert.equal(helpers.PAGE_SIZES.benchmark, 4);
+assert.match(html, /id="confirmRemoveBoardItemButton"/);
+assert.match(html, /id="benchmarkPageLabel"/);
 
 console.log('Incident command helper tests passed.');

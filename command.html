@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#09111f">
   <title>WTFD Incident Command</title>
-  <link rel="stylesheet" href="command.css?v=0.2.2">
+  <link rel="stylesheet" href="command.css?v=0.2.3">
 </head>
 <body>
   <div class="command-app">
@@ -165,7 +165,14 @@
                   <span class="eyebrow">COMMAND STRUCTURE</span>
                   <h2>Command Organization</h2>
                 </div>
-                <button id="addPositionButton" class="secondary-button" type="button">+ Add Position</button>
+                <div class="panel-tools">
+                  <div class="pager" aria-label="Command Organization pages">
+                    <button id="previousPositionPage" class="secondary-button" type="button" aria-label="Previous Command Organization page">‹</button>
+                    <strong id="positionPageLabel" class="pager-label">1 OF 1</strong>
+                    <button id="nextPositionPage" class="secondary-button" type="button" aria-label="Next Command Organization page">›</button>
+                  </div>
+                  <button id="addPositionButton" class="secondary-button" type="button">+ Add Position</button>
+                </div>
               </div>
               <p class="touch-hint">Positions and functions are separate from tactical work. Drag a unit, or tap a unit and then a position.</p>
               <div id="positionBoard" class="position-board"></div>
@@ -177,7 +184,14 @@
                   <span class="eyebrow">TACTICAL ORGANIZATION</span>
                   <h2>Tactical Assignments</h2>
                 </div>
-                <button id="addAssignmentButton" class="secondary-button" type="button">+ Add Assignment</button>
+                <div class="panel-tools">
+                  <div class="pager" aria-label="Tactical Assignment pages">
+                    <button id="previousAssignmentPage" class="secondary-button" type="button" aria-label="Previous Tactical Assignment page">‹</button>
+                    <strong id="assignmentPageLabel" class="pager-label">PAGE 1 OF 1</strong>
+                    <button id="nextAssignmentPage" class="secondary-button" type="button" aria-label="Next Tactical Assignment page">›</button>
+                  </div>
+                  <button id="addAssignmentButton" class="secondary-button" type="button">+ Add Assignment</button>
+                </div>
               </div>
               <p class="touch-hint">The board creates policy-supported tasks but never chooses which apparatus receives them.</p>
               <div id="assignmentBoard" class="assignment-board"></div>
@@ -191,6 +205,11 @@
                 <span id="bankCount" class="count-badge">0</span>
               </div>
               <div id="apparatusBank" class="apparatus-bank drop-zone" data-assignment-id="bank"></div>
+              <div class="pager full-width-pager" aria-label="Apparatus Bank pages">
+                <button id="previousBankPage" class="secondary-button" type="button" aria-label="Previous Apparatus Bank page">‹</button>
+                <strong id="bankPageLabel" class="pager-label">1 OF 1</strong>
+                <button id="nextBankPage" class="secondary-button" type="button" aria-label="Next Apparatus Bank page">›</button>
+              </div>
               <form id="addUnitForm" class="inline-form">
                 <input id="addUnitInput" type="text" inputmode="text" autocomplete="off" placeholder="Add unit (e.g., E42)">
                 <button class="secondary-button" type="submit">Add</button>
@@ -203,6 +222,11 @@
                 <span id="benchmarkCount" class="count-badge">0/0</span>
               </div>
               <div id="benchmarkList" class="benchmark-list"></div>
+              <div class="pager full-width-pager" aria-label="Benchmark pages">
+                <button id="previousBenchmarkPage" class="secondary-button" type="button" aria-label="Previous Benchmark page">‹</button>
+                <strong id="benchmarkPageLabel" class="pager-label">PAGE 1 OF 1</strong>
+                <button id="nextBenchmarkPage" class="secondary-button" type="button" aria-label="Next Benchmark page">›</button>
+              </div>
             </section>
 
             <section class="resource-panel status-panel">
@@ -394,6 +418,20 @@
     </form>
   </dialog>
 
-  <script src="command.js?v=0.2.2"></script>
+  <dialog id="removeBoardItemDialog">
+    <div class="dialog-form">
+      <div class="dialog-heading">
+        <div><span class="eyebrow danger-text">REMOVE FROM BOARD</span><h2 id="removeBoardItemTitle">Delete Assignment?</h2></div>
+        <button id="closeRemoveBoardItemButton" class="icon-button" type="button" aria-label="Close">×</button>
+      </div>
+      <p id="removeBoardItemMessage" class="dialog-note danger-note"></p>
+      <div class="dialog-actions">
+        <button id="cancelRemoveBoardItemButton" class="secondary-button" type="button">Cancel</button>
+        <button id="confirmRemoveBoardItemButton" class="danger-button" type="button">Delete</button>
+      </div>
+    </div>
+  </dialog>
+
+  <script src="command.js?v=0.2.3"></script>
 </body>
 </html>

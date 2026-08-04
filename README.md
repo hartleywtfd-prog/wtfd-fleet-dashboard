@@ -8,8 +8,12 @@
   operations away from a WTFD facility.
 - Applies the same protection to the standard and kiosk dashboards.
 
-# Incident Command Phase Two (0.2.2)
+# Incident Command Phase Two (0.2.3)
 
+- Replaces clipped tactical assignments, apparatus, and benchmarks with
+  touch-friendly paging controls.
+- Adds a confirmation dialog for deleting Command-created positions and
+  assignments; assigned apparatus safely return to the bank.
 - Makes dialog Cancel and close controls bypass required-field validation.
 - Fits the primary desktop command board within the viewport by placing command
   organization and tactical assignments side-by-side and containing overflow

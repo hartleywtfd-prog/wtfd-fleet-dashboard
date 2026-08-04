@@ -5,6 +5,7 @@
   const LEGACY_STORAGE_KEY = 'wtfd-incident-command-v1';
   const LAST_CLOSED_KEY = 'wtfd-last-closed-command-v2';
   const POLL_MS = 5000;
+  const PAGE_SIZES = { position: 4, assignment: 9, bank: 9, benchmark: 4 };
 
   const POLICY_STATUS = {
     required: 'Required',
@@ -219,7 +220,9 @@
     latestAlert: null,
     pendingAlert: null,
     selectedUnit: '',
-    pollInFlight: false
+    pollInFlight: false,
+    pages: { position: 0, assignment: 0, bank: 0, benchmark: 0 },
+    pendingRemoval: null
   };
 
   const $ = id => document.getElementById(id);
@@ -498,6 +501,7 @@
     state.incident = incident;
     state.pendingAlert = null;
     state.selectedUnit = '';
+    resetPages();
     persist();
     render();
   }
@@ -836,14 +840,45 @@
     }).join('');
   }
 
+  function resetPages() {
+    Object.keys(state.pages).forEach(key => { state.pages[key] = 0; });
+  }
+
+  function pagedItems(items, key) {
+    const size = PAGE_SIZES[key];
+    const totalPages = Math.max(1, Math.ceil(items.length / size));
+    state.pages[key] = Math.min(Math.max(0, state.pages[key] || 0), totalPages - 1);
+    const start = state.pages[key] * size;
+    return { items: items.slice(start, start + size), page: state.pages[key], totalPages };
+  }
+
+  function updatePager(key, page, totalPages) {
+    const config = {
+      position: ['previousPositionPage', 'nextPositionPage', 'positionPageLabel', false],
+      assignment: ['previousAssignmentPage', 'nextAssignmentPage', 'assignmentPageLabel', true],
+      bank: ['previousBankPage', 'nextBankPage', 'bankPageLabel', false],
+      benchmark: ['previousBenchmarkPage', 'nextBenchmarkPage', 'benchmarkPageLabel', true]
+    }[key];
+    const [previousId, nextId, labelId, includePageWord] = config;
+    $(previousId).disabled = page <= 0;
+    $(nextId).disabled = page >= totalPages - 1;
+    $(labelId).textContent = `${includePageWord ? 'PAGE ' : ''}${page + 1} OF ${totalPages}`;
+  }
+
   function renderAssignments() {
     const incident = state.incident;
     if (!incident) return;
-    renderBoard('positionBoard', incident.positions, 'position');
-    renderBoard('assignmentBoard', incident.assignments, 'assignment');
+    const positionPage = pagedItems(incident.positions, 'position');
+    const assignmentPage = pagedItems(incident.assignments, 'assignment');
+    renderBoard('positionBoard', positionPage.items, 'position');
+    renderBoard('assignmentBoard', assignmentPage.items, 'assignment');
+    updatePager('position', positionPage.page, positionPage.totalPages);
+    updatePager('assignment', assignmentPage.page, assignmentPage.totalPages);
     const bank = incident.units.filter(unit => unit.assignmentId === 'bank' && unit.status !== 'released');
-    $('apparatusBank').innerHTML = bank.map(unitChip).join('');
+    const bankPage = pagedItems(bank, 'bank');
+    $('apparatusBank').innerHTML = bankPage.items.map(unitChip).join('');
     $('bankCount').textContent = String(bank.length);
+    updatePager('bank', bankPage.page, bankPage.totalPages);
     bindAssignmentInteractions();
   }
 
@@ -852,7 +887,8 @@
     if (!incident) return;
     const complete = incident.benchmarks.filter(item => item.completedAt).length;
     $('benchmarkCount').textContent = `${complete}/${incident.benchmarks.length}`;
-    $('benchmarkList').innerHTML = incident.benchmarks.map(item => {
+    const benchmarkPage = pagedItems(incident.benchmarks, 'benchmark');
+    $('benchmarkList').innerHTML = benchmarkPage.items.map(item => {
       const completed = Boolean(item.completedAt);
       const status = POLICY_STATUS[item.policyStatus] || item.policyStatus;
       return `<button class="benchmark-item${completed ? ' complete' : ''}" type="button" data-benchmark="${escapeHtml(item.id)}" aria-pressed="${completed}">
@@ -860,6 +896,7 @@
         <span class="benchmark-copy"><strong>${escapeHtml(item.label)}</strong><small>${escapeHtml(status)} • ${escapeHtml(item.source)}</small>${completed ? `<em>${escapeHtml(formatClock(item.completedAt))}</em>` : ''}</span>
       </button>`;
     }).join('');
+    updatePager('benchmark', benchmarkPage.page, benchmarkPage.totalPages);
     document.querySelectorAll('[data-benchmark]').forEach(button => button.addEventListener('click', () => toggleBenchmark(button.dataset.benchmark)));
   }
 
@@ -1005,20 +1042,49 @@
         if (state.selectedUnit) moveUnit(state.selectedUnit, target.dataset.targetAssignment);
       });
     });
-    document.querySelectorAll('[data-remove-position]').forEach(button => button.addEventListener('click', event => removeBoardItem(event, 'position', button.dataset.removePosition)));
-    document.querySelectorAll('[data-remove-assignment]').forEach(button => button.addEventListener('click', event => removeBoardItem(event, 'assignment', button.dataset.removeAssignment)));
+    document.querySelectorAll('[data-remove-position]').forEach(button => button.addEventListener('click', event => requestRemoveBoardItem(event, 'position', button.dataset.removePosition)));
+    document.querySelectorAll('[data-remove-assignment]').forEach(button => button.addEventListener('click', event => requestRemoveBoardItem(event, 'assignment', button.dataset.removeAssignment)));
   }
 
-  function removeBoardItem(event, kind, id) {
+  function requestRemoveBoardItem(event, kind, id) {
     event.stopPropagation();
     const listName = kind === 'position' ? 'positions' : 'assignments';
     const item = state.incident[listName].find(candidate => candidate.id === id);
     if (!item || item.removable === false || item.policyStatus === 'required') return;
+    const assignedUnits = state.incident.units.filter(unit => unit.assignmentId === item.id && unit.status !== 'released');
+    state.pendingRemoval = { kind, id };
+    $('removeBoardItemTitle').textContent = `Delete ${item.name}?`;
+    $('removeBoardItemMessage').textContent = assignedUnits.length
+      ? `${assignedUnits.map(unit => unit.name).join(', ')} will return to the Apparatus Bank and accountability will require confirmation.`
+      : 'This Command-created board item will be removed.';
+    $('confirmRemoveBoardItemButton').textContent = kind === 'position' ? 'Delete Position' : 'Delete Assignment';
+    $('removeBoardItemDialog').showModal();
+  }
+
+  function confirmRemoveBoardItem() {
+    const pending = state.pendingRemoval;
+    if (!pending || !state.incident) return;
+    const listName = pending.kind === 'position' ? 'positions' : 'assignments';
+    const item = state.incident[listName].find(candidate => candidate.id === pending.id);
+    if (!item || item.removable === false || item.policyStatus === 'required') return;
     state.incident.units.filter(unit => unit.assignmentId === item.id).forEach(unit => { unit.assignmentId = 'bank'; unit.status = 'available'; });
     state.incident[listName] = state.incident[listName].filter(candidate => candidate.id !== item.id);
     markAccountabilityDirty(`${item.name} removed`);
-    logEntry(`${item.name} ${kind} removed; assigned units returned to the bank`);
+    logEntry(`${item.name} ${pending.kind} removed; assigned units returned to the bank`);
+    state.pendingRemoval = null;
+    $('removeBoardItemDialog').close();
     render();
+  }
+
+  function cancelRemoveBoardItem() {
+    state.pendingRemoval = null;
+    $('removeBoardItemDialog').close();
+  }
+
+  function changePage(key, delta) {
+    state.pages[key] = Math.max(0, (state.pages[key] || 0) + delta);
+    if (key === 'benchmark') renderBenchmarks();
+    else renderAssignments();
   }
 
   function escapeHtml(value) {
@@ -1232,6 +1298,7 @@
       const name = cleanUnit($('addUnitInput').value);
       if (!name || state.incident.units.some(unit => unit.name === name)) return;
       state.incident.units.push({ name, assignmentId: 'bank', source: 'Manual', addedAt: nowIso(), status: 'available' });
+      state.pages.bank = Math.floor((state.incident.units.filter(unit => unit.assignmentId === 'bank' && unit.status !== 'released').length - 1) / PAGE_SIZES.bank);
       $('addUnitInput').value = '';
       markAccountabilityDirty(`${name} added`);
       logEntry(`${name} added manually to apparatus bank; accountability requires confirmation`);
@@ -1248,6 +1315,7 @@
       const name = String(values.name || '').trim();
       if (name && !state.incident.positions.some(item => item.name.toLowerCase() === name.toLowerCase())) {
         state.incident.positions.push({ id: uniqueId('position', name), name, policyStatus: values.policyStatus || 'derived', source: 'Command', removable: true });
+        state.pages.position = Math.floor((state.incident.positions.length - 1) / PAGE_SIZES.position);
         logEntry(`${name} command position added`);
       }
       $('addPositionDialog').close();
@@ -1264,6 +1332,7 @@
       const name = String(new FormData(event.currentTarget).get('name') || '').trim();
       if (name && !state.incident.assignments.some(item => item.name.toLowerCase() === name.toLowerCase())) {
         state.incident.assignments.push({ id: uniqueId('task', name), name, policyStatus: 'derived', source: 'Command', removable: true });
+        state.pages.assignment = Math.floor((state.incident.assignments.length - 1) / PAGE_SIZES.assignment);
         logEntry(`${name} tactical assignment added`);
       }
       $('addAssignmentDialog').close();
@@ -1311,6 +1380,17 @@
       $('newDispatchDialog').showModal();
     });
     $('closeDispatchDialog').addEventListener('click', () => $('newDispatchDialog').close());
+    $('previousPositionPage').addEventListener('click', () => changePage('position', -1));
+    $('nextPositionPage').addEventListener('click', () => changePage('position', 1));
+    $('previousAssignmentPage').addEventListener('click', () => changePage('assignment', -1));
+    $('nextAssignmentPage').addEventListener('click', () => changePage('assignment', 1));
+    $('previousBankPage').addEventListener('click', () => changePage('bank', -1));
+    $('nextBankPage').addEventListener('click', () => changePage('bank', 1));
+    $('previousBenchmarkPage').addEventListener('click', () => changePage('benchmark', -1));
+    $('nextBenchmarkPage').addEventListener('click', () => changePage('benchmark', 1));
+    $('confirmRemoveBoardItemButton').addEventListener('click', confirmRemoveBoardItem);
+    $('closeRemoveBoardItemButton').addEventListener('click', cancelRemoveBoardItem);
+    $('cancelRemoveBoardItemButton').addEventListener('click', cancelRemoveBoardItem);
     $('fullscreenButton').addEventListener('click', async () => {
       try {
         if (document.fullscreenElement) await document.exitFullscreen();
@@ -1343,6 +1423,7 @@
     parseTimestamp,
     formatClock,
     migrateIncident,
-    PROFILE_DEFINITIONS
+    PROFILE_DEFINITIONS,
+    PAGE_SIZES
   };
 })();
