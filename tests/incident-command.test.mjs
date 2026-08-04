@@ -61,6 +61,7 @@ const context = vm.createContext({
 });
 
 const source = fs.readFileSync(new URL('../command.js', import.meta.url), 'utf8');
+const html = fs.readFileSync(new URL('../command.html', import.meta.url), 'utf8');
 vm.runInContext(source, context);
 
 const helpers = window.WTFD_COMMAND_TEST;
@@ -124,5 +125,9 @@ assert.equal(liftAssist.suggestions.some(item => item.value === 'elevator_rescue
 assert.ok(liftAssist.suggestions.some(item => item.type === 'level' && item.value === 'initial'));
 assert.ok(liftAssist.suggestions.some(item => item.type === 'strategy' && item.value === 'investigation'));
 assert.equal(liftAssist.assignments.some(item => item.name === 'Fire Attack'), false);
+
+for (const id of ['cancelManualIncidentButton', 'cancelAddPositionButton', 'cancelAddAssignmentButton']) {
+  assert.match(html, new RegExp(`<button[^>]*id="${id}"[^>]*type="button"`));
+}
 
 console.log('Incident command helper tests passed.');

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#09111f">
   <title>WTFD Incident Command</title>
-  <link rel="stylesheet" href="command.css?v=0.2.1">
+  <link rel="stylesheet" href="command.css?v=0.2.2">
 </head>
 <body>
   <div class="command-app">
@@ -244,7 +244,7 @@
     <form id="manualIncidentForm" method="dialog" class="dialog-form">
       <div class="dialog-heading">
         <div><span class="eyebrow">NEW COMMAND EVENT</span><h2>Start Manual Incident</h2></div>
-        <button class="icon-button" value="cancel" aria-label="Close">×</button>
+        <button id="closeManualIncidentButton" class="icon-button" type="button" aria-label="Close">×</button>
       </div>
       <label>Incident type<input name="description" required placeholder="Structure Fire"></label>
       <label>Address<input name="address" required placeholder="Incident address"></label>
@@ -272,7 +272,7 @@
         </select>
       </label>
       <div class="dialog-actions">
-        <button class="secondary-button" value="cancel">Cancel</button>
+        <button id="cancelManualIncidentButton" class="secondary-button" type="button">Cancel</button>
         <button class="primary-button" value="default">Start Incident</button>
       </div>
     </form>
@@ -303,7 +303,7 @@
     <form id="addPositionForm" method="dialog" class="dialog-form">
       <div class="dialog-heading">
         <div><span class="eyebrow">COMMAND ORGANIZATION</span><h2>Add Position or Function</h2></div>
-        <button class="icon-button" value="cancel" aria-label="Close">×</button>
+        <button id="closeAddPositionButton" class="icon-button" type="button" aria-label="Close">×</button>
       </div>
       <label>Position name<input name="name" required placeholder="Safety, Staging, Division 2…"></label>
       <label>Policy status
@@ -314,7 +314,7 @@
         </select>
       </label>
       <div class="dialog-actions">
-        <button class="secondary-button" value="cancel">Cancel</button>
+        <button id="cancelAddPositionButton" class="secondary-button" type="button">Cancel</button>
         <button class="primary-button" value="default">Add Position</button>
       </div>
     </form>
@@ -324,11 +324,11 @@
     <form id="addAssignmentForm" method="dialog" class="dialog-form">
       <div class="dialog-heading">
         <div><span class="eyebrow">TACTICAL ASSIGNMENT</span><h2>Add Assignment</h2></div>
-        <button class="icon-button" value="cancel" aria-label="Close">×</button>
+        <button id="closeAddAssignmentButton" class="icon-button" type="button" aria-label="Close">×</button>
       </div>
       <label>Assignment name<input name="name" required placeholder="Division 2, Exposure B, Medical…"></label>
       <div class="dialog-actions">
-        <button class="secondary-button" value="cancel">Cancel</button>
+        <button id="cancelAddAssignmentButton" class="secondary-button" type="button">Cancel</button>
         <button class="primary-button" value="default">Add Assignment</button>
       </div>
     </form>
@@ -394,6 +394,6 @@
     </form>
   </dialog>
 
-  <script src="command.js?v=0.2.1"></script>
+  <script src="command.js?v=0.2.2"></script>
 </body>
 </html>

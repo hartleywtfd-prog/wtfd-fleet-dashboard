@@ -1188,6 +1188,8 @@
   function bindEvents() {
     $('startLatestButton').addEventListener('click', () => state.latestAlert && createIncident(state.latestAlert));
     $('startManualButton').addEventListener('click', () => $('manualIncidentDialog').showModal());
+    $('closeManualIncidentButton').addEventListener('click', () => $('manualIncidentDialog').close());
+    $('cancelManualIncidentButton').addEventListener('click', () => $('manualIncidentDialog').close());
     $('manualIncidentForm').addEventListener('submit', event => {
       if (event.submitter?.value === 'cancel') return;
       event.preventDefault();
@@ -1237,6 +1239,8 @@
     });
 
     $('addPositionButton').addEventListener('click', () => $('addPositionDialog').showModal());
+    $('closeAddPositionButton').addEventListener('click', () => $('addPositionDialog').close());
+    $('cancelAddPositionButton').addEventListener('click', () => $('addPositionDialog').close());
     $('addPositionForm').addEventListener('submit', event => {
       if (event.submitter?.value === 'cancel') return;
       event.preventDefault();
@@ -1252,6 +1256,8 @@
     });
 
     $('addAssignmentButton').addEventListener('click', () => $('addAssignmentDialog').showModal());
+    $('closeAddAssignmentButton').addEventListener('click', () => $('addAssignmentDialog').close());
+    $('cancelAddAssignmentButton').addEventListener('click', () => $('addAssignmentDialog').close());
     $('addAssignmentForm').addEventListener('submit', event => {
       if (event.submitter?.value === 'cancel') return;
       event.preventDefault();
