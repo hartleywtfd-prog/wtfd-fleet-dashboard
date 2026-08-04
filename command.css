@@ -325,29 +325,11 @@ dialog::backdrop { background: rgba(0, 0, 0, .76); backdrop-filter: blur(3px); }
   .assignment-card header { padding: 7px 8px; }
   .assignment-card h3 { font-size: .8rem; }
   .assignment-units { min-height: 68px; padding: 7px; }
-  .resource-column {
-    min-height: 0;
-    gap: 8px;
-    overflow: hidden;
-    grid-template-rows: auto auto minmax(0, 1fr);
-  }
+  .resource-column { min-height: 0; gap: 8px; overflow: auto; scrollbar-gutter: stable; }
   .resource-panel { padding: 10px; }
   .resource-column .status-panel { order: 2; }
-  .resource-column .benchmark-panel {
-    order: 3;
-    min-height: 0;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-  }
-  .resource-column .log-panel { order: 4; display: none; }
-  .benchmark-panel .benchmark-list {
-    min-height: 0;
-    flex: 1 1 auto;
-    overflow-y: auto;
-    scrollbar-gutter: stable;
-  }
-  .benchmark-panel .full-width-pager { flex: 0 0 auto; }
+  .resource-column .benchmark-panel { order: 3; }
+  .resource-column .log-panel { order: 4; }
   .status-panel { gap: 7px; }
   .status-panel input, .status-panel select { min-height: 36px; padding: 6px 9px; }
   .apparatus-bank { min-height: 72px; max-height: 135px; margin-top: 7px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-content: start; overflow-y: auto; scrollbar-gutter: stable; }
@@ -375,51 +357,116 @@ dialog::backdrop { background: rgba(0, 0, 0, .76); backdrop-filter: blur(3px); }
   .eyebrow, .incident-meta, label { color: #444; }
 }
 
-/* v0.3.1 — compact command header and benchmark-free board */
+/* v0.3.2 — 1536px/iPad landscape sizing correction */
 .benchmark-panel { display: none !important; }
 
-.incident-workspace { gap: 8px; }
-.incident-heading {
-  padding: 9px 12px;
-  gap: 12px;
-}
-.incident-identification { min-width: 0; }
-.incident-lock { margin-bottom: 3px; font-size: .62rem; }
-.incident-lock span { width: 7px; height: 7px; }
-.incident-heading h1 {
-  font-size: clamp(1.35rem, 2.15vw, 2rem);
-  line-height: 1;
-}
-.incident-location { margin-top: 3px; font-size: .88rem; }
-.incident-meta { margin-top: 3px; gap: 10px; font-size: .72rem; }
-.incident-actions { gap: 6px; }
-.incident-actions button { min-height: 34px; padding: 6px 9px; font-size: .78rem; }
-
-.resource-column {
-  grid-template-rows: auto minmax(0, 1fr) !important;
-}
-.resource-column .status-panel {
-  order: 2;
-  min-height: 0;
-}
-.resource-column .log-panel { order: 3; }
-
-@media (min-width: 1000px) {
-  .incident-heading {
-    display: grid;
-    grid-template-columns: minmax(360px, 1fr) auto;
+@media (min-width: 1200px) and (min-height: 700px) {
+  .command-header {
+    min-height: 58px;
+    padding: 4px 14px;
   }
+  .command-brand img { width: 40px; height: 40px; }
+  .command-brand strong { font-size: 1rem; }
+  .command-brand small { font-size: .76rem; }
+  .header-status { gap: 10px; }
+  .header-status time { font-size: 1rem; }
+  .header-status button { min-height: 34px; padding: 5px 10px; }
+
+  main { padding: 8px; }
+  .incident-workspace { gap: 7px; }
+
+  .incident-heading {
+    padding: 8px 12px;
+    gap: 10px;
+    display: grid;
+    grid-template-columns: minmax(500px, .85fr) minmax(650px, 1.15fr);
+    align-items: center;
+  }
+  .incident-heading h1 {
+    font-size: clamp(1.45rem, 1.82vw, 1.78rem);
+    line-height: 1.02;
+    white-space: nowrap;
+  }
+  .incident-lock { margin-bottom: 2px; font-size: .6rem; }
+  .incident-location { margin-top: 2px; font-size: .83rem; }
+  .incident-meta { margin-top: 2px; gap: 9px; font-size: .69rem; }
   .incident-actions {
     max-width: none;
+    gap: 5px;
     flex-wrap: nowrap;
+    justify-content: flex-end;
   }
-  .resource-column .status-panel {
-    display: flex;
-    flex-direction: column;
+  .incident-actions button {
+    min-height: 32px;
+    padding: 5px 8px;
+    font-size: .72rem;
+    white-space: nowrap;
   }
+
+  .incident-control-grid {
+    grid-template-columns: minmax(330px, 1.35fr) minmax(340px, 1fr) minmax(390px, 1.08fr);
+    gap: 7px;
+  }
+  .control-card { padding: 7px 9px; }
+  .control-card label, .control-card > .eyebrow { margin-bottom: 4px; font-size: .68rem; }
+  .control-card select { min-height: 34px; padding: 5px 8px; font-size: .78rem; }
+  .segmented-buttons { gap: 5px; flex-wrap: nowrap; }
+  .segmented-buttons button {
+    min-width: 0;
+    min-height: 32px;
+    padding: 4px 7px;
+    font-size: .78rem;
+    white-space: nowrap;
+  }
+
+  .safety-console { padding: 7px 8px; gap: 8px; }
+  .safety-status-grid { gap: 6px; }
+  .safety-status { min-height: 47px; padding: 5px 8px; }
+  .safety-status .eyebrow { font-size: .62rem; }
+  .safety-status strong { font-size: .74rem; }
+  .safety-actions { gap: 5px; flex-wrap: nowrap; }
+  .safety-actions button { min-height: 32px; padding: 4px 8px; font-size: .75rem; white-space: nowrap; }
+
+  .command-layout {
+    grid-template-columns: minmax(0, 1fr) minmax(350px, 380px);
+    gap: 7px;
+  }
+  .assignment-column {
+    grid-template-columns: minmax(410px, .72fr) minmax(0, 1.28fr);
+    gap: 7px;
+  }
+  .board-section { padding: 8px; overflow: auto; }
+  .organization-section, .tactical-section { overflow: auto; }
+  .section-heading { gap: 7px; }
+  .section-heading h2 { font-size: 1rem; }
+  .touch-hint { margin: 3px 0 6px; font-size: .71rem; line-height: 1.2; }
+  .panel-tools { gap: 5px; }
+  .panel-tools button { min-height: 34px; padding: 5px 9px; font-size: .75rem; }
+  .pager { grid-template-columns: 34px minmax(54px, auto) 34px; }
+  .pager button { min-width: 34px; min-height: 34px; }
+  .pager-label { font-size: .62rem; }
+
+  .position-board, .assignment-board { gap: 6px; }
+  .assignment-card { min-height: 100px; }
+  .assignment-card header { padding: 6px 7px; }
+  .assignment-card h3 { font-size: .72rem; line-height: 1.12; }
+  .policy-tag { font-size: .55rem; line-height: 1.15; }
+  .assignment-units { min-height: 50px; padding: 6px; }
+  .unit-chip { min-height: 36px; padding: 6px 10px; font-size: .8rem; }
+
+  .resource-column { gap: 7px; grid-template-rows: auto minmax(0, 1fr) !important; }
+  .resource-panel { padding: 9px; }
+  .apparatus-bank { min-height: 70px; max-height: 118px; }
+  .status-panel { align-content: start; }
+  .status-panel input, .status-panel select { min-height: 34px; }
 }
 
-@media (max-width: 1250px) {
-  .incident-heading { align-items: start; }
-  .incident-actions { flex-wrap: wrap; justify-content: flex-end; }
+@media (min-width: 1200px) and (max-width: 1600px) and (min-height: 700px) {
+  .incident-heading {
+    grid-template-columns: minmax(460px, .82fr) minmax(640px, 1.18fr);
+  }
+  .incident-heading h1 { font-size: 1.55rem; }
+  .incident-actions button { padding-inline: 7px; font-size: .69rem; }
+  .command-layout { grid-template-columns: minmax(0, 1fr) 380px; }
+  .assignment-column { grid-template-columns: 420px minmax(0, 1fr); }
 }
