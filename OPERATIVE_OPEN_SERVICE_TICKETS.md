@@ -2,7 +2,7 @@
 
 This workflow replaces the emailed `Open Service Tickets.xls` import with:
 
-`OperativeIQ API -> protected Cloudflare Worker -> Google Sheets API`
+`OperativeIQ API -> protected Cloudflare Worker -> Apps Script -> Google Sheet`
 
 The Worker reads Service Desk tickets, keeps records whose resolved status name
 is `Open`, and writes the same six report columns:
@@ -29,7 +29,8 @@ matched the emailed report.
 ## 1. Deploy the Worker
 
 `wrangler-operative-preview.jsonc` sets the verified Service Desk path, Open
-status name, destination spreadsheet, tab name, and export flag directly. It
+status name, destination spreadsheet, and tab name directly. Direct Worker
+writes remain disabled because Apps Script performs the Google Sheet update. It
 also sets `keep_vars: true` so GitHub/Wrangler deployments preserve other
 variables configured in the Cloudflare dashboard.
 
@@ -65,38 +66,26 @@ curl -H "Authorization: Bearer YOUR_SYNC_ADMIN_TOKEN" \
 `/preview-open-service-tickets` is an alias of the same read-only route. Confirm
 that `recordCount` and all six displayed fields match the emailed report.
 
-## 4. Configure the destination sheet
+## 4. Configure Apps Script
 
-Share the destination spreadsheet with the existing
-`GOOGLE_SERVICE_ACCOUNT_EMAIL` as Editor. Set these Worker variables:
-
-```text
-OPEN_SERVICE_TICKETS_SPREADSHEET_ID=1tiOyFEbDc-a0oQ2cVNPjK-7kE9QFYZrpm72vew2Ee4o
-OPEN_SERVICE_TICKETS_TAB_NAME=Open Service Tickets
-OPEN_SERVICE_TICKETS_SHEETS_EXPORT_ENABLED=true
-```
-
-The existing `GOOGLE_SERVICE_ACCOUNT_EMAIL` and
-`GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY` secrets are reused. The ticket spreadsheet
-ID is separate from the incomplete-check spreadsheet ID.
-
-## 5. Enable and test the export
-
-After the preview matches, set:
+The Apps Script runs as the Google account that owns the destination sheet, so
+no Google service account is required. Add `SYNC_ADMIN_TOKEN` to the Apps
+Script project's Script Properties, then paste
+`apps-script/OpenServiceTicketsApi.gs` into that project.
 
 ```text
-OPEN_SERVICE_TICKETS_SHEETS_EXPORT_ENABLED=true
+OPEN_SERVICE_TICKETS_SHEETS_EXPORT_ENABLED=false
 ```
 
-Run one protected manual export:
+Run `importOpenServiceTicketsFromApi` once manually. After confirming the sheet,
+run `createThirtyMinuteTriggerForOpenServiceTicketsApi` once to remove the old
+email trigger and install the API trigger.
 
-```bash
-curl -H "Authorization: Bearer YOUR_SYNC_ADMIN_TOKEN" \
-  "https://wtfd-operative-preview.YOUR_SUBDOMAIN.workers.dev/export-open-service-tickets"
-```
+## 5. Keep direct Worker writes disabled
 
-The existing 30-minute cron will then clear and replace columns A:F on the
-`Open Service Tickets` tab. Formatting outside cell contents is preserved.
+`OPEN_SERVICE_TICKETS_SHEETS_EXPORT_ENABLED` remains `false`. The Worker cron
+does not write Google Sheets; the Apps Script trigger clears and replaces
+columns A:F every 30 minutes while preserving formatting.
 
 ## Routes
 
@@ -105,7 +94,7 @@ The existing 30-minute cron will then clear and replace columns A:F on the
   detail, `/assigned-items`, and linked-item discovery for a known ticket
 - `/open-service-tickets` - normalized read-only open-ticket data
 - `/preview-open-service-tickets` - alias of the read-only route
-- `/export-open-service-tickets` - separately guarded Google Sheets export
+- `/export-open-service-tickets` - optional direct export, intentionally disabled
 
 The preview resolves the numeric ticket status through
 `/api/service-desk-ticket-statuses`, keeps only status name `Open`, resolves the

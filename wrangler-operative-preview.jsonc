@@ -6,9 +6,7 @@
   "vars": {
     "OPERATIVE_SERVICE_TICKETS_PATH": "/api/service-desk-tickets",
     "OPEN_SERVICE_TICKET_STATUS_NAME": "Open",
-    "OPEN_SERVICE_TICKETS_SPREADSHEET_ID": "1tiOyFEbDc-a0oQ2cVNPjK-7kE9QFYZrpm72vew2Ee4o",
-    "OPEN_SERVICE_TICKETS_TAB_NAME": "Open Service Tickets",
-    "OPEN_SERVICE_TICKETS_SHEETS_EXPORT_ENABLED": "true"
+    "OPEN_SERVICE_TICKETS_SHEETS_EXPORT_ENABLED": "false"
   },
   "triggers": {
     "crons": ["*/5 * * * *", "*/30 * * * *"]
