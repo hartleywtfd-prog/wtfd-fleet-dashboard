@@ -2,12 +2,9 @@
   "name": "wtfd-operative-preview",
   "main": "workers/operative-preview.js",
   "compatibility_date": "2026-07-31",
+  "keep_vars": true,
   "triggers": {
     "crons": ["*/5 * * * *", "*/30 * * * *"]
-  },
-  "vars": {
-    "INCOMPLETE_CHECKS_D1_ENABLED": "true",
-    "GOOGLE_SHEETS_EXPORT_ENABLED": "false"
   },
   "d1_databases": [
     {
