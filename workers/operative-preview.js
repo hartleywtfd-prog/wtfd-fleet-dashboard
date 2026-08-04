@@ -666,23 +666,27 @@ async function fetchServiceTicketAssignedItems(ticketId, token) {
 
 function serviceTicketAssignedItemName(item) {
   if (!item || typeof item !== 'object') return '';
-  return String(
+  return serviceTicketText(
     item.itemName || item.assetDescription || item.itemDescription ||
     item.assetName || item.name || ''
-  ).trim();
+  );
 }
 
 function serviceTicketUnitName(row, unitsById, locationsById) {
   const unit = unitsById.get(String(row.truckId)) || {};
-  const truckNumber = String(
+  const truckNumber = serviceTicketText(
     unit.truckNumber || unit.unitNumber || unit.name || ''
-  ).trim();
-  if (truckNumber) return /^Vehicle\s+/i.test(truckNumber) ? truckNumber : `Vehicle ${truckNumber}`;
+  );
+  if (truckNumber) {
+    if (/^Vehicle\s+/i.test(truckNumber)) return truckNumber;
+    if (/^F\d+[A-Z0-9-]*$/i.test(truckNumber)) return `Vehicle ${truckNumber}`;
+    return truckNumber;
+  }
 
   const location = locationsById.get(String(row.locationId)) || {};
-  return String(
+  return serviceTicketText(
     location.locationName || location.locationDescription || location.name || ''
-  ).trim();
+  );
 }
 
 async function resolveServiceTicketResource(env, token) {
@@ -802,9 +806,15 @@ function flattenServiceTicketFields(source) {
 function serviceTicketValue(fields, names) {
   for (const name of names) {
     const value = fields.get(normalizeServiceTicketKey(name));
-    if (value !== undefined && value !== null && String(value).trim()) return String(value).trim();
+    if (value !== undefined && value !== null && serviceTicketText(value)) {
+      return serviceTicketText(value);
+    }
   }
   return '';
+}
+
+function serviceTicketText(value) {
+  return String(value ?? '').replace(/\s+/g, ' ').trim();
 }
 
 function normalizeServiceTicketKey(value) {
