@@ -16,6 +16,9 @@
 
 * { box-sizing: border-box; }
 
+/* Author display rules must never override application visibility state. */
+[hidden] { display: none !important; }
+
 html, body { min-height: 100%; }
 
 body {

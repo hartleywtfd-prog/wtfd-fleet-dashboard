@@ -8,7 +8,10 @@
   operations away from a WTFD facility.
 - Applies the same protection to the standard and kiosk dashboards.
 
-# Incident Command Phase One (0.1.0)
+# Incident Command Phase One (0.1.1)
+
+- Fixes the empty-board view so the new-dispatch notification remains hidden
+  until a different dispatch is actually received during an active command event.
 
 - Adds a standalone, iPad-friendly command board at `/command.html`.
 - Starts a command event from the latest Active911 alert or from manual incident entry.
