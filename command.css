@@ -325,11 +325,29 @@ dialog::backdrop { background: rgba(0, 0, 0, .76); backdrop-filter: blur(3px); }
   .assignment-card header { padding: 7px 8px; }
   .assignment-card h3 { font-size: .8rem; }
   .assignment-units { min-height: 68px; padding: 7px; }
-  .resource-column { min-height: 0; gap: 8px; overflow: auto; scrollbar-gutter: stable; }
+  .resource-column {
+    min-height: 0;
+    gap: 8px;
+    overflow: hidden;
+    grid-template-rows: auto auto minmax(0, 1fr);
+  }
   .resource-panel { padding: 10px; }
   .resource-column .status-panel { order: 2; }
-  .resource-column .benchmark-panel { order: 3; }
-  .resource-column .log-panel { order: 4; }
+  .resource-column .benchmark-panel {
+    order: 3;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .resource-column .log-panel { order: 4; display: none; }
+  .benchmark-panel .benchmark-list {
+    min-height: 0;
+    flex: 1 1 auto;
+    overflow-y: auto;
+    scrollbar-gutter: stable;
+  }
+  .benchmark-panel .full-width-pager { flex: 0 0 auto; }
   .status-panel { gap: 7px; }
   .status-panel input, .status-panel select { min-height: 36px; padding: 6px 9px; }
   .apparatus-bank { min-height: 72px; max-height: 135px; margin-top: 7px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-content: start; overflow-y: auto; scrollbar-gutter: stable; }
@@ -355,4 +373,53 @@ dialog::backdrop { background: rgba(0, 0, 0, .76); backdrop-filter: blur(3px); }
   .position-board { grid-template-columns: repeat(3, 1fr); }
   .unit-chip { color: black; background: #eee !important; border-color: #555 !important; }
   .eyebrow, .incident-meta, label { color: #444; }
+}
+
+/* v0.3.1 — compact command header and benchmark-free board */
+.benchmark-panel { display: none !important; }
+
+.incident-workspace { gap: 8px; }
+.incident-heading {
+  padding: 9px 12px;
+  gap: 12px;
+}
+.incident-identification { min-width: 0; }
+.incident-lock { margin-bottom: 3px; font-size: .62rem; }
+.incident-lock span { width: 7px; height: 7px; }
+.incident-heading h1 {
+  font-size: clamp(1.35rem, 2.15vw, 2rem);
+  line-height: 1;
+}
+.incident-location { margin-top: 3px; font-size: .88rem; }
+.incident-meta { margin-top: 3px; gap: 10px; font-size: .72rem; }
+.incident-actions { gap: 6px; }
+.incident-actions button { min-height: 34px; padding: 6px 9px; font-size: .78rem; }
+
+.resource-column {
+  grid-template-rows: auto minmax(0, 1fr) !important;
+}
+.resource-column .status-panel {
+  order: 2;
+  min-height: 0;
+}
+.resource-column .log-panel { order: 3; }
+
+@media (min-width: 1000px) {
+  .incident-heading {
+    display: grid;
+    grid-template-columns: minmax(360px, 1fr) auto;
+  }
+  .incident-actions {
+    max-width: none;
+    flex-wrap: nowrap;
+  }
+  .resource-column .status-panel {
+    display: flex;
+    flex-direction: column;
+  }
+}
+
+@media (max-width: 1250px) {
+  .incident-heading { align-items: start; }
+  .incident-actions { flex-wrap: wrap; justify-content: flex-end; }
 }
