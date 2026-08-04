@@ -8,8 +8,11 @@
   operations away from a WTFD facility.
 - Applies the same protection to the standard and kiosk dashboards.
 
-# Incident Command Phase Two (0.2.3)
+# Incident Command Phase Two (0.2.4)
 
+- Dynamically reduces assignment and benchmark page sizes when a dispatch
+  banner, shorter display, or oversized apparatus bank consumes board space.
+- Hides unnecessary Apparatus Bank navigation when only one bank page exists.
 - Replaces clipped tactical assignments, apparatus, and benchmarks with
   touch-friendly paging controls.
 - Adds a confirmation dialog for deleting Command-created positions and

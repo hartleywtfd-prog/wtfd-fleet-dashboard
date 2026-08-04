@@ -40,7 +40,8 @@ const localStorage = {
 const window = {
   addEventListener() {},
   print() {},
-  localStorage
+  localStorage,
+  innerHeight: 900
 };
 
 const context = vm.createContext({
@@ -132,6 +133,7 @@ for (const id of ['cancelManualIncidentButton', 'cancelAddPositionButton', 'canc
 assert.equal(helpers.PAGE_SIZES.assignment, 9);
 assert.equal(helpers.PAGE_SIZES.bank, 9);
 assert.equal(helpers.PAGE_SIZES.benchmark, 4);
+assert.equal(helpers.pageSizeFor('benchmark'), 3);
 assert.match(html, /id="confirmRemoveBoardItemButton"/);
 assert.match(html, /id="benchmarkPageLabel"/);
 

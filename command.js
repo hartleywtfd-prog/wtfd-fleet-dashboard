@@ -845,11 +845,21 @@
   }
 
   function pagedItems(items, key) {
-    const size = PAGE_SIZES[key];
+    const size = pageSizeFor(key);
     const totalPages = Math.max(1, Math.ceil(items.length / size));
     state.pages[key] = Math.min(Math.max(0, state.pages[key] || 0), totalPages - 1);
     const start = state.pages[key] * size;
     return { items: items.slice(start, start + size), page: state.pages[key], totalPages };
+  }
+
+  function pageSizeFor(key) {
+    const dispatchBannerVisible = Boolean(state.pendingAlert && !$('newDispatchBanner').hidden);
+    if (key === 'assignment' && dispatchBannerVisible) return 6;
+    if (key !== 'benchmark') return PAGE_SIZES[key];
+    const bankCount = state.incident?.units.filter(unit => unit.assignmentId === 'bank' && unit.status !== 'released').length || 0;
+    if (dispatchBannerVisible || bankCount > PAGE_SIZES.bank) return 2;
+    if (window.innerHeight < 950) return 3;
+    return PAGE_SIZES.benchmark;
   }
 
   function updatePager(key, page, totalPages) {
@@ -863,6 +873,7 @@
     $(previousId).disabled = page <= 0;
     $(nextId).disabled = page >= totalPages - 1;
     $(labelId).textContent = `${includePageWord ? 'PAGE ' : ''}${page + 1} OF ${totalPages}`;
+    if (key === 'bank') $(labelId).closest('.pager').hidden = totalPages <= 1;
   }
 
   function renderAssignments() {
@@ -1095,10 +1106,12 @@
     state.pendingAlert = alert;
     $('newDispatchSummary').textContent = `${alert.description || 'Emergency Call'} • ${[alert.address, alert.unit, alert.city].filter(Boolean).join(' ') || 'Location unavailable'}`;
     $('newDispatchBanner').hidden = false;
+    if (state.incident) { renderAssignments(); renderBenchmarks(); }
   }
 
   function hidePendingAlert() {
     $('newDispatchBanner').hidden = true;
+    if (state.incident) { renderAssignments(); renderBenchmarks(); }
   }
 
   async function pollActive911() {
@@ -1298,7 +1311,7 @@
       const name = cleanUnit($('addUnitInput').value);
       if (!name || state.incident.units.some(unit => unit.name === name)) return;
       state.incident.units.push({ name, assignmentId: 'bank', source: 'Manual', addedAt: nowIso(), status: 'available' });
-      state.pages.bank = Math.floor((state.incident.units.filter(unit => unit.assignmentId === 'bank' && unit.status !== 'released').length - 1) / PAGE_SIZES.bank);
+      state.pages.bank = Math.floor((state.incident.units.filter(unit => unit.assignmentId === 'bank' && unit.status !== 'released').length - 1) / pageSizeFor('bank'));
       $('addUnitInput').value = '';
       markAccountabilityDirty(`${name} added`);
       logEntry(`${name} added manually to apparatus bank; accountability requires confirmation`);
@@ -1424,6 +1437,7 @@
     formatClock,
     migrateIncident,
     PROFILE_DEFINITIONS,
-    PAGE_SIZES
+    PAGE_SIZES,
+    pageSizeFor
   };
 })();
