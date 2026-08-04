@@ -206,6 +206,13 @@ export default {
         ));
       }
 
+      if (url.pathname === '/preview-physical-due') {
+        return json(await previewPhysicalDue(
+          env,
+          validatedInstantParameter(url.searchParams.get('at'))
+        ));
+      }
+
       if (url.pathname === '/preview-crew-emails') {
         return json(await previewCrewEmails(env));
       }
@@ -297,6 +304,7 @@ export default {
           '/probe-operational-question-linkage?at=ISO_TIMESTAMP',
           '/probe-turnout-gear',
           '/preview-turnout-gear?at=ISO_TIMESTAMP',
+          '/preview-physical-due?at=ISO_TIMESTAMP',
           '/preview-crew-emails',
           '/preview-inferred-operational-checks?at=ISO_TIMESTAMP',
           '/preview-incomplete-checks?date=YYYY-MM-DD&compact=1',
@@ -1329,6 +1337,200 @@ async function previewTurnoutGear(env, requestedInstant = null) {
     ]),
     diagnostics,
     note: 'Read-only dynamic-view join preview. No OperativeIQ, D1, Gmail, or Google Sheets data was changed.'
+  };
+}
+
+async function previewPhysicalDue(env, requestedInstant = null) {
+  const token = await getAccessToken(env);
+  const at = requestedInstant || new Date();
+  const todayKey = easternDateKey(at);
+  const cutoffKey = addDaysToDateKey(todayKey, 30);
+  const filter = encodeURIComponent("asset_Class eq 'Staff'");
+  const [managementRows, assetRows] = await Promise.all([
+    fetchAll(`/api/dynamic-views/vw_Asset_Management?$filter=${filter}`, token, 20000),
+    fetchAll(`/api/dynamic-views/vw_Assets_All?$filter=${filter}`, token, 20000)
+  ]);
+
+  const normalizedKey = value => String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const valueByNames = (source, names) => {
+    const wanted = new Set(names.map(normalizedKey));
+    for (const [key, value] of Object.entries(source || {})) {
+      if (wanted.has(normalizedKey(key))) return value;
+    }
+    return null;
+  };
+  const valueByPattern = (source, pattern) => {
+    for (const [key, value] of Object.entries(source || {})) {
+      if (pattern.test(normalizedKey(key))) return value;
+    }
+    return null;
+  };
+  const text = value => value === null || value === undefined ? '' : String(value).trim();
+  const joinKey = value => text(value).toUpperCase().replace(/\s+/g, ' ');
+  const active = value => {
+    if (value === true || value === 1) return true;
+    return /^(true|1|yes|active)$/i.test(text(value));
+  };
+  const dayDifference = (fromKey, toKey) => {
+    if (!fromKey || !toKey) return null;
+    const from = Date.parse(`${fromKey}T00:00:00Z`);
+    const to = Date.parse(`${toKey}T00:00:00Z`);
+    return Number.isFinite(from) && Number.isFinite(to)
+      ? Math.round((to - from) / 86400000)
+      : null;
+  };
+  const managementSerial = row => valueByNames(row, [
+    'serial___Part_Number', 'serial_Part_Number', 'serialPartNumber',
+    'serial_Number', 'serialNumber'
+  ]) || valueByPattern(row, /^serialpartnumber$/i);
+  const assetSerial = row => valueByNames(row, ['serial_Number', 'serialNumber']);
+
+  const managementBySerial = new Map();
+  for (const row of managementRows) {
+    const serial = joinKey(managementSerial(row));
+    if (!serial) continue;
+    if (!managementBySerial.has(serial)) managementBySerial.set(serial, []);
+    managementBySerial.get(serial).push(row);
+  }
+
+  const diagnostics = {
+    missingSerialNumber: 0,
+    missingJoin: 0,
+    wrongAssetClass: 0,
+    inactivePart: 0,
+    catalogPart: 0,
+    missingStaffMember: 0,
+    missingDueDate: 0,
+    beyondThirtyDays: 0,
+    duplicateStaffRecord: 0
+  };
+  const selected = new Map();
+
+  for (const asset of assetRows) {
+    const serial = joinKey(assetSerial(asset));
+    if (!serial) {
+      diagnostics.missingSerialNumber++;
+      continue;
+    }
+
+    const matchingManagementRows = managementBySerial.get(serial) || [];
+    if (!matchingManagementRows.length) {
+      diagnostics.missingJoin++;
+      continue;
+    }
+
+    for (const management of matchingManagementRows) {
+      const assetClass = text(
+        valueByNames(asset, ['asset_Class', 'assetClass'])
+        || valueByNames(management, ['asset_Class', 'assetClass'])
+      );
+      const partStatus = valueByNames(management, ['part_Status_Active', 'partStatusActive'])
+        ?? valueByNames(asset, ['part_Status_Active', 'partStatusActive']);
+      const catalogValue = valueByNames(management, ['catalog_Part', 'catalogPart', 'isCatalogPart'])
+        ?? valueByNames(asset, ['catalog_Part', 'catalogPart', 'isCatalogPart']);
+      const staffMember = text(valueByNames(management, ['part_Description', 'partDescription']))
+        || text(valueByNames(asset, ['part_Description', 'partDescription', 'asset_Description', 'assetDescription']));
+      const dueValue = valueByNames(management, ['next_Preventative_Maintenace_Date', 'nextPreventativeMaintenanceDate'])
+        ?? valueByPattern(management, /^nextpreventativemainten.*date$/i);
+      const lastValue = valueByNames(management, ['preventative_Maintenace_Date', 'preventativeMaintenanceDate'])
+        ?? valueByPattern(management, /^preventativemainten.*date$/i);
+      const dueDate = dynamicViewDateKey(dueValue);
+      const lastPhysicalDate = dynamicViewDateKey(lastValue);
+
+      if (normalize(assetClass) !== 'STAFF') {
+        diagnostics.wrongAssetClass++;
+        continue;
+      }
+      if (!active(partStatus)) {
+        diagnostics.inactivePart++;
+        continue;
+      }
+      if (normalizeBoolean(catalogValue)) {
+        diagnostics.catalogPart++;
+        continue;
+      }
+      if (!staffMember) {
+        diagnostics.missingStaffMember++;
+        continue;
+      }
+      if (!dueDate) {
+        diagnostics.missingDueDate++;
+        continue;
+      }
+      if (dueDate > cutoffKey) {
+        diagnostics.beyondThirtyDays++;
+        continue;
+      }
+
+      const daysUntilDue = dayDifference(todayKey, dueDate);
+      const row = {
+        staffMember,
+        dueForPhysical: dueDate,
+        lastPhysical: lastPhysicalDate,
+        daysUntilDue,
+        overdue: Number.isFinite(daysUntilDue) && daysUntilDue < 0,
+        serialNumber: text(assetSerial(asset)),
+        assetTag: text(valueByNames(asset, ['asset_Tag_Number', 'assetTagNumber']))
+          || text(valueByNames(management, ['asset_Tag___Part_UPC', 'assetTagPartUpc'])),
+        manufacturer: text(valueByNames(management, ['manufacturer']))
+          || text(valueByNames(asset, ['manufacturer'])),
+        location: text(valueByNames(asset, ['location']))
+          || text(valueByNames(management, ['location'])),
+        assetClass,
+        partStatusActive: true,
+        catalogPart: false
+      };
+
+      const current = selected.get(serial);
+      if (current) diagnostics.duplicateStaffRecord++;
+      if (
+        !current
+        || row.dueForPhysical > current.dueForPhysical
+        || (
+          row.dueForPhysical === current.dueForPhysical
+          && row.lastPhysical > current.lastPhysical
+        )
+      ) {
+        selected.set(serial, row);
+      }
+    }
+  }
+
+  const rows = [...selected.values()].sort((a, b) =>
+    a.dueForPhysical.localeCompare(b.dueForPhysical)
+    || a.staffMember.localeCompare(b.staffMember)
+  );
+  const assetSerialSet = new Set(
+    assetRows.map(asset => joinKey(assetSerial(asset))).filter(Boolean)
+  );
+
+  return {
+    success: true,
+    mode: 'READ_ONLY_PHYSICAL_DUE_PREVIEW',
+    timezone: 'America/New_York',
+    evaluatedAt: at.toISOString(),
+    reportDate: todayKey,
+    cutoffDate: cutoffKey,
+    sourceCounts: {
+      assetManagement: managementRows.length,
+      assetsAll: assetRows.length,
+      joinedSerialNumbers: [...managementBySerial.keys()].filter(key => assetSerialSet.has(key)).length
+    },
+    filters: {
+      assetClass: 'Staff',
+      partStatusActive: true,
+      catalogPart: false,
+      dueForPhysical: {
+        includesPastDue: true,
+        throughDate: cutoffKey
+      }
+    },
+    recordCount: rows.length,
+    headers: ['Staff Member', 'Due For Physical'],
+    rows,
+    sheetRows: rows.map(row => [row.staffMember, displayDate(row.dueForPhysical)]),
+    diagnostics,
+    note: 'Read-only dynamic-view join preview matching the Due For Physical Next 30 Days report. No OperativeIQ, D1, Gmail, or Google Sheets data was changed.'
   };
 }
 
