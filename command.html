@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#09111f">
+  <title>WTFD Incident Command</title>
+  <link rel="stylesheet" href="command.css?v=0.1.0">
+</head>
+<body>
+  <div class="command-app">
+    <header class="command-header">
+      <a class="command-brand" href="/" aria-label="Return to fleet dashboard">
+        <img src="logo.png" alt="">
+        <span>
+          <strong>WTFD Incident Command</strong>
+          <small>Washington Township Fire Department</small>
+        </span>
+      </a>
+
+      <div class="header-status">
+        <span id="feedStatus" class="feed-status connecting">● ACTIVE911 CONNECTING</span>
+        <time id="commandClock"></time>
+        <button id="fullscreenButton" class="secondary-button" type="button">Full Screen</button>
+      </div>
+    </header>
+
+    <section id="newDispatchBanner" class="dispatch-banner" hidden>
+      <div>
+        <strong>NEW DISPATCH RECEIVED</strong>
+        <span id="newDispatchSummary"></span>
+      </div>
+      <div class="button-row">
+        <button id="dismissDispatchButton" class="secondary-button" type="button">Keep Current Incident</button>
+        <button id="viewDispatchButton" class="warning-button" type="button">Review Dispatch</button>
+      </div>
+    </section>
+
+    <main>
+      <section id="emptyState" class="empty-state">
+        <div class="empty-card">
+          <span class="eyebrow">COMMAND BOARD READY</span>
+          <h1>No active command incident</h1>
+          <p id="latestAlertSummary">Waiting for the latest Active911 dispatch…</p>
+          <div class="empty-actions">
+            <button id="startLatestButton" class="primary-button" type="button" disabled>Start Latest Dispatch</button>
+            <button id="startManualButton" class="secondary-button" type="button">Start Manual Incident</button>
+          </div>
+        </div>
+      </section>
+
+      <section id="incidentWorkspace" class="incident-workspace" hidden>
+        <section class="incident-heading">
+          <div class="incident-identification">
+            <div class="incident-lock"><span></span> COMMAND INCIDENT LOCKED</div>
+            <h1 id="incidentType">Emergency Call</h1>
+            <div id="incidentLocation" class="incident-location">Location unavailable</div>
+            <div class="incident-meta">
+              <span id="incidentNumber"></span>
+              <span id="incidentReceived"></span>
+              <strong id="incidentElapsed">0:00 elapsed</strong>
+            </div>
+          </div>
+
+          <div class="incident-actions">
+            <button id="detailsButton" class="secondary-button" type="button">Incident Details</button>
+            <button id="printButton" class="secondary-button" type="button">Print Board</button>
+            <button id="exportButton" class="secondary-button" type="button">Export Log</button>
+            <button id="clearIncidentButton" class="danger-button" type="button">End Incident</button>
+          </div>
+        </section>
+
+        <section class="mode-bar" aria-label="Incident mode">
+          <span>Mode</span>
+          <div id="modeButtons" class="mode-buttons">
+            <button data-mode="investigation" type="button">Investigation</button>
+            <button data-mode="initial" type="button">Initial Operations</button>
+            <button data-mode="working_fire" type="button">Working Fire</button>
+            <button data-mode="rescue" type="button">Rescue</button>
+            <button data-mode="hazmat" type="button">Hazmat</button>
+          </div>
+        </section>
+
+        <section class="command-layout">
+          <div class="assignment-column">
+            <div class="section-heading">
+              <div>
+                <span class="eyebrow">TACTICAL ORGANIZATION</span>
+                <h2>Assignments</h2>
+              </div>
+              <button id="addAssignmentButton" class="secondary-button" type="button">+ Add Assignment</button>
+            </div>
+            <p class="touch-hint">Drag a unit, or tap a unit and then tap an assignment.</p>
+            <div id="assignmentBoard" class="assignment-board"></div>
+          </div>
+
+          <aside class="resource-column">
+            <section class="resource-panel">
+              <div class="section-heading compact">
+                <div>
+                  <span class="eyebrow">UNASSIGNED</span>
+                  <h2>Apparatus Bank</h2>
+                </div>
+                <span id="bankCount" class="count-badge">0</span>
+              </div>
+              <div id="apparatusBank" class="apparatus-bank drop-zone" data-assignment-id="bank"></div>
+              <form id="addUnitForm" class="inline-form">
+                <input id="addUnitInput" type="text" inputmode="text" autocomplete="off" placeholder="Add unit (e.g., E42)">
+                <button class="secondary-button" type="submit">Add</button>
+              </form>
+            </section>
+
+            <section class="resource-panel status-panel">
+              <div class="section-heading compact">
+                <div>
+                  <span class="eyebrow">INCIDENT PROFILE</span>
+                  <h2>Building / Occupancy</h2>
+                </div>
+              </div>
+              <label>Occupancy type<input id="occupancyInput" type="text" placeholder="Set from size-up or preplan"></label>
+              <div class="profile-grid">
+                <label>Floors<input id="floorsInput" type="number" min="0" max="99" inputmode="numeric"></label>
+                <label>Basement
+                  <select id="basementInput">
+                    <option value="unknown">Unknown</option>
+                    <option value="none">None</option>
+                    <option value="present">Present</option>
+                    <option value="walkout">Walkout</option>
+                  </select>
+                </label>
+              </div>
+              <div id="preplanLinks" class="preplan-links"></div>
+            </section>
+
+            <section class="resource-panel log-panel">
+              <div class="section-heading compact">
+                <div>
+                  <span class="eyebrow">DOCUMENTATION</span>
+                  <h2>Command Log</h2>
+                </div>
+              </div>
+              <form id="logForm" class="inline-form log-form">
+                <input id="logInput" type="text" autocomplete="off" placeholder="Add command note…">
+                <button class="secondary-button" type="submit">Log</button>
+              </form>
+              <ol id="commandLog" class="command-log"></ol>
+            </section>
+          </aside>
+        </section>
+      </section>
+    </main>
+  </div>
+
+  <dialog id="manualIncidentDialog">
+    <form id="manualIncidentForm" method="dialog" class="dialog-form">
+      <div class="dialog-heading">
+        <div><span class="eyebrow">NEW COMMAND EVENT</span><h2>Start Manual Incident</h2></div>
+        <button class="icon-button" value="cancel" aria-label="Close">×</button>
+      </div>
+      <label>Incident type<input name="description" required placeholder="Structure Fire"></label>
+      <label>Address<input name="address" required placeholder="Incident address"></label>
+      <div class="profile-grid">
+        <label>City<input name="city" value="Washington Township"></label>
+        <label>Incident number<input name="cadCode" placeholder="Optional"></label>
+      </div>
+      <div class="dialog-actions">
+        <button class="secondary-button" value="cancel">Cancel</button>
+        <button class="primary-button" id="confirmManualIncident" value="default">Start Incident</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="detailsDialog">
+    <div class="dialog-form details-dialog">
+      <div class="dialog-heading">
+        <div><span class="eyebrow">ACTIVE911</span><h2>Incident Details</h2></div>
+        <button id="closeDetailsButton" class="icon-button" aria-label="Close">×</button>
+      </div>
+      <dl id="incidentDetails"></dl>
+    </div>
+  </dialog>
+
+  <dialog id="newDispatchDialog">
+    <div class="dialog-form details-dialog">
+      <div class="dialog-heading">
+        <div><span class="eyebrow">NEW DISPATCH</span><h2>Current incident remains locked</h2></div>
+        <button id="closeDispatchDialog" class="icon-button" aria-label="Close">×</button>
+      </div>
+      <div id="newDispatchDetails"></div>
+      <p class="dialog-note">This dispatch has not changed the active command board.</p>
+    </div>
+  </dialog>
+
+  <dialog id="addAssignmentDialog">
+    <form id="addAssignmentForm" method="dialog" class="dialog-form">
+      <div class="dialog-heading">
+        <div><span class="eyebrow">TACTICAL ASSIGNMENT</span><h2>Add Assignment</h2></div>
+        <button class="icon-button" value="cancel" aria-label="Close">×</button>
+      </div>
+      <label>Assignment name<input name="name" required placeholder="Division 2, Exposure B, Medical…"></label>
+      <div class="dialog-actions">
+        <button class="secondary-button" value="cancel">Cancel</button>
+        <button class="primary-button" value="default">Add Assignment</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="endIncidentDialog">
+    <form method="dialog" class="dialog-form">
+      <div class="dialog-heading">
+        <div><span class="eyebrow danger-text">END COMMAND</span><h2>Clear the active incident?</h2></div>
+      </div>
+      <p>This closes the command event and clears the working board. Export the log first if needed.</p>
+      <div class="dialog-actions">
+        <button class="secondary-button" value="cancel">Keep Incident</button>
+        <button id="confirmEndIncident" class="danger-button" value="default">End and Clear</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="command.js?v=0.1.0"></script>
+</body>
+</html>

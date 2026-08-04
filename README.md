@@ -8,6 +8,20 @@
   operations away from a WTFD facility.
 - Applies the same protection to the standard and kiosk dashboards.
 
+# Incident Command Phase One (0.1.0)
+
+- Adds a standalone, iPad-friendly command board at `/command.html`.
+- Starts a command event from the latest Active911 alert or from manual incident entry.
+- Locks the active command event so later unrelated dispatches cannot overwrite it.
+- Merges Active911 changes to the same CAD incident, including newly dispatched units
+  and a working-fire escalation.
+- Supports drag-and-drop assignment on desktop and tap-unit/tap-assignment operation
+  on touch devices.
+- Includes operating modes, manual tactical assignments, occupancy/floor/basement
+  fields, Active911/preplan links, a timestamped command log, printing, and CSV export.
+- Keeps assigned units on the board until command manually moves or clears them.
+- Persists the active board in browser storage through refreshes and device restarts.
+
 # Version 5.0.9
 
 - Restores Active911 polling to every 5 seconds.
