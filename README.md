@@ -8,8 +8,10 @@
   operations away from a WTFD facility.
 - Applies the same protection to the standard and kiosk dashboards.
 
-# Incident Command Phase Two (0.2.0)
+# Incident Command Phase Two (0.2.1)
 
+- Classifies Active911 `LIFT` / `LIFT ASSIST` calls as general service
+  assistance; only explicit elevator incidents invoke the Elevator Rescue profile.
 - Rebuilds the command board around the 47 WTFD incident-command, fireground,
   water-supply, and technical-rescue policies supplied for this release.
 - Separates incident profile, operational level, and strategy so each command

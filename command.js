@@ -320,7 +320,7 @@
 
   function inferProfile(alert) {
     const text = `${alert?.description || ''} ${alert?.details || ''}`.toUpperCase();
-    if (/LIFT|ELEVATOR/.test(text)) return 'elevator_rescue';
+    if (/ELEVATOR|LIFT\s*(?:CAR|SHAFT).*ENTRAP|STUCK\s+(?:IN|ON)\s+(?:AN?\s+)?ELEVATOR/.test(text)) return 'elevator_rescue';
     if (/CONFINED\s*SPACE/.test(text)) return 'confined_space';
     if (/TRENCH|EXCAVATION/.test(text)) return 'trench_rescue';
     if (/STRUCTURAL\s+COLLAPSE|BUILDING\s+COLLAPSE/.test(text)) return 'structural_collapse';
@@ -396,6 +396,49 @@
     });
   }
 
+  function reconcileProfileContent(incident, profileKey) {
+    const definition = PROFILE_DEFINITIONS[profileKey] || PROFILE_DEFINITIONS.generic;
+    const targetTaskNames = new Set(definition.tasks.map(name => name.toLowerCase()));
+    const automaticTaskNames = new Set(
+      Object.values(PROFILE_DEFINITIONS).flatMap(item => item.tasks.map(name => name.toLowerCase()))
+    );
+    ['investigation', 'fire attack', 'search'].forEach(name => automaticTaskNames.add(name));
+    const hasAssignedUnit = id => incident.units.some(unit => unit.assignmentId === id && unit.status !== 'released');
+
+    incident.assignments = incident.assignments.filter(item => {
+      if (targetTaskNames.has(item.name.toLowerCase())) return true;
+      const generated = item.source === 'Policy-supported task' || (!item.source && automaticTaskNames.has(item.name.toLowerCase()));
+      if (!generated) return true;
+      if (hasAssignedUnit(item.id)) {
+        item.source = 'Retained from prior profile';
+        return true;
+      }
+      return false;
+    });
+
+    const targetPositionIds = new Set([
+      ...CORE_POSITIONS.map(item => `position-${item.key}`),
+      ...definition.positions.map(item => `position-${item.key}`)
+    ]);
+    const policyPositionIds = new Set(
+      Object.values(PROFILE_DEFINITIONS).flatMap(item => item.positions.map(positionItem => `position-${positionItem.key}`))
+    );
+    incident.positions = incident.positions.filter(item => {
+      if (targetPositionIds.has(item.id) || !policyPositionIds.has(item.id)) return true;
+      if (hasAssignedUnit(item.id)) {
+        item.source = 'Retained from prior profile';
+        return true;
+      }
+      return false;
+    });
+
+    const targetBenchmarkIds = new Set([...UNIVERSAL_BENCHMARKS, ...definition.benchmarks].map(item => item.id));
+    if (incident.strategy === 'defensive') {
+      ['defensive_announced', 'interior_withdrawn', 'collapse_zone'].forEach(id => targetBenchmarkIds.add(id));
+    }
+    incident.benchmarks = incident.benchmarks.filter(item => targetBenchmarkIds.has(item.id) || Boolean(item.completedAt));
+  }
+
   function createIncident(alert, source = 'Active911', overrides = {}) {
     const receivedMs = parseTimestamp(alert?.received) || Date.now();
     const units = parseUnits(alert?.units);
@@ -404,7 +447,7 @@
     const manualProfile = overrides.profile || 'generic';
     const isManual = source === 'Manual';
     const incident = {
-      schemaVersion: 2,
+      schemaVersion: 4,
       key: incidentKey(alert) || `manual-${Date.now()}`,
       source,
       active911Id: String(alert?.id || ''),
@@ -462,7 +505,7 @@
   function migrateIncident(raw) {
     if (!raw?.key) return null;
     const incident = raw;
-    incident.schemaVersion = 2;
+    const priorSchemaVersion = Number(incident.schemaVersion || 1);
     incident.profile ||= 'generic';
     incident.operationalLevel ||= incident.mode === 'working_fire' ? 'working_fire' : 'initial';
     incident.strategy ||= ({ investigation: 'investigation', working_fire: 'offensive', rescue: 'investigation', hazmat: 'investigation', initial: 'investigation' })[incident.mode] || 'investigation';
@@ -493,7 +536,20 @@
         incident.suggestions.push({ type: 'profile', value: suggested, source: 'Migration' });
       }
     }
+    const incidentText = `${incident.description || ''} ${incident.details || ''}`.toUpperCase();
+    const nonEmergencyLiftAssist = /\bLIFT(?:\s+ASSIST(?:ANCE)?)?\b/.test(incidentText) && !/ELEVATOR|ENTRAP|STUCK/.test(incidentText);
+    if (priorSchemaVersion < 4 && nonEmergencyLiftAssist) {
+      incident.suggestions = incident.suggestions.filter(item => !(item.type === 'profile' && item.value === 'elevator_rescue'));
+      if (incident.operationalLevel !== 'initial' && !incident.suggestions.some(item => item.type === 'level' && item.value === 'initial')) {
+        incident.suggestions.push({ type: 'level', value: 'initial', source: 'Lift-assist classification' });
+      }
+      if (incident.strategy !== 'investigation' && !incident.suggestions.some(item => item.type === 'strategy' && item.value === 'investigation')) {
+        incident.suggestions.push({ type: 'strategy', value: 'investigation', source: 'Lift-assist classification' });
+      }
+    }
+    if (priorSchemaVersion < 4) reconcileProfileContent(incident, incident.profile);
     ensurePolicyContent(incident, incident.profile);
+    incident.schemaVersion = 4;
     return incident;
   }
 
@@ -576,6 +632,7 @@
   function suggestionValueLabel(type, value) {
     if (type === 'profile') return PROFILE_DEFINITIONS[value]?.label || value;
     if (type === 'level') return LEVEL_LABELS[value] || value;
+    if (type === 'strategy') return STRATEGY_LABELS[value] || value;
     return value;
   }
 
@@ -584,7 +641,15 @@
     if (!incident || !PROFILE_DEFINITIONS[profileKey] || incident.profile === profileKey) return;
     const prior = PROFILE_DEFINITIONS[incident.profile]?.label || incident.profile;
     incident.profile = profileKey;
+    reconcileProfileContent(incident, profileKey);
     ensurePolicyContent(incident, profileKey);
+    const definition = PROFILE_DEFINITIONS[profileKey];
+    if ((definition.technicalRescue || profileKey === 'hazmat_generic') && incident.operationalLevel !== 'initial') {
+      addSuggestion('level', 'initial', 'Policy fit');
+    }
+    if ((definition.technicalRescue || profileKey === 'hazmat_generic') && incident.strategy !== 'investigation') {
+      addSuggestion('strategy', 'investigation', 'Policy fit');
+    }
     incident.log.unshift({ at: nowIso(), message: `${source} changed incident profile from ${prior} to ${PROFILE_DEFINITIONS[profileKey].label}`, type: 'decision' });
     persist();
     render();
@@ -831,7 +896,7 @@
     const suggestion = state.incident?.suggestions?.[0];
     $('policySuggestion').hidden = !suggestion;
     if (!suggestion) return;
-    const noun = suggestion.type === 'profile' ? 'Incident profile' : 'Operational level';
+    const noun = suggestion.type === 'profile' ? 'Incident profile' : suggestion.type === 'level' ? 'Operational level' : 'Strategy';
     $('policySuggestionText').textContent = `${noun}: ${suggestionValueLabel(suggestion.type, suggestion.value)}`;
   }
 
@@ -1141,6 +1206,7 @@
       if (!suggestion) return;
       if (suggestion.type === 'profile') changeProfile(suggestion.value, suggestion.source);
       if (suggestion.type === 'level') changeLevel(suggestion.value, suggestion.source);
+      if (suggestion.type === 'strategy') changeStrategy(suggestion.value);
       persist();
       render();
     });

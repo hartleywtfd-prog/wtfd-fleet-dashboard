@@ -71,7 +71,8 @@ assert.deepEqual(
 );
 assert.equal(helpers.incidentKey({ id: '123', cadCode: '2026-100' }), '2026-100');
 assert.equal(helpers.incidentKey({ id: '123' }), '123');
-assert.equal(helpers.inferProfile({ description: 'LIFT ASSIST' }), 'elevator_rescue');
+assert.equal(helpers.inferProfile({ description: 'LIFT ASSIST' }), 'generic');
+assert.equal(helpers.inferProfile({ description: 'ELEVATOR ENTRAPMENT' }), 'elevator_rescue');
 assert.equal(helpers.inferProfile({ description: 'BASEMENT FIRE' }), 'basement_fire');
 assert.equal(helpers.inferProfile({ description: 'CONFINED SPACE RESCUE' }), 'confined_space');
 assert.equal(helpers.inferProfile({ description: 'VEHACC - ENTRAPMENT' }), 'vehicle_machinery_rescue');
@@ -96,12 +97,32 @@ const migrated = helpers.migrateIncident({
   assignments: [{ id: 'legacy-command', name: 'Command' }],
   log: []
 });
-assert.equal(migrated.schemaVersion, 2);
+assert.equal(migrated.schemaVersion, 4);
 assert.equal(migrated.operationalLevel, 'working_fire');
 assert.equal(migrated.strategy, 'offensive');
 assert.ok(migrated.positions.some(position => position.id === 'position-incident-command'));
 assert.equal(migrated.units[0].assignmentId, 'position-incident-command');
 assert.ok(migrated.benchmarks.some(item => item.id === 'command_established'));
 assert.ok(migrated.suggestions.some(item => item.type === 'profile' && item.value === 'structure_fire'));
+assert.equal(migrated.assignments.some(item => item.name === 'Command'), false);
+
+const liftAssist = helpers.migrateIncident({
+  schemaVersion: 3,
+  key: 'lift-1',
+  description: 'LIFT',
+  operationalLevel: 'working_fire',
+  strategy: 'offensive',
+  profile: 'generic',
+  units: [],
+  positions: [],
+  assignments: [{ id: 'old-fire', name: 'Fire Attack', removable: true }],
+  benchmarks: [],
+  suggestions: [{ type: 'profile', value: 'elevator_rescue', source: 'Active911' }],
+  log: []
+});
+assert.equal(liftAssist.suggestions.some(item => item.value === 'elevator_rescue'), false);
+assert.ok(liftAssist.suggestions.some(item => item.type === 'level' && item.value === 'initial'));
+assert.ok(liftAssist.suggestions.some(item => item.type === 'strategy' && item.value === 'investigation'));
+assert.equal(liftAssist.assignments.some(item => item.name === 'Fire Attack'), false);
 
 console.log('Incident command helper tests passed.');
