@@ -317,17 +317,44 @@
       .replace(/\s+/g, ' ')
       .replace(/^ENGINE\s*/i, 'E')
       .replace(/^MEDIC\s*/i, 'M')
-      .replace(/^LADDER\s*/i, 'L')
-      .replace(/^BATTALION\s*/i, 'B')
+      .replace(/^(?:LADDER|TRUCK)\s*/i, 'L')
+      .replace(/^BATTALION(?:\s+CHIEF)?\s*/i, 'B')
+      .replace(/^(?:BAT|BC)\s*/i, 'B')
       .replace(/^CHIEF\s*/i, 'C')
       .toUpperCase();
   }
 
+  function unitSourceText(value) {
+    if (Array.isArray(value)) return value.map(unitSourceText).filter(Boolean).join(', ');
+    if (value && typeof value === 'object') {
+      return unitSourceText(value.name || value.unit || value.callSign || value.callsign || value.call_sign || value.label || Object.values(value));
+    }
+    return String(value || '');
+  }
+
   function parseUnits(value) {
-    const text = String(value || '').toUpperCase();
-    const matches = text.match(/\b(?:ENGINE|MEDIC|LADDER|BATTALION|CHIEF|RESCUE|SQUAD|SAFETY|TRAINING|PREVENTION|MARSHAL|UTILITY|UTV|E|M|L|B|C|R|SQ|T|S|P|U)\s*-?\s*\d{1,3}\b/g) || [];
+    const text = unitSourceText(value).toUpperCase();
+    const matches = text.match(/\b(?:ENGINE|MEDIC|LADDER|TRUCK|BATTALION(?:\s+CHIEF)?|BAT|BC|CHIEF|RESCUE|SQUAD|SAFETY|TRAINING|PREVENTION|MARSHAL|UTILITY|UTV|E|M|L|B|C|R|SQ|T|S|P|U)\s*-?\s*\d{1,3}\b/g) || [];
     const source = matches.length ? matches : text.split(/[,;|/]+/);
     return [...new Set(source.map(cleanUnit).filter(unit => /^[A-Z][A-Z ]*\d{1,3}$/.test(unit)))];
+  }
+
+  function parseAlertUnits(alert) {
+    const directSources = [
+      alert?.units,
+      alert?.assignedUnits,
+      alert?.assigned_units,
+      alert?.respondingUnits,
+      alert?.responding_units,
+      alert?.resources,
+      alert?.apparatus
+    ];
+    const detailSources = [];
+    const details = String(alert?.details || '');
+    for (const match of details.matchAll(/^(?:RESPONDING\s+)?(?:UNITS?|APPARATUS|RESOURCES?|ASSIGNED)\s*[:=-]\s*(.+)$/gim)) {
+      detailSources.push(match[1]);
+    }
+    return [...new Set([...directSources, ...detailSources].flatMap(parseUnits))];
   }
 
   function normalizeCrewSenseAssignment(value) {
@@ -561,7 +588,7 @@
 
   function createIncident(alert, source = 'Active911', overrides = {}) {
     const receivedMs = parseTimestamp(alert?.received) || Date.now();
-    const units = parseUnits(alert?.units);
+    const units = parseAlertUnits(alert);
     const suggestedProfile = inferProfile(alert);
     const suggestedLevel = detectOperationalLevel(alert);
     const manualProfile = overrides.profile || 'generic';
@@ -735,7 +762,7 @@
     });
 
     const existing = new Set(incident.units.map(unit => unit.name));
-    const added = parseUnits(alert?.units).filter(unit => !existing.has(unit));
+    const added = parseAlertUnits(alert).filter(unit => !existing.has(unit));
     added.forEach(name => incident.units.push({ name, assignmentId: 'bank', source: 'Active911', addedAt: nowIso(), status: 'available' }));
     if (added.length) {
       changed.push(`Added units: ${added.join(', ')}`);
@@ -1716,6 +1743,7 @@
 
   window.WTFD_COMMAND_TEST = {
     parseUnits,
+    parseAlertUnits,
     incidentKey,
     inferProfile,
     detectOperationalLevel,

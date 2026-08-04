@@ -71,7 +71,23 @@ assert.deepEqual(
   Array.from(helpers.parseUnits('B40, Engine 41, M-43 / Ladder 41')),
   ['B40', 'E41', 'M43', 'L41']
 );
+assert.deepEqual(
+  Array.from(helpers.parseUnits('BC40 BAT-41 Battalion Chief 42 Truck 41')),
+  ['B40', 'B41', 'B42', 'L41']
+);
+assert.deepEqual(
+  Array.from(helpers.parseAlertUnits({ units: ['E44', { call_sign: 'BC40' }], details: 'Assigned: E42' })),
+  ['E44', 'B40', 'E42']
+);
 assert.equal(helpers.incidentKey({ id: '123', cadCode: '2026-100' }), '2026-100');
+assert.deepEqual(
+  Array.from(helpers.parseUnits('BC40 BAT-41 Battalion Chief 42 Truck 41')),
+  ['B40', 'B41', 'B42', 'L41']
+);
+assert.deepEqual(
+  Array.from(helpers.parseAlertUnits({ units: ['E44', { call_sign: 'BC40' }], details: 'Assigned: E42' })),
+  ['E44', 'B40', 'E42']
+);
 assert.equal(helpers.incidentKey({ id: '123' }), '123');
 assert.equal(helpers.inferProfile({ description: 'LIFT ASSIST' }), 'generic');
 assert.equal(helpers.inferProfile({ description: 'ELEVATOR ENTRAPMENT' }), 'elevator_rescue');

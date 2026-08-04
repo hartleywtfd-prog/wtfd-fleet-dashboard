@@ -146,6 +146,14 @@ function timestampValue(alert) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+function active911UnitText(value) {
+  if (Array.isArray(value)) return value.map(active911UnitText).filter(Boolean).join(', ');
+  if (value && typeof value === 'object') {
+    return active911UnitText(value.name || value.unit || value.callSign || value.callsign || value.call_sign || value.label || Object.values(value));
+  }
+  return String(value || '').trim();
+}
+
 function normalizeAlert(alert) {
   const details = String(alert.details || '')
     .split(/\r?\n/)
@@ -164,7 +172,7 @@ function normalizeAlert(alert) {
     city: alert.city || '',
     state: alert.state || '',
     crossStreet: alert.cross_street || '',
-    units: alert.units || '',
+    units: [alert.units, alert.assigned_units, alert.assignedUnits, alert.responding_units, alert.respondingUnits, alert.resources, alert.apparatus].map(active911UnitText).filter(Boolean).join(', '),
     details,
     priority: alert.priority || '',
     received: alert.received || alert.sent || '',
