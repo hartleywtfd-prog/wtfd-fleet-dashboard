@@ -5,6 +5,10 @@
   "triggers": {
     "crons": ["*/5 * * * *", "*/30 * * * *"]
   },
+  "vars": {
+    "INCOMPLETE_CHECKS_D1_ENABLED": "true",
+    "GOOGLE_SHEETS_EXPORT_ENABLED": "false"
+  },
   "d1_databases": [
     {
       "binding": "DB",

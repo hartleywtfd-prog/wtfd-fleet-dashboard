@@ -46,7 +46,23 @@ globalThis.fetch = async input => {
 const env = {
   SYNC_ADMIN_TOKEN: 'admin-test-token',
   OPERATIVE_CLIENT_ID: 'client-id',
-  OPERATIVE_CLIENT_SECRET: 'client-secret'
+  OPERATIVE_CLIENT_SECRET: 'client-secret',
+  DB: {
+    prepare(sql) {
+      assert.match(sql, /FROM vehicles/);
+      return {
+        async all() {
+          return {
+            results: [
+              { apparatus_number: 'F110', primary_assignment: 'Engine 41', current_assignment: 'Engine 41' },
+              { apparatus_number: 'F111', primary_assignment: 'Engine 42', current_assignment: 'Engine 42' },
+              { apparatus_number: 'F112', primary_assignment: 'Engine 43', current_assignment: 'Engine 43' }
+            ]
+          };
+        }
+      };
+    }
+  }
 };
 
 const beforeChange = await preview('2026-08-03T10:59:00Z');
@@ -60,7 +76,7 @@ const atChange = await preview('2026-08-03T11:00:00Z');
 assert.equal(atChange.shiftKey, '2026-08-03');
 assert.deepEqual(
   atChange.rows.map(row => row.questionnaireName).sort(),
-  ['Daily Engine', 'UTV 41 Check List']
+  ['Daily Engine', 'Daily Engine', 'UTV 41 Check List', 'UTV 44 Check List']
 );
 assert.equal(atChange.rows.some(row => row.unitNumber === 'Vehicle F112'), false);
 
