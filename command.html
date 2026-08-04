@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#09111f">
   <title>WTFD Incident Command</title>
-  <link rel="stylesheet" href="command.css?v=0.1.2">
+  <link rel="stylesheet" href="command.css?v=0.2.0">
 </head>
 <body>
   <div class="command-app">
@@ -17,7 +17,6 @@
           <small>Washington Township Fire Department</small>
         </span>
       </a>
-
       <div class="header-status">
         <span id="feedStatus" class="feed-status connecting">● ACTIVE911 CONNECTING</span>
         <time id="commandClock"></time>
@@ -34,6 +33,15 @@
         <button id="dismissDispatchButton" class="secondary-button" type="button">Keep Current Incident</button>
         <button id="viewDispatchButton" class="warning-button" type="button">Review Dispatch</button>
       </div>
+    </section>
+
+    <section id="maydayBanner" class="mayday-banner" hidden>
+      <div>
+        <span class="mayday-pulse"></span>
+        <strong>MAYDAY ACTIVE</strong>
+        <span id="maydaySummary"></span>
+      </div>
+      <button id="resolveMaydayButton" class="light-button" type="button">Resolve MAYDAY</button>
     </section>
 
     <main>
@@ -58,49 +66,128 @@
             <div class="incident-meta">
               <span id="incidentNumber"></span>
               <span id="incidentReceived"></span>
+              <span id="commandDesignation"></span>
               <strong id="incidentElapsed">0:00 elapsed</strong>
             </div>
           </div>
-
           <div class="incident-actions">
             <button id="detailsButton" class="secondary-button" type="button">Incident Details</button>
+            <button id="transferCommandButton" class="secondary-button" type="button">Transfer Command</button>
             <button id="printButton" class="secondary-button" type="button">Print Board</button>
             <button id="exportButton" class="secondary-button" type="button">Export Log</button>
             <button id="clearIncidentButton" class="danger-button" type="button">End Incident</button>
           </div>
         </section>
 
-        <section class="mode-bar" aria-label="Incident mode">
-          <span>Mode</span>
-          <div id="modeButtons" class="mode-buttons">
-            <button data-mode="investigation" type="button">Investigation</button>
-            <button data-mode="initial" type="button">Initial Operations</button>
-            <button data-mode="working_fire" type="button">Working Fire</button>
-            <button data-mode="rescue" type="button">Rescue</button>
-            <button data-mode="hazmat" type="button">Hazmat</button>
+        <section id="policySuggestion" class="policy-suggestion" hidden>
+          <div>
+            <span class="eyebrow">ACTIVE911 SUGGESTION — COMMAND CONFIRMATION REQUIRED</span>
+            <strong id="policySuggestionText"></strong>
+          </div>
+          <div class="button-row">
+            <button id="dismissSuggestionButton" class="secondary-button" type="button">Dismiss</button>
+            <button id="confirmSuggestionButton" class="primary-button" type="button">Confirm</button>
+          </div>
+        </section>
+
+        <section class="incident-control-grid">
+          <label class="control-card profile-control">
+            <span>Incident Profile</span>
+            <select id="profileSelect">
+              <option value="generic">General Incident</option>
+              <optgroup label="Fire Suppression">
+                <option value="structure_fire">Structure Fire</option>
+                <option value="high_rise">High-Rise Fire</option>
+                <option value="commercial_industrial">Commercial / Industrial Fire</option>
+                <option value="multifamily">Large Multifamily Fire</option>
+                <option value="basement_fire">Basement / Below-Grade Fire</option>
+                <option value="fire_systems">Fire-Protection Systems</option>
+                <option value="vehicle_fire">Vehicle Fire</option>
+                <option value="exterior_fire">Exterior Fire</option>
+              </optgroup>
+              <optgroup label="Technical Rescue">
+                <option value="rope_rescue">Rope Rescue</option>
+                <option value="confined_space">Confined Space Rescue</option>
+                <option value="trench_rescue">Trench Rescue</option>
+                <option value="structural_collapse">Structural Collapse</option>
+                <option value="water_ice_rescue">Water / Ice Rescue</option>
+                <option value="disaster_search">Disaster Search</option>
+                <option value="lost_person">Lost Person Search</option>
+                <option value="vehicle_machinery_rescue">Vehicle / Machinery Rescue</option>
+                <option value="elevator_rescue">Elevator Rescue</option>
+              </optgroup>
+              <optgroup label="Not Yet Policy-Specific">
+                <option value="hazmat_generic">Hazmat — Generic</option>
+              </optgroup>
+            </select>
+          </label>
+
+          <div class="control-card">
+            <span>Operational Level</span>
+            <div id="levelButtons" class="segmented-buttons">
+              <button data-level="initial" type="button">Initial</button>
+              <button data-level="working_fire" type="button">Working Fire</button>
+              <button data-level="additional_alarm" type="button">Additional Alarm</button>
+            </div>
+          </div>
+
+          <div class="control-card strategy-control">
+            <span>Strategy</span>
+            <div id="strategyButtons" class="segmented-buttons">
+              <button data-strategy="investigation" type="button">Investigation</button>
+              <button data-strategy="offensive" type="button">Offensive</button>
+              <button data-strategy="defensive" type="button">Defensive</button>
+              <button data-strategy="transitional" type="button">Transitional</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="safety-console" aria-label="Safety and accountability status">
+          <div class="safety-status-grid">
+            <div id="accountabilityStatus" class="safety-status"><span>Accountability</span><strong>Needs confirmation</strong></div>
+            <div id="ricStatus" class="safety-status"><span>RIC Capability</span><strong>Not required</strong></div>
+            <div id="parStatus" class="safety-status"><span>PAR</span><strong>Current</strong></div>
+            <div id="spanStatus" class="safety-status"><span>Command Span</span><strong>0 active elements</strong></div>
+          </div>
+          <div class="safety-actions">
+            <button id="confirmAccountabilityButton" class="secondary-button" type="button">Confirm Accountability</button>
+            <button id="confirmRicButton" class="secondary-button" type="button">Confirm RIC</button>
+            <button id="completeParButton" class="secondary-button" type="button">Complete PAR</button>
+            <button id="maydayButton" class="mayday-button" type="button">MAYDAY</button>
           </div>
         </section>
 
         <section class="command-layout">
           <div class="assignment-column">
-            <div class="section-heading">
-              <div>
-                <span class="eyebrow">TACTICAL ORGANIZATION</span>
-                <h2>Assignments</h2>
+            <section class="board-section organization-section">
+              <div class="section-heading">
+                <div>
+                  <span class="eyebrow">COMMAND STRUCTURE</span>
+                  <h2>Command Organization</h2>
+                </div>
+                <button id="addPositionButton" class="secondary-button" type="button">+ Add Position</button>
               </div>
-              <button id="addAssignmentButton" class="secondary-button" type="button">+ Add Assignment</button>
-            </div>
-            <p class="touch-hint">Drag a unit, or tap a unit and then tap an assignment.</p>
-            <div id="assignmentBoard" class="assignment-board"></div>
+              <p class="touch-hint">Positions and functions are separate from tactical work. Drag a unit, or tap a unit and then a position.</p>
+              <div id="positionBoard" class="position-board"></div>
+            </section>
+
+            <section class="board-section tactical-section">
+              <div class="section-heading">
+                <div>
+                  <span class="eyebrow">TACTICAL ORGANIZATION</span>
+                  <h2>Tactical Assignments</h2>
+                </div>
+                <button id="addAssignmentButton" class="secondary-button" type="button">+ Add Assignment</button>
+              </div>
+              <p class="touch-hint">The board creates policy-supported tasks but never chooses which apparatus receives them.</p>
+              <div id="assignmentBoard" class="assignment-board"></div>
+            </section>
           </div>
 
           <aside class="resource-column">
             <section class="resource-panel">
               <div class="section-heading compact">
-                <div>
-                  <span class="eyebrow">UNASSIGNED</span>
-                  <h2>Apparatus Bank</h2>
-                </div>
+                <div><span class="eyebrow">UNASSIGNED</span><h2>Apparatus Bank</h2></div>
                 <span id="bankCount" class="count-badge">0</span>
               </div>
               <div id="apparatusBank" class="apparatus-bank drop-zone" data-assignment-id="bank"></div>
@@ -110,12 +197,17 @@
               </form>
             </section>
 
+            <section class="resource-panel benchmark-panel">
+              <div class="section-heading compact">
+                <div><span class="eyebrow">POLICY-SOURCED</span><h2>Benchmarks</h2></div>
+                <span id="benchmarkCount" class="count-badge">0/0</span>
+              </div>
+              <div id="benchmarkList" class="benchmark-list"></div>
+            </section>
+
             <section class="resource-panel status-panel">
               <div class="section-heading compact">
-                <div>
-                  <span class="eyebrow">INCIDENT PROFILE</span>
-                  <h2>Building / Occupancy</h2>
-                </div>
+                <div><span class="eyebrow">INCIDENT PROFILE</span><h2>Building / Occupancy</h2></div>
               </div>
               <label>Occupancy type<input id="occupancyInput" type="text" placeholder="Set from size-up or preplan"></label>
               <div class="profile-grid">
@@ -134,10 +226,7 @@
 
             <section class="resource-panel log-panel">
               <div class="section-heading compact">
-                <div>
-                  <span class="eyebrow">DOCUMENTATION</span>
-                  <h2>Command Log</h2>
-                </div>
+                <div><span class="eyebrow">DOCUMENTATION</span><h2>Command Log</h2></div>
               </div>
               <form id="logForm" class="inline-form log-form">
                 <input id="logInput" type="text" autocomplete="off" placeholder="Add command note…">
@@ -163,9 +252,28 @@
         <label>City<input name="city" value="Washington Township"></label>
         <label>Incident number<input name="cadCode" placeholder="Optional"></label>
       </div>
+      <label>Incident profile
+        <select name="profile">
+          <option value="generic">General Incident</option>
+          <option value="structure_fire">Structure Fire</option>
+          <option value="high_rise">High-Rise Fire</option>
+          <option value="commercial_industrial">Commercial / Industrial Fire</option>
+          <option value="multifamily">Large Multifamily Fire</option>
+          <option value="basement_fire">Basement / Below-Grade Fire</option>
+          <option value="vehicle_fire">Vehicle Fire</option>
+          <option value="exterior_fire">Exterior Fire</option>
+          <option value="rope_rescue">Rope Rescue</option>
+          <option value="confined_space">Confined Space Rescue</option>
+          <option value="trench_rescue">Trench Rescue</option>
+          <option value="structural_collapse">Structural Collapse</option>
+          <option value="water_ice_rescue">Water / Ice Rescue</option>
+          <option value="vehicle_machinery_rescue">Vehicle / Machinery Rescue</option>
+          <option value="elevator_rescue">Elevator Rescue</option>
+        </select>
+      </label>
       <div class="dialog-actions">
         <button class="secondary-button" value="cancel">Cancel</button>
-        <button class="primary-button" id="confirmManualIncident" value="default">Start Incident</button>
+        <button class="primary-button" value="default">Start Incident</button>
       </div>
     </form>
   </dialog>
@@ -191,6 +299,27 @@
     </div>
   </dialog>
 
+  <dialog id="addPositionDialog">
+    <form id="addPositionForm" method="dialog" class="dialog-form">
+      <div class="dialog-heading">
+        <div><span class="eyebrow">COMMAND ORGANIZATION</span><h2>Add Position or Function</h2></div>
+        <button class="icon-button" value="cancel" aria-label="Close">×</button>
+      </div>
+      <label>Position name<input name="name" required placeholder="Safety, Staging, Division 2…"></label>
+      <label>Policy status
+        <select name="policyStatus">
+          <option value="optional">Optional</option>
+          <option value="conditional">Conditional</option>
+          <option value="derived">Command Created</option>
+        </select>
+      </label>
+      <div class="dialog-actions">
+        <button class="secondary-button" value="cancel">Cancel</button>
+        <button class="primary-button" value="default">Add Position</button>
+      </div>
+    </form>
+  </dialog>
+
   <dialog id="addAssignmentDialog">
     <form id="addAssignmentForm" method="dialog" class="dialog-form">
       <div class="dialog-heading">
@@ -205,19 +334,66 @@
     </form>
   </dialog>
 
-  <dialog id="endIncidentDialog">
-    <form method="dialog" class="dialog-form">
+  <dialog id="transferCommandDialog">
+    <form id="transferCommandForm" class="dialog-form">
       <div class="dialog-heading">
-        <div><span class="eyebrow danger-text">END COMMAND</span><h2>Clear the active incident?</h2></div>
+        <div><span class="eyebrow">STANDARD 202</span><h2>Transfer Command</h2></div>
+        <button id="closeTransferButton" class="icon-button" type="button" aria-label="Close">×</button>
       </div>
-      <p>This closes the command event and clears the working board. Export the log first if needed.</p>
+      <p id="transferBlockMessage" class="dialog-note danger-note" hidden></p>
+      <label>Incoming Incident Commander<input name="incomingCommander" required placeholder="Name or call sign"></label>
+      <label>Command designation<input name="designation" required placeholder="Pine Needles Command"></label>
+      <div class="checklist">
+        <label><input name="briefing" type="checkbox" required> Conditions, objectives, strategy, assignments, hazards, and accountability briefed</label>
+        <label><input name="stable" type="checkbox" required> No critical benchmark, imminent life hazard, or unstable condition prevents transfer</label>
+        <label><input name="accepted" type="checkbox" required> Incoming commander has accepted command</label>
+        <label><input name="announced" type="checkbox" required> Transfer and command designation announced on the assigned radio channel</label>
+      </div>
       <div class="dialog-actions">
-        <button class="secondary-button" value="cancel">Keep Incident</button>
-        <button id="confirmEndIncident" class="danger-button" value="default">End and Clear</button>
+        <button id="cancelTransferButton" class="secondary-button" type="button">Cancel</button>
+        <button class="primary-button" type="submit">Complete Transfer</button>
       </div>
     </form>
   </dialog>
 
-  <script src="command.js?v=0.1.2"></script>
+  <dialog id="maydayDialog">
+    <form id="maydayForm" class="dialog-form">
+      <div class="dialog-heading">
+        <div><span class="eyebrow danger-text">EMERGENCY TRAFFIC</span><h2>Declare MAYDAY</h2></div>
+        <button id="closeMaydayButton" class="icon-button" type="button" aria-label="Close">×</button>
+      </div>
+      <label>Member or crew<input name="member" required placeholder="Firefighter / crew identification"></label>
+      <label>Last known location<input name="location" required placeholder="Division, floor, room, side…"></label>
+      <label>Problem / needs<input name="problem" required placeholder="Lost, trapped, low air, collapse…"></label>
+      <div class="dialog-actions">
+        <button id="cancelMaydayButton" class="secondary-button" type="button">Cancel</button>
+        <button class="mayday-button" type="submit">Activate MAYDAY</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="endIncidentDialog">
+    <form id="endIncidentForm" class="dialog-form">
+      <div class="dialog-heading">
+        <div><span class="eyebrow danger-text">STANDARD 210</span><h2>Terminate Command</h2></div>
+        <button id="closeEndIncidentButton" class="icon-button" type="button" aria-label="Close">×</button>
+      </div>
+      <p id="endIncidentBlockMessage" class="dialog-note danger-note" hidden></p>
+      <p id="endIncidentWarning" class="dialog-note" hidden></p>
+      <p>Command cannot be cleared until the termination safeguards are confirmed.</p>
+      <div class="checklist">
+        <label><input name="objectives" type="checkbox" required> Incident objectives have been achieved</label>
+        <label><input name="hazards" type="checkbox" required> Remaining hazards are controlled, mitigated, or transferred</label>
+        <label><input name="accountability" type="checkbox" required> Final personnel accountability is confirmed</label>
+        <label><input name="demobilization" type="checkbox" required> Resources are demobilized or scene control is transferred</label>
+      </div>
+      <div class="dialog-actions">
+        <button id="cancelEndIncidentButton" class="secondary-button" type="button">Keep Incident</button>
+        <button id="confirmEndIncident" class="danger-button" type="submit">End and Clear</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="command.js?v=0.2.0"></script>
 </body>
 </html>

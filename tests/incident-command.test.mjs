@@ -71,10 +71,13 @@ assert.deepEqual(
 );
 assert.equal(helpers.incidentKey({ id: '123', cadCode: '2026-100' }), '2026-100');
 assert.equal(helpers.incidentKey({ id: '123' }), '123');
-assert.equal(helpers.modeForAlert({ description: 'FIRE - STRUCTURE' }), 'initial');
-assert.equal(helpers.modeForAlert({ description: 'FIRE', details: 'Command reports working fire' }), 'working_fire');
-assert.equal(helpers.modeForAlert({ description: 'VEHACC - ENTRAPMENT' }), 'rescue');
-assert.equal(helpers.modeForAlert({ description: 'GAS LEAK' }), 'hazmat');
+assert.equal(helpers.inferProfile({ description: 'LIFT ASSIST' }), 'elevator_rescue');
+assert.equal(helpers.inferProfile({ description: 'BASEMENT FIRE' }), 'basement_fire');
+assert.equal(helpers.inferProfile({ description: 'CONFINED SPACE RESCUE' }), 'confined_space');
+assert.equal(helpers.inferProfile({ description: 'VEHACC - ENTRAPMENT' }), 'vehicle_machinery_rescue');
+assert.equal(helpers.inferProfile({ description: 'FIRE - STRUCTURE' }), 'structure_fire');
+assert.equal(helpers.detectOperationalLevel({ description: 'FIRE', details: 'Command reports working fire' }), 'working_fire');
+assert.equal(helpers.detectOperationalLevel({ description: 'SECOND ALARM FIRE' }), 'additional_alarm');
 assert.deepEqual(
   Array.from(helpers.extractLinks({ details: 'Preplan https://example.com/a.pdf. Map https://example.com/map' })),
   ['https://example.com/a.pdf', 'https://example.com/map']
@@ -84,5 +87,21 @@ assert.equal(
   Date.UTC(2026, 7, 4, 14, 26, 0)
 );
 assert.match(helpers.formatClock('2026-08-04 14:26:00', true), /10:26 AM/);
+
+const migrated = helpers.migrateIncident({
+  key: 'legacy-1',
+  mode: 'working_fire',
+  description: 'STRUCTURE FIRE',
+  units: [{ name: 'E41', assignmentId: 'legacy-command' }],
+  assignments: [{ id: 'legacy-command', name: 'Command' }],
+  log: []
+});
+assert.equal(migrated.schemaVersion, 2);
+assert.equal(migrated.operationalLevel, 'working_fire');
+assert.equal(migrated.strategy, 'offensive');
+assert.ok(migrated.positions.some(position => position.id === 'position-incident-command'));
+assert.equal(migrated.units[0].assignmentId, 'position-incident-command');
+assert.ok(migrated.benchmarks.some(item => item.id === 'command_established'));
+assert.ok(migrated.suggestions.some(item => item.type === 'profile' && item.value === 'structure_fire'));
 
 console.log('Incident command helper tests passed.');

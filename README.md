@@ -8,6 +8,23 @@
   operations away from a WTFD facility.
 - Applies the same protection to the standard and kiosk dashboards.
 
+# Incident Command Phase Two (0.2.0)
+
+- Rebuilds the command board around the 47 WTFD incident-command, fireground,
+  water-supply, and technical-rescue policies supplied for this release.
+- Separates incident profile, operational level, and strategy so each command
+  decision is explicit and independently logged.
+- Separates command-organization positions from tactical assignments and labels
+  policy-driven items as Required, Conditional, Advisory, or Optional.
+- Adds profile-specific positions, tactical assignments, and benchmarks for
+  structure fire, special fire conditions, technical rescue, vehicle/exterior
+  incidents, and generic command events.
+- Adds command-confirmed Active911 suggestions; the feed never changes the
+  incident profile, operating level, strategy, or apparatus assignment by itself.
+- Adds accountability confirmation, RIC capability, PAR, span-of-control,
+  MAYDAY, formal command-transfer, and incident-termination safeguards.
+- Migrates saved Phase One command events in browser storage to the new schema.
+
 # Incident Command Phase One (0.1.2)
 
 - Corrects unzoned Active911 UTC timestamps before formatting the command-board
