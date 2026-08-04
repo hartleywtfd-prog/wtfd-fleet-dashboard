@@ -570,24 +570,65 @@ function summarizeServiceTicketLinkageValue(value, key, depth) {
 async function previewOpenServiceTickets(env) {
   const token = await getAccessToken(env);
   const resolved = await resolveServiceTicketResource(env, token);
-  const sourceRecords = await fetchAll(resolved.path, token, 5000);
+  const [sourceRecords, statuses, units, locations] = await Promise.all([
+    fetchAll(resolved.path, token, 5000),
+    fetchAll('/api/service-desk-ticket-statuses', token, 100),
+    fetchAll('/api/units', token, 500),
+    fetchAll('/api/unit-locations', token, 500)
+  ]);
+  const statusById = new Map(statuses.map(status => [
+    String(status.id),
+    String(status.statusName || status.name || '').trim()
+  ]));
+  const unitsById = new Map(units.map(unit => [String(unit.id), unit]));
+  const locationsById = new Map();
+  for (const location of locations) {
+    for (const key of [location.id, location.roomId]) {
+      if (key !== null && key !== undefined && key !== '') {
+        locationsById.set(String(key), location);
+      }
+    }
+  }
+  const requiredStatus = normalize(env.OPEN_SERVICE_TICKET_STATUS_NAME || 'Open');
   const selected = new Map();
+  const openTickets = [];
 
   for (const source of sourceRecords) {
     const row = normalizeServiceTicket(source);
-    if (row.isClosed || !isOpenServiceTicket(row.status)) continue;
-    const key = row.ticketId || [
-      row.created, row.assetDescription, row.ticketName,
-      row.unitName, row.description
-    ].join('|');
-    if (!selected.has(key)) selected.set(key, row);
+    const mappedStatus = statusById.get(String(row.statusId)) || row.status;
+    if (row.isClosed || normalize(mappedStatus) !== requiredStatus) continue;
+    row.status = mappedStatus || 'Open';
+    row.unitName = row.unitName || serviceTicketUnitName(row, unitsById, locationsById);
+    openTickets.push(row);
+  }
+
+  const itemResults = [];
+  for (let offset = 0; offset < openTickets.length; offset += 6) {
+    const batch = openTickets.slice(offset, offset + 6);
+    itemResults.push(...await Promise.all(batch.map(async row => ({
+      row,
+      items: await fetchServiceTicketAssignedItems(row.ticketId, token)
+    }))));
+  }
+
+  for (const { row, items } of itemResults) {
+    const assignedItems = items.length ? items : [null];
+    for (const item of assignedItems) {
+      const expanded = {
+        ...row,
+        assetDescription: serviceTicketAssignedItemName(item) ||
+          row.assetDescription || row.unitName
+      };
+      const key = [expanded.ticketId, expanded.assetDescription].join('|');
+      if (!selected.has(key)) selected.set(key, expanded);
+    }
   }
 
   const rows = [...selected.values()].sort((a, b) =>
     a.createdMillis - b.createdMillis ||
     a.ticketName.localeCompare(b.ticketName) ||
     a.unitName.localeCompare(b.unitName)
-  ).map(({ createdMillis, isClosed, ...row }) => row);
+  ).map(({ createdMillis, isClosed, statusId, truckId, locationId, ...row }) => row);
 
   return {
     success: true,
@@ -595,6 +636,7 @@ async function previewOpenServiceTickets(env) {
     endpoint: resolved.path,
     endpointSource: resolved.source,
     sourceRecordCount: sourceRecords.length,
+    openTicketCount: openTickets.length,
     recordCount: rows.length,
     headers: SERVICE_TICKET_SHEET_HEADERS,
     rows,
@@ -602,6 +644,45 @@ async function previewOpenServiceTickets(env) {
     timestamp: new Date().toISOString(),
     note: 'Open Service Desk tickets only. No OperativeIQ, D1, Gmail, or Google Sheets data was changed.'
   };
+}
+
+async function fetchServiceTicketAssignedItems(ticketId, token) {
+  if (!String(ticketId || '').trim()) return [];
+  const path = `/api/service-desk-tickets/${encodeURIComponent(String(ticketId))}/assigned-items`;
+  const response = await fetch(RESOURCE_ROOT + path, {
+    headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' }
+  });
+  const text = await response.text();
+  if (response.status === 404) return [];
+  if (!response.ok) {
+    throw new Error(`OperativeIQ assigned-items request failed (${response.status}) for ticket ${ticketId}: ${safeApiError(text)}`);
+  }
+  const items = arrayPayload(JSON.parse(text));
+  if (items.length > 1000) {
+    throw new Error(`OperativeIQ returned more than 1,000 assigned items for ticket ${ticketId}.`);
+  }
+  return items;
+}
+
+function serviceTicketAssignedItemName(item) {
+  if (!item || typeof item !== 'object') return '';
+  return String(
+    item.itemName || item.assetDescription || item.itemDescription ||
+    item.assetName || item.name || ''
+  ).trim();
+}
+
+function serviceTicketUnitName(row, unitsById, locationsById) {
+  const unit = unitsById.get(String(row.truckId)) || {};
+  const truckNumber = String(
+    unit.truckNumber || unit.unitNumber || unit.name || ''
+  ).trim();
+  if (truckNumber) return /^Vehicle\s+/i.test(truckNumber) ? truckNumber : `Vehicle ${truckNumber}`;
+
+  const location = locationsById.get(String(row.locationId)) || {};
+  return String(
+    location.locationName || location.locationDescription || location.name || ''
+  ).trim();
 }
 
 async function resolveServiceTicketResource(env, token) {
@@ -672,6 +753,9 @@ function normalizeServiceTicket(source) {
   const isClosed = serviceTicketValue(fields, ['isClosed', 'closed']);
   return {
     ticketId: serviceTicketValue(fields, ['ticketId', 'serviceTicketId', 'serviceDeskTicketId', 'id']),
+    statusId: serviceTicketValue(fields, ['statusId', 'ticketStatusId', 'status']),
+    truckId: serviceTicketValue(fields, ['truckId', 'unitId']),
+    locationId: serviceTicketValue(fields, ['locationId', 'unitLocationId']),
     created: serviceTicketDisplayDate(createdValue),
     assetDescription: serviceTicketValue(fields, [
       'assetDescription', 'assetName', 'fixedAssetDescription',
