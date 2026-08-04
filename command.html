@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#09111f">
   <title>WTFD Incident Command</title>
-  <link rel="stylesheet" href="command.css?v=0.2.4">
+  <link rel="stylesheet" href="command.css?v=0.3.0">
 </head>
 <body>
   <div class="command-app">
@@ -72,6 +72,8 @@
           </div>
           <div class="incident-actions">
             <button id="detailsButton" class="secondary-button" type="button">Incident Details</button>
+            <button id="crewRosterButton" class="secondary-button" type="button">Crew Roster</button>
+            <button id="tacticalSketchButton" class="secondary-button" type="button">Tactical Sketch</button>
             <button id="transferCommandButton" class="secondary-button" type="button">Transfer Command</button>
             <button id="printButton" class="secondary-button" type="button">Print Board</button>
             <button id="exportButton" class="secondary-button" type="button">Export Log</button>
@@ -219,8 +221,12 @@
             <section class="resource-panel benchmark-panel">
               <div class="section-heading compact">
                 <div><span class="eyebrow">POLICY-SOURCED</span><h2>Benchmarks</h2></div>
-                <span id="benchmarkCount" class="count-badge">0/0</span>
+                <div class="benchmark-counts">
+                  <strong id="benchmarkRequiredCount">REQ 0/0</strong>
+                  <span id="benchmarkCount" class="count-badge">0/0</span>
+                </div>
               </div>
+              <p id="benchmarkWarning" class="benchmark-warning" hidden></p>
               <div id="benchmarkList" class="benchmark-list"></div>
               <div class="pager full-width-pager" aria-label="Benchmark pages">
                 <button id="previousBenchmarkPage" class="secondary-button" type="button" aria-label="Previous Benchmark page">‹</button>
@@ -309,6 +315,21 @@
         <button id="closeDetailsButton" class="icon-button" aria-label="Close">×</button>
       </div>
       <dl id="incidentDetails"></dl>
+    </div>
+  </dialog>
+
+  <dialog id="crewRosterDialog">
+    <div class="dialog-form details-dialog">
+      <div class="dialog-heading">
+        <div><span class="eyebrow">CREWSENSE INCIDENT SNAPSHOT</span><h2>Crew Roster</h2></div>
+        <button id="closeCrewRosterButton" class="icon-button" type="button" aria-label="Close">×</button>
+      </div>
+      <p id="crewRosterStatus" class="dialog-note">Loading CrewSense assignments…</p>
+      <div id="crewRosterList" class="crew-roster-list"></div>
+      <div class="dialog-actions">
+        <button id="refreshCrewRosterButton" class="secondary-button" type="button">Refresh Unmatched Units</button>
+        <button id="doneCrewRosterButton" class="primary-button" type="button">Done</button>
+      </div>
     </div>
   </dialog>
 
@@ -432,6 +453,27 @@
     </div>
   </dialog>
 
-  <script src="command.js?v=0.2.4"></script>
+  <dialog id="benchmarkActionDialog">
+    <div class="dialog-form">
+      <div class="dialog-heading">
+        <div><span id="benchmarkActionStatus" class="eyebrow">BENCHMARK</span><h2 id="benchmarkActionTitle">Benchmark</h2></div>
+        <button id="closeBenchmarkActionButton" class="icon-button" type="button" aria-label="Close">×</button>
+      </div>
+      <p id="benchmarkActionSource" class="dialog-note"></p>
+      <label id="benchmarkNaLabel">Reason not applicable
+        <input id="benchmarkNaReason" type="text" autocomplete="off" placeholder="Document why this benchmark does not apply">
+      </label>
+      <p id="benchmarkRequiredNaWarning" class="dialog-note danger-note" hidden>A required benchmark should only be marked not applicable when Command documents why it cannot apply to this incident.</p>
+      <div class="dialog-actions benchmark-actions">
+        <button id="cancelBenchmarkActionButton" class="secondary-button" type="button">Cancel</button>
+        <button id="reopenBenchmarkButton" class="warning-button" type="button" hidden>Reopen</button>
+        <button id="notApplicableBenchmarkButton" class="secondary-button" type="button">Mark N/A</button>
+        <button id="completeBenchmarkButton" class="primary-button" type="button">Complete</button>
+      </div>
+    </div>
+  </dialog>
+
+  <script src="dashboard-config.js?v=5.3.2"></script>
+  <script src="command.js?v=0.3.0"></script>
 </body>
 </html>

@@ -5,6 +5,9 @@
   const LEGACY_STORAGE_KEY = 'wtfd-incident-command-v1';
   const LAST_CLOSED_KEY = 'wtfd-last-closed-command-v2';
   const POLL_MS = 5000;
+  const DASHBOARD_CONFIG = window.WTFD_DASHBOARD_CONFIG || {};
+  const CREWSENSE_URL = DASHBOARD_CONFIG.crewSenseApiUrl || '/api/crewsense';
+  const CREWSENSE_REFRESH_MS = DASHBOARD_CONFIG.crewSenseRefreshMs || 30 * 60 * 1000;
   const PAGE_SIZES = { position: 4, assignment: 9, bank: 9, benchmark: 4 };
 
   const POLICY_STATUS = {
@@ -50,11 +53,11 @@
       benchmark('situation_stabilized', 'Situation stabilized', 'derived', 'Command benchmark')
     ]),
     structure_fire: profile('Structure Fire',
-      ['Fire Attack', 'Primary Search', 'Water Supply', 'Ventilation', 'Exposure Protection', 'Utilities', 'Medical', 'Rehabilitation'],
+      ['Fire Attack', 'Primary Search', 'Water Supply', 'Ventilation', 'Exposure Protection', 'Utilities', 'Medical', 'Rehab'],
       [position('ric', 'RIC Capability', 'conditional', '704'), position('safety', 'Incident Safety', 'optional', '205')],
       fireBenchmarks()),
     high_rise: profile('High-Rise Fire',
-      ['Fire Attack', 'Primary Search', 'Water Supply / Systems', 'Evacuation', 'Rehabilitation'],
+      ['Fire Attack', 'Primary Search', 'Water Supply / Systems', 'Evacuation', 'Rehab'],
       [
         position('ric', 'RIC Capability', 'conditional', '704'),
         position('safety', 'Incident Safety', 'optional', '205'),
@@ -73,7 +76,7 @@
         ...fireBenchmarks()
       ]),
     commercial_industrial: profile('Commercial / Industrial Fire',
-      ['Fire Attack', 'Primary Search', 'Water Supply', 'Exposure Protection', 'Collapse Zone', 'Rehabilitation'],
+      ['Fire Attack', 'Primary Search', 'Water Supply', 'Exposure Protection', 'Collapse Zone', 'Rehab'],
       [position('ric', 'RIC Capability', 'conditional', '704'), position('safety', 'Incident Safety', 'optional', '205'), position('staging', 'Staging', 'optional', '209')],
       [
         benchmark('divisions_established', 'Operational divisions established', 'conditional', '717'),
@@ -222,7 +225,13 @@
     selectedUnit: '',
     pollInFlight: false,
     pages: { position: 0, assignment: 0, bank: 0, benchmark: 0 },
-    pendingRemoval: null
+    pendingRemoval: null,
+    selectedBenchmarkId: '',
+    crewSenseByAssignment: new Map(),
+    crewSenseUpdatedAt: '',
+    crewSenseLoaded: false,
+    crewSenseLoading: false,
+    crewSenseError: ''
   };
 
   const $ = id => document.getElementById(id);
@@ -321,6 +330,111 @@
     return [...new Set(source.map(cleanUnit).filter(unit => /^[A-Z][A-Z ]*\d{1,3}$/.test(unit)))];
   }
 
+  function normalizeCrewSenseAssignment(value) {
+    const normalized = String(value || '').trim().toLowerCase().replace(/&/g, ' and ').replace(/[^a-z0-9]+/g, ' ').trim();
+    const compact = normalized.replace(/\s+/g, '');
+    const patterns = [
+      [/^(?:engine|e)\s*(\d+)$/, 'e$1'],
+      [/^(?:medic|m)\s*(\d+)$/, 'm$1'],
+      [/^(?:ladder|truck|l)\s*(\d+)$/, 'l$1'],
+      [/^(?:battalion|battalion chief|bat|bc|b)\s*(\d+)$/, 'bc$1'],
+      [/^(?:chief|c)\s*(\d+)$/, 'c$1'],
+      [/^(?:safety|s)\s*(\d+)$/, 's$1'],
+      [/^(?:training|t)\s*(\d+)$/, 't$1']
+    ];
+    const match = patterns.find(([pattern]) => pattern.test(normalized));
+    return match ? normalized.replace(match[0], match[1]) : compact;
+  }
+
+  function normalizePersonName(value) {
+    return String(value || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  }
+
+  function configEntryForUnit(config, unitName) {
+    const target = normalizeCrewSenseAssignment(unitName);
+    return Object.entries(config || {}).find(([name]) => normalizeCrewSenseAssignment(name) === target)?.[1] || null;
+  }
+
+  function crewSenseAssignmentForUnit(unitName) {
+    const crossStaffed = configEntryForUnit(DASHBOARD_CONFIG.crewSenseCrossStaffedUnits, unitName);
+    const alias = configEntryForUnit(DASHBOARD_CONFIG.crewSenseAssignmentAliases, unitName);
+    const configuredName = (typeof crossStaffed === 'string' ? crossStaffed : crossStaffed?.assignment) || alias || unitName;
+    const live = state.crewSenseByAssignment.get(normalizeCrewSenseAssignment(configuredName));
+    if (live) return live;
+
+    const configuredPersonnel = configEntryForUnit(DASHBOARD_CONFIG.crewSensePersonnelAssignments, unitName);
+    const expectedNames = (Array.isArray(configuredPersonnel) ? configuredPersonnel : configuredPersonnel ? [configuredPersonnel] : []).filter(Boolean);
+    if (!expectedNames.length) return null;
+    const expected = new Set(expectedNames.map(normalizePersonName));
+    for (const assignment of state.crewSenseByAssignment.values()) {
+      const members = (assignment.crew || []).filter(member => expected.has(normalizePersonName(member.name)));
+      if (members.length) return { ...assignment, name: unitName, crew: members };
+    }
+    return { name: unitName, crew: [{ id: '', name: expectedNames[0], positions: ['Configured assignment'] }] };
+  }
+
+  function captureIncidentCrew({ overwriteUnmatched = false } = {}) {
+    const incident = state.incident;
+    if (!incident || !state.crewSenseLoaded) return 0;
+    let matched = 0;
+    incident.units.forEach(unit => {
+      if (unit.crewSnapshot?.length && !overwriteUnmatched) return;
+      const assignment = crewSenseAssignmentForUnit(unit.name);
+      if (!assignment?.crew?.length) {
+        unit.crewMatchStatus = 'unmatched';
+        return;
+      }
+      unit.crewSnapshot = assignment.crew.map(member => ({
+        id: String(member.id || ''),
+        name: String(member.name || '').trim(),
+        positions: Array.isArray(member.positions) ? member.positions.map(String) : []
+      })).filter(member => member.name);
+      unit.crewSenseAssignment = assignment.name || unit.name;
+      unit.crewCapturedAt = nowIso();
+      unit.crewMatchStatus = 'matched';
+      matched += unit.crewSnapshot.length;
+    });
+    persist();
+    return matched;
+  }
+
+  async function loadCrewSense({ force = false, overwriteUnmatched = false } = {}) {
+    if (state.crewSenseLoading || (!force && document.visibilityState === 'hidden')) return;
+    state.crewSenseLoading = true;
+    state.crewSenseError = '';
+    try {
+      const response = await fetch(`${CREWSENSE_URL}?t=${Date.now()}`, { cache: 'no-store' });
+      if (!response.ok) throw new Error(`CrewSense request failed (${response.status})`);
+      const data = await response.json();
+      const next = new Map();
+      (data.assignments || []).forEach(assignment => {
+        const key = normalizeCrewSenseAssignment(assignment.name);
+        if (!key) return;
+        const existing = next.get(key);
+        if (!existing) {
+          next.set(key, { ...assignment, crew: [...(assignment.crew || [])] });
+          return;
+        }
+        const memberKeys = new Set(existing.crew.map(member => String(member.id || member.name || '').toLowerCase()));
+        (assignment.crew || []).forEach(member => {
+          const memberKey = String(member.id || member.name || '').toLowerCase();
+          if (memberKey && !memberKeys.has(memberKey)) existing.crew.push(member);
+        });
+      });
+      state.crewSenseByAssignment = next;
+      state.crewSenseUpdatedAt = data.updatedAt || nowIso();
+      state.crewSenseLoaded = true;
+      captureIncidentCrew({ overwriteUnmatched });
+      renderCrewRoster();
+    } catch (error) {
+      state.crewSenseError = error instanceof Error ? error.message : String(error);
+      console.warn('Unable to load CrewSense assignments', error);
+      renderCrewRoster();
+    } finally {
+      state.crewSenseLoading = false;
+    }
+  }
+
   function inferProfile(alert) {
     const text = `${alert?.description || ''} ${alert?.details || ''}`.toUpperCase();
     if (/ELEVATOR|LIFT\s*(?:CAR|SHAFT).*ENTRAP|STUCK\s+(?:IN|ON)\s+(?:AN?\s+)?ELEVATOR/.test(text)) return 'elevator_rescue';
@@ -369,7 +483,10 @@
     return definitions.map(item => ({
       ...item,
       completedAt: null,
-      completedBy: ''
+      completedBy: '',
+      notApplicableAt: null,
+      notApplicableBy: '',
+      notApplicableReason: ''
     }));
   }
 
@@ -394,7 +511,7 @@
 
     [...UNIVERSAL_BENCHMARKS, ...definition.benchmarks].forEach(item => {
       if (!incident.benchmarks.some(existing => existing.id === item.id)) {
-        incident.benchmarks.push({ ...item, completedAt: null, completedBy: '' });
+        incident.benchmarks.push({ ...item, completedAt: null, completedBy: '', notApplicableAt: null, notApplicableBy: '', notApplicableReason: '' });
       }
     });
   }
@@ -405,7 +522,7 @@
     const automaticTaskNames = new Set(
       Object.values(PROFILE_DEFINITIONS).flatMap(item => item.tasks.map(name => name.toLowerCase()))
     );
-    ['investigation', 'fire attack', 'search'].forEach(name => automaticTaskNames.add(name));
+    ['investigation', 'fire attack', 'search', 'rehabilitation', 'hazmat group'].forEach(name => automaticTaskNames.add(name));
     const hasAssignedUnit = id => incident.units.some(unit => unit.assignmentId === id && unit.status !== 'released');
 
     incident.assignments = incident.assignments.filter(item => {
@@ -450,7 +567,7 @@
     const manualProfile = overrides.profile || 'generic';
     const isManual = source === 'Manual';
     const incident = {
-      schemaVersion: 4,
+      schemaVersion: 5,
       key: incidentKey(alert) || `manual-${Date.now()}`,
       source,
       active911Id: String(alert?.id || ''),
@@ -502,6 +619,7 @@
     state.pendingAlert = null;
     state.selectedUnit = '';
     resetPages();
+    captureIncidentCrew();
     persist();
     render();
   }
@@ -518,6 +636,13 @@
     incident.positions ||= corePositionRecords();
     incident.assignments ||= [];
     incident.benchmarks ||= benchmarkRecords(UNIVERSAL_BENCHMARKS);
+    incident.benchmarks.forEach(item => {
+      item.completedAt ||= null;
+      item.completedBy ||= '';
+      item.notApplicableAt ||= null;
+      item.notApplicableBy ||= '';
+      item.notApplicableReason ||= '';
+    });
     incident.accountability ||= { dirty: true, confirmedAt: null };
     incident.ric ||= { confirmed: false, confirmedAt: null };
     incident.par ||= { due: false, reason: '', completedAt: null };
@@ -532,6 +657,11 @@
     if (legacyCommand) {
       incident.units.filter(unit => unit.assignmentId === legacyCommand.id).forEach(unit => { unit.assignmentId = 'position-incident-command'; });
       incident.assignments = incident.assignments.filter(assignment => assignment !== legacyCommand);
+    }
+    if (priorSchemaVersion < 5) {
+      incident.assignments.forEach(assignment => {
+        if (/^(?:Hazmat Group|Rehabilitation)$/i.test(assignment.name)) assignment.name = 'Rehab';
+      });
     }
 
     if (incident.profile === 'generic') {
@@ -553,7 +683,7 @@
     }
     if (priorSchemaVersion < 4) reconcileProfileContent(incident, incident.profile);
     ensurePolicyContent(incident, incident.profile);
-    incident.schemaVersion = 4;
+    incident.schemaVersion = 5;
     return incident;
   }
 
@@ -610,6 +740,7 @@
     if (added.length) {
       changed.push(`Added units: ${added.join(', ')}`);
       markAccountabilityDirty('Active911 added resources');
+      captureIncidentCrew();
     }
     incident.links = [...new Set([...incident.links, ...extractLinks(alert)])];
 
@@ -692,7 +823,7 @@
 
   function ensureBenchmark(incident, definition) {
     if (!incident.benchmarks.some(item => item.id === definition.id)) {
-      incident.benchmarks.push({ ...definition, completedAt: null, completedBy: '' });
+      incident.benchmarks.push({ ...definition, completedAt: null, completedBy: '', notApplicableAt: null, notApplicableBy: '', notApplicableReason: '' });
     }
   }
 
@@ -701,24 +832,88 @@
     if (!item || item.completedAt) return false;
     item.completedAt = nowIso();
     item.completedBy = actor;
+    item.notApplicableAt = null;
+    item.notApplicableBy = '';
+    item.notApplicableReason = '';
     if (createLog) incident.log.unshift({ at: item.completedAt, message: `Benchmark complete — ${item.label}`, type: 'benchmark' });
     return true;
   }
 
-  function toggleBenchmark(id) {
-    const item = state.incident?.benchmarks.find(benchmarkItem => benchmarkItem.id === id);
+  function benchmarkActor() {
+    return state.incident?.commander || state.incident?.commandDesignation || 'Command';
+  }
+
+  function benchmarkResolved(item) {
+    return Boolean(item?.completedAt || item?.notApplicableAt);
+  }
+
+  function openBenchmarkAction(id) {
+    const item = state.incident?.benchmarks.find(candidate => candidate.id === id);
     if (!item) return;
-    if (item.completedAt) {
-      item.completedAt = null;
-      item.completedBy = '';
-      logEntry(`Benchmark reopened — ${item.label}`, 'benchmark');
-    } else {
-      completeBenchmarkRecord(state.incident, id);
-      if (id === 'accountability_active') {
-        state.incident.accountability.dirty = false;
-        state.incident.accountability.confirmedAt = nowIso();
-      }
+    state.selectedBenchmarkId = id;
+    $('benchmarkActionTitle').textContent = item.label;
+    $('benchmarkActionStatus').textContent = `${POLICY_STATUS[item.policyStatus] || item.policyStatus} BENCHMARK`;
+    $('benchmarkActionSource').textContent = `Policy source: ${item.source || 'Command'}`;
+    $('benchmarkNaReason').value = item.notApplicableReason || '';
+    $('benchmarkRequiredNaWarning').hidden = item.policyStatus !== 'required';
+    const resolved = benchmarkResolved(item);
+    $('reopenBenchmarkButton').hidden = !resolved;
+    $('completeBenchmarkButton').hidden = resolved;
+    $('notApplicableBenchmarkButton').hidden = resolved;
+    $('benchmarkNaLabel').hidden = resolved;
+    $('benchmarkActionDialog').showModal();
+  }
+
+  function closeBenchmarkAction() {
+    state.selectedBenchmarkId = '';
+    $('benchmarkActionDialog').close();
+  }
+
+  function completeSelectedBenchmark() {
+    const id = state.selectedBenchmarkId;
+    const item = state.incident?.benchmarks.find(candidate => candidate.id === id);
+    if (!item) return;
+    completeBenchmarkRecord(state.incident, id, benchmarkActor());
+    if (id === 'accountability_active') {
+      state.incident.accountability.dirty = false;
+      state.incident.accountability.confirmedAt = item.completedAt;
     }
+    closeBenchmarkAction();
+    persist();
+    render();
+  }
+
+  function markSelectedBenchmarkNotApplicable() {
+    const item = state.incident?.benchmarks.find(candidate => candidate.id === state.selectedBenchmarkId);
+    if (!item) return;
+    const reason = $('benchmarkNaReason').value.trim();
+    if (!reason) {
+      $('benchmarkNaReason').setCustomValidity('Enter a reason before marking this benchmark not applicable.');
+      $('benchmarkNaReason').reportValidity();
+      return;
+    }
+    $('benchmarkNaReason').setCustomValidity('');
+    item.completedAt = null;
+    item.completedBy = '';
+    item.notApplicableAt = nowIso();
+    item.notApplicableBy = benchmarkActor();
+    item.notApplicableReason = reason;
+    logEntry(`Benchmark marked N/A — ${item.label}: ${reason}`, 'benchmark');
+    closeBenchmarkAction();
+    persist();
+    render();
+  }
+
+  function reopenSelectedBenchmark() {
+    const item = state.incident?.benchmarks.find(candidate => candidate.id === state.selectedBenchmarkId);
+    if (!item) return;
+    item.completedAt = null;
+    item.completedBy = '';
+    item.notApplicableAt = null;
+    item.notApplicableBy = '';
+    item.notApplicableReason = '';
+    logEntry(`Benchmark reopened — ${item.label}`, 'benchmark');
+    closeBenchmarkAction();
     persist();
     render();
   }
@@ -728,7 +923,7 @@
     state.incident.accountability.dirty = true;
     state.incident.accountability.reason = reason;
     const item = state.incident.benchmarks.find(benchmarkItem => benchmarkItem.id === 'accountability_active');
-    if (item) { item.completedAt = null; item.completedBy = ''; }
+    if (item) { item.completedAt = null; item.completedBy = ''; item.notApplicableAt = null; item.notApplicableBy = ''; item.notApplicableReason = ''; }
   }
 
   function confirmAccountability() {
@@ -896,19 +1091,39 @@
   function renderBenchmarks() {
     const incident = state.incident;
     if (!incident) return;
-    const complete = incident.benchmarks.filter(item => item.completedAt).length;
-    $('benchmarkCount').textContent = `${complete}/${incident.benchmarks.length}`;
-    const benchmarkPage = pagedItems(incident.benchmarks, 'benchmark');
+    const resolved = incident.benchmarks.filter(benchmarkResolved).length;
+    const required = incident.benchmarks.filter(item => item.policyStatus === 'required');
+    const requiredResolved = required.filter(benchmarkResolved).length;
+    const requiredOpen = required.filter(item => !benchmarkResolved(item));
+    $('benchmarkCount').textContent = `${resolved}/${incident.benchmarks.length}`;
+    $('benchmarkRequiredCount').textContent = `REQ ${requiredResolved}/${required.length}`;
+    $('benchmarkWarning').hidden = requiredOpen.length === 0;
+    $('benchmarkWarning').textContent = requiredOpen.length
+      ? `${requiredOpen.length} required benchmark${requiredOpen.length === 1 ? '' : 's'} open`
+      : '';
+    const statusOrder = { required: 0, conditional: 1, advisory: 2, derived: 3, optional: 4 };
+    const ordered = [...incident.benchmarks].sort((a, b) => {
+      const aResolved = a.completedAt ? 2 : a.notApplicableAt ? 1 : 0;
+      const bResolved = b.completedAt ? 2 : b.notApplicableAt ? 1 : 0;
+      return aResolved - bResolved || (statusOrder[a.policyStatus] ?? 5) - (statusOrder[b.policyStatus] ?? 5) || a.label.localeCompare(b.label);
+    });
+    const benchmarkPage = pagedItems(ordered, 'benchmark');
     $('benchmarkList').innerHTML = benchmarkPage.items.map(item => {
       const completed = Boolean(item.completedAt);
+      const notApplicable = Boolean(item.notApplicableAt);
       const status = POLICY_STATUS[item.policyStatus] || item.policyStatus;
-      return `<button class="benchmark-item${completed ? ' complete' : ''}" type="button" data-benchmark="${escapeHtml(item.id)}" aria-pressed="${completed}">
-        <span class="benchmark-check">${completed ? '✓' : ''}</span>
-        <span class="benchmark-copy"><strong>${escapeHtml(item.label)}</strong><small>${escapeHtml(status)} • ${escapeHtml(item.source)}</small>${completed ? `<em>${escapeHtml(formatClock(item.completedAt))}</em>` : ''}</span>
+      const resolution = completed
+        ? `<em>Completed ${escapeHtml(formatClock(item.completedAt))} • ${escapeHtml(item.completedBy || 'Command')}</em>`
+        : notApplicable
+          ? `<em>N/A • ${escapeHtml(item.notApplicableReason)}</em>`
+          : '';
+      return `<button class="benchmark-item${completed ? ' complete' : ''}${notApplicable ? ' not-applicable' : ''}" type="button" data-benchmark="${escapeHtml(item.id)}" aria-pressed="${benchmarkResolved(item)}">
+        <span class="benchmark-check">${completed ? '✓' : notApplicable ? 'N/A' : ''}</span>
+        <span class="benchmark-copy"><strong>${escapeHtml(item.label)}</strong><small>${escapeHtml(status)} • ${escapeHtml(item.source)}</small>${resolution}</span>
       </button>`;
     }).join('');
     updatePager('benchmark', benchmarkPage.page, benchmarkPage.totalPages);
-    document.querySelectorAll('[data-benchmark]').forEach(button => button.addEventListener('click', () => toggleBenchmark(button.dataset.benchmark)));
+    document.querySelectorAll('[data-benchmark]').forEach(button => button.addEventListener('click', () => openBenchmarkAction(button.dataset.benchmark)));
   }
 
   function renderSafety() {
@@ -967,6 +1182,43 @@
     $('incidentDetails').innerHTML = pairs.map(([label, value]) => `<dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd>`).join('');
   }
 
+  function renderCrewRoster() {
+    const incident = state.incident;
+    if (!incident) return;
+    const matchedMembers = incident.units.flatMap(unit => unit.crewSnapshot || []);
+    const unmatchedUnits = incident.units.filter(unit => !unit.crewSnapshot?.length);
+    $('crewRosterButton').textContent = matchedMembers.length ? `Crew Roster (${matchedMembers.length})` : 'Crew Roster';
+    if (state.crewSenseLoading) $('crewRosterStatus').textContent = 'Loading CrewSense assignments…';
+    else if (state.crewSenseError) $('crewRosterStatus').textContent = `CrewSense unavailable: ${state.crewSenseError}`;
+    else if (state.crewSenseLoaded) {
+      $('crewRosterStatus').textContent = `${matchedMembers.length} member${matchedMembers.length === 1 ? '' : 's'} captured across ${incident.units.length} incident apparatus${unmatchedUnits.length ? ` • ${unmatchedUnits.length} unmatched` : ''} • Updated ${formatClock(state.crewSenseUpdatedAt)}`;
+    } else $('crewRosterStatus').textContent = 'CrewSense roster has not loaded yet.';
+
+    $('crewRosterList').innerHTML = incident.units.map(unit => {
+      const crew = unit.crewSnapshot || [];
+      const assignment = assignmentName(unit.assignmentId) || 'Unknown assignment';
+      return `<section class="crew-roster-unit">
+        <header><strong>${escapeHtml(unit.name)}</strong><span>${escapeHtml(assignment)}</span></header>
+        ${crew.length ? `<ul>${crew.map(member => `<li><strong>${escapeHtml(member.name)}</strong>${member.positions?.length ? `<small>${escapeHtml(member.positions.join(', '))}</small>` : ''}</li>`).join('')}</ul>` : '<p>No matching CrewSense assignment</p>'}
+      </section>`;
+    }).join('');
+  }
+
+  async function openCrewRoster() {
+    $('crewRosterDialog').showModal();
+    renderCrewRoster();
+    await loadCrewSense({ force: true });
+  }
+
+  function openTacticalSketch() {
+    const incident = state.incident;
+    if (!incident) return;
+    const url = new URL('/command-sketch.html', window.location.href);
+    url.searchParams.set('incident', incident.key);
+    logEntry('Tactical sketch opened', 'documentation');
+    window.open(url.toString(), '_blank', 'noopener');
+  }
+
   function render() {
     const active = Boolean(state.incident);
     $('emptyState').hidden = active;
@@ -999,6 +1251,7 @@
     renderSafety();
     renderLog();
     renderDetails();
+    renderCrewRoster();
   }
 
   function moveUnit(unitName, assignmentId) {
@@ -1138,9 +1391,10 @@
     }
   }
 
-  function exportLog() {
+  async function exportLog() {
     const incident = state.incident;
     if (!incident) return;
+    await loadCrewSense({ force: true, overwriteUnmatched: true });
     const rows = [
       ['WTFD Incident Command Log'], ['Incident', incident.cadCode || incident.key],
       ['Call Type', incident.description], ['Profile', PROFILE_DEFINITIONS[incident.profile]?.label],
@@ -1156,8 +1410,26 @@
     incident.positions.forEach(item => rows.push([item.name, incident.units.filter(unit => unit.assignmentId === item.id).map(unit => unit.name).join(', '), item.policyStatus, item.source]));
     rows.push([], ['Tactical Assignments']);
     incident.assignments.forEach(item => rows.push([item.name, incident.units.filter(unit => unit.assignmentId === item.id).map(unit => unit.name).join(', ')]));
+    rows.push([], ['Incident Crew Roster'], ['Apparatus', 'Board Assignment', 'CrewSense Assignment', 'Member', 'CrewSense Position', 'Captured']);
+    incident.units.forEach(unit => {
+      const members = unit.crewSnapshot || [];
+      if (!members.length) rows.push([unit.name, assignmentName(unit.assignmentId), '', 'No matching CrewSense assignment', '', '']);
+      members.forEach(member => rows.push([
+        unit.name,
+        assignmentName(unit.assignmentId),
+        unit.crewSenseAssignment || unit.name,
+        member.name,
+        (member.positions || []).join('; '),
+        unit.crewCapturedAt || ''
+      ]));
+    });
     rows.push([], ['Benchmarks']);
-    incident.benchmarks.forEach(item => rows.push([item.label, item.completedAt || 'Open', POLICY_STATUS[item.policyStatus], item.source]));
+    incident.benchmarks.forEach(item => rows.push([
+      item.label,
+      item.completedAt ? `Completed ${item.completedAt} by ${item.completedBy || 'Command'}` : item.notApplicableAt ? `N/A ${item.notApplicableAt} by ${item.notApplicableBy || 'Command'} — ${item.notApplicableReason}` : 'Open',
+      POLICY_STATUS[item.policyStatus],
+      item.source
+    ]));
     rows.push(['Apparatus Bank', incident.units.filter(unit => unit.assignmentId === 'bank').map(unit => unit.name).join(', ')]);
     downloadCsv(rows, `WTFD-Command-${(incident.cadCode || Date.now()).replace(/[^a-z0-9-]/gi, '_')}.csv`);
     logEntry('Command log exported');
@@ -1311,6 +1583,7 @@
       const name = cleanUnit($('addUnitInput').value);
       if (!name || state.incident.units.some(unit => unit.name === name)) return;
       state.incident.units.push({ name, assignmentId: 'bank', source: 'Manual', addedAt: nowIso(), status: 'available' });
+      captureIncidentCrew();
       state.pages.bank = Math.floor((state.incident.units.filter(unit => unit.assignmentId === 'bank' && unit.status !== 'released').length - 1) / pageSizeFor('bank'));
       $('addUnitInput').value = '';
       markAccountabilityDirty(`${name} added`);
@@ -1372,6 +1645,11 @@
 
     $('detailsButton').addEventListener('click', () => { renderDetails(); $('detailsDialog').showModal(); });
     $('closeDetailsButton').addEventListener('click', () => $('detailsDialog').close());
+    $('crewRosterButton').addEventListener('click', openCrewRoster);
+    $('closeCrewRosterButton').addEventListener('click', () => $('crewRosterDialog').close());
+    $('doneCrewRosterButton').addEventListener('click', () => $('crewRosterDialog').close());
+    $('refreshCrewRosterButton').addEventListener('click', () => loadCrewSense({ force: true, overwriteUnmatched: true }));
+    $('tacticalSketchButton').addEventListener('click', openTacticalSketch);
     $('printButton').addEventListener('click', () => window.print());
     $('exportButton').addEventListener('click', exportLog);
 
@@ -1404,6 +1682,11 @@
     $('confirmRemoveBoardItemButton').addEventListener('click', confirmRemoveBoardItem);
     $('closeRemoveBoardItemButton').addEventListener('click', cancelRemoveBoardItem);
     $('cancelRemoveBoardItemButton').addEventListener('click', cancelRemoveBoardItem);
+    $('completeBenchmarkButton').addEventListener('click', completeSelectedBenchmark);
+    $('notApplicableBenchmarkButton').addEventListener('click', markSelectedBenchmarkNotApplicable);
+    $('reopenBenchmarkButton').addEventListener('click', reopenSelectedBenchmark);
+    $('closeBenchmarkActionButton').addEventListener('click', closeBenchmarkAction);
+    $('cancelBenchmarkActionButton').addEventListener('click', closeBenchmarkAction);
     $('fullscreenButton').addEventListener('click', async () => {
       try {
         if (document.fullscreenElement) await document.exitFullscreen();
@@ -1422,10 +1705,14 @@
   render();
   tick();
   pollActive911();
+  loadCrewSense();
   setInterval(tick, 1000);
   setInterval(pollActive911, POLL_MS);
+  setInterval(loadCrewSense, CREWSENSE_REFRESH_MS);
   window.addEventListener('online', pollActive911);
-  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') pollActive911(); });
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') { pollActive911(); loadCrewSense(); }
+  });
 
   window.WTFD_COMMAND_TEST = {
     parseUnits,
@@ -1438,6 +1725,8 @@
     migrateIncident,
     PROFILE_DEFINITIONS,
     PAGE_SIZES,
-    pageSizeFor
+    pageSizeFor,
+    normalizeCrewSenseAssignment,
+    benchmarkResolved
   };
 })();

@@ -8,8 +8,17 @@
   operations away from a WTFD facility.
 - Applies the same protection to the standard and kiosk dashboards.
 
-# Incident Command Phase Two (0.2.4)
+# Incident Command Phase Two (0.3.0)
 
+- Integrates the existing CrewSense schedule feed, snapshots personnel by
+  incident apparatus, provides a Crew Roster dialog, and includes member names
+  and positions in the exported command log.
+- Adds an incident-linked Tactical Sketch page with touch/stylus drawing,
+  building templates, labels, undo/redo, local autosave, and PNG export.
+- Replaces Hazmat Group and Rehabilitation assignment labels with `Rehab`.
+- Prioritizes required open benchmarks, separates required and overall counts,
+  supports documented Not Applicable decisions, records confirming Command,
+  and moves resolved benchmarks behind open items.
 - Dynamically reduces assignment and benchmark page sizes when a dispatch
   banner, shorter display, or oversized apparatus bank consumes board space.
 - Hides unnecessary Apparatus Bank navigation when only one bank page exists.

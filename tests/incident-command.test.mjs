@@ -99,7 +99,7 @@ const migrated = helpers.migrateIncident({
   assignments: [{ id: 'legacy-command', name: 'Command' }],
   log: []
 });
-assert.equal(migrated.schemaVersion, 4);
+assert.equal(migrated.schemaVersion, 5);
 assert.equal(migrated.operationalLevel, 'working_fire');
 assert.equal(migrated.strategy, 'offensive');
 assert.ok(migrated.positions.some(position => position.id === 'position-incident-command'));
@@ -126,6 +126,21 @@ assert.equal(liftAssist.suggestions.some(item => item.value === 'elevator_rescue
 assert.ok(liftAssist.suggestions.some(item => item.type === 'level' && item.value === 'initial'));
 assert.ok(liftAssist.suggestions.some(item => item.type === 'strategy' && item.value === 'investigation'));
 assert.equal(liftAssist.assignments.some(item => item.name === 'Fire Attack'), false);
+const rehabMigration = helpers.migrateIncident({
+  schemaVersion: 4,
+  key: 'rehab-1',
+  description: 'FIRE',
+  profile: 'generic',
+  operationalLevel: 'initial',
+  strategy: 'investigation',
+  units: [], positions: [], benchmarks: [], suggestions: [], log: [],
+  assignments: [{ id: 'hazmat', name: 'Hazmat Group', policyStatus: 'derived', source: 'Command', removable: true }]
+});
+assert.ok(rehabMigration.assignments.some(item => item.name === 'Rehab'));
+assert.equal(helpers.normalizeCrewSenseAssignment('BAT40'), 'bc40');
+assert.equal(helpers.normalizeCrewSenseAssignment('Battalion 40'), 'bc40');
+assert.equal(helpers.normalizeCrewSenseAssignment('Medic 45'), 'm45');
+assert.equal(helpers.benchmarkResolved({ completedAt: null, notApplicableAt: '2026-08-04T12:00:00Z' }), true);
 
 for (const id of ['cancelManualIncidentButton', 'cancelAddPositionButton', 'cancelAddAssignmentButton']) {
   assert.match(html, new RegExp(`<button[^>]*id="${id}"[^>]*type="button"`));
