@@ -1989,10 +1989,25 @@ async function previewTurnoutGear(env, requestedInstant = null) {
           || text(get(management, 'model_Number'))
           || text(get(asset, 'model'))
           || text(get(asset, 'model_Number')),
-        size: text(get(management, 'size'))
-          || text(get(management, 'part_Size'))
-          || text(get(asset, 'size'))
-          || text(get(asset, 'asset_Size')),
+        // OperativeIQ stores coat and pant sizes in separate fields. A blank
+        // Pant Size on a coat (or blank Coat Size on pants) is expected and must
+        // not cause the garment to be classified as missing its size.
+        coatSize: text(get(management, 'coat_Size', 'coatSize', 'coat_size'))
+          || text(get(asset, 'coat_Size', 'coatSize', 'coat_size')),
+        pantSize: text(get(management, 'pant_Size', 'pantSize', 'pant_size'))
+          || text(get(asset, 'pant_Size', 'pantSize', 'pant_size')),
+        size: normalize(subcategory).includes('COAT')
+          ? (text(get(management, 'coat_Size', 'coatSize', 'coat_size'))
+            || text(get(asset, 'coat_Size', 'coatSize', 'coat_size'))
+            || text(get(management, 'size', 'part_Size'))
+            || text(get(asset, 'size', 'asset_Size')))
+          : normalize(subcategory).includes('PANT')
+            ? (text(get(management, 'pant_Size', 'pantSize', 'pant_size'))
+              || text(get(asset, 'pant_Size', 'pantSize', 'pant_size'))
+              || text(get(management, 'size', 'part_Size'))
+              || text(get(asset, 'size', 'asset_Size')))
+            : (text(get(management, 'size', 'part_Size'))
+              || text(get(asset, 'size', 'asset_Size'))),
         barcode: text(get(management, 'barcode'))
           || text(get(management, 'bar_Code'))
           || text(get(asset, 'barcode'))
