@@ -1228,8 +1228,9 @@ function supplyNumber(source, names) {
 
 function normalizeSupplyPart(row, index) {
   const name = supplyText(row, ['itemName','name','partDescription','part_Description','description','itemDescription']);
-  const category = supplyText(row, ['category','categoryName','itemCategory','assetClass','asset_Class']);
-  const subcategory = supplyText(row, ['subcategory','subcategoryName','itemSubcategory','partType','type']);
+  const assetType = supplyText(row, ['assetType','asset_Type','assetTypeName','assetTypeDescription','itemType','itemTypeName','recordType','typeName']);
+  const category = supplyText(row, ['category','categoryName','itemCategory']);
+  const subcategory = supplyText(row, ['subcategory','subcategoryName','itemSubcategory','partType']);
   const size = supplyText(row, ['size','itemSize','partSize','part_Size','variant','option']);
   const location = supplyText(row, ['location','locationName','warehouseName','storageLocation','currentLocation','to']);
   const sku = supplyText(row, ['itemNumber','internalPartNumber','partNumber','sku','partUpc','partUPC','barcode']);
@@ -1240,16 +1241,25 @@ function normalizeSupplyPart(row, index) {
   const active = row?.active === undefined && row?.partStatusActive === undefined && row?.part_Status_Active === undefined
     ? true
     : normalizeBoolean(row?.active ?? row?.partStatusActive ?? row?.part_Status_Active);
-  const text = `${name} ${category} ${subcategory}`;
+  const text = `${name} ${assetType} ${category} ${subcategory}`;
   const includePattern = compilePattern(globalThis.__SUPPLY_INCLUDE_PATTERN, DEFAULT_SUPPLY_INCLUDE_PATTERN);
   const excludePattern = compilePattern(globalThis.__SUPPLY_EXCLUDE_PATTERN, DEFAULT_SUPPLY_EXCLUDE_PATTERN);
-  const turnoutSupply = includePattern.test(text);
+  const normalizedAssetType = normalize(assetType);
+  const normalizedCategory = normalize(category);
+  // Source-of-truth inclusion rule confirmed by the department:
+  // only quantity-based records whose OperativeIQ Asset Type is Supply Part
+  // and whose Category is Turnout Gear belong on this page.
+  const exactSupplyPart = normalizedAssetType === 'SUPPLY PART';
+  const exactTurnoutCategory = normalizedCategory === 'TURNOUT GEAR';
+  const turnoutSupply = exactSupplyPart && exactTurnoutCategory;
+  // Keep the configurable exclusion pattern only as a final cleanup layer.
   const excludedByPattern = excludePattern.test(text);
   const warehouseMatch = !location || /turnout\s*gear\s*supply\s*warehouse|supply\s*room|warehouse/i.test(location);
   return {
     id: supplyText(row, ['id','itemId','itemID','partId']) || `${sku || name || 'supply'}-${index+1}`,
     name: name || sku || `Supply item ${index+1}`,
     sku,
+    assetType,
     category,
     subcategory,
     size,
@@ -1313,7 +1323,7 @@ async function probeSupplyInventory(env) {
       excludePattern: globalThis.__SUPPLY_EXCLUDE_PATTERN
     },
     results,
-    note: 'GET-only inventory probe. No OperativeIQ data was changed.'
+    note: 'GET-only inventory probe. Supply page inclusion requires Asset Type = Supply Part and Category = Turnout Gear. No OperativeIQ data was changed.'
   };
 }
 
@@ -1331,8 +1341,8 @@ async function previewSupplyInventory(env) {
     attempted.push({ endpoint, status: result.status, count: result.rows.length, error: result.error || null });
     if (result.rows.length) {
       const normalized = result.rows.map(normalizeSupplyPart);
-      const matching = normalized.filter(item => item.active && item.turnoutSupply && !item.excludedByPattern && item.warehouseMatch && (item.catalogPart || /hood|glove/i.test(`${item.name} ${item.subcategory}`)));
-      const excluded = normalized.filter(item => item.active && item.turnoutSupply && item.excludedByPattern && item.warehouseMatch);
+      const matching = normalized.filter(item => item.active && item.turnoutSupply && !item.excludedByPattern && item.warehouseMatch);
+      const excluded = normalized.filter(item => item.active && item.warehouseMatch && (!item.turnoutSupply || item.excludedByPattern));
       if (matching.length) {
         sourceEndpoint = endpoint;
         sourceRows = matching;
@@ -1374,8 +1384,24 @@ async function previewSupplyInventory(env) {
       quantityUnavailable: inventory.filter(item=>item.status==='Quantity unavailable').length
     },
     inventory,
-    excluded: excludedRows.map(item => ({ id:item.id, name:item.name, sku:item.sku, category:item.category, subcategory:item.subcategory, location:item.location, reason:'Matched SUPPLY_EXCLUDE_PATTERN' })),
-    filterRules: { includePattern: globalThis.__SUPPLY_INCLUDE_PATTERN, excludePattern: globalThis.__SUPPLY_EXCLUDE_PATTERN },
+    excluded: excludedRows.map(item => ({
+      id:item.id,
+      name:item.name,
+      sku:item.sku,
+      assetType:item.assetType,
+      category:item.category,
+      subcategory:item.subcategory,
+      location:item.location,
+      reason: !item.turnoutSupply
+        ? `Excluded: Asset Type must equal Supply Part and Category must equal Turnout Gear (received ${item.assetType || 'blank'} / ${item.category || 'blank'})`
+        : 'Matched SUPPLY_EXCLUDE_PATTERN'
+    })),
+    filterRules: {
+      assetTypeEquals: 'Supply Part',
+      categoryEquals: 'Turnout Gear',
+      warehouseLocationContains: 'Turnout Gear Supply Warehouse',
+      excludePattern: globalThis.__SUPPLY_EXCLUDE_PATTERN
+    },
     note: sourceEndpoint
       ? 'Read-only supply inventory from OperativeIQ. Quantities are reported exactly as exposed by the selected source.'
       : 'No compatible supply-inventory source returned matching turnout supply parts. Use /probe-supply-inventory to inspect available fields.'
