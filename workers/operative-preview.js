@@ -208,6 +208,14 @@ export default {
         ));
       }
 
+      if (url.pathname === '/probe-supply-inventory') {
+        return json(await probeSupplyInventory(env));
+      }
+
+      if (url.pathname === '/preview-supply-inventory') {
+        return json(await previewSupplyInventory(env));
+      }
+
       if (url.pathname === '/preview-physical-due') {
         return json(await previewPhysicalDue(
           env,
@@ -306,6 +314,8 @@ export default {
           '/probe-operational-question-linkage?at=ISO_TIMESTAMP',
           '/probe-turnout-gear',
           '/preview-turnout-gear?at=ISO_TIMESTAMP',
+          '/probe-supply-inventory',
+          '/preview-supply-inventory',
           '/preview-physical-due?at=ISO_TIMESTAMP',
           '/preview-crew-emails',
           '/preview-inferred-operational-checks?at=ISO_TIMESTAMP',
@@ -1145,6 +1155,165 @@ async function probeTurnoutGear(env) {
     candidates,
     assignmentProbes,
     note: 'Read-only item, fixed-asset, and assignment-route inspection. No OperativeIQ, D1, Gmail, or Google Sheets data was changed.'
+  };
+}
+
+
+const SUPPLY_INVENTORY_RESOURCE_CANDIDATES = [
+  '/api/items',
+  '/api/inventory',
+  '/api/inventories',
+  '/api/item-inventory',
+  '/api/item-inventories',
+  '/api/warehouse-inventory',
+  '/api/stock'
+];
+
+async function fetchAllSafe(endpoint, token, maxRecords = 10000) {
+  try {
+    return { endpoint, status: 200, rows: await fetchAll(endpoint, token, maxRecords) };
+  } catch (error) {
+    const message = errorMessage(error);
+    const statusMatch = message.match(/\((\d{3})\)/);
+    return { endpoint, status: statusMatch ? Number(statusMatch[1]) : 0, rows: [], error: message };
+  }
+}
+
+function supplyText(source, names) {
+  for (const name of names) {
+    const value = source?.[name];
+    if (value !== null && value !== undefined && String(value).trim()) return String(value).trim();
+  }
+  const normalizeKey = value => String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const wanted = new Set(names.map(normalizeKey));
+  for (const [key, value] of Object.entries(source || {})) {
+    if (wanted.has(normalizeKey(key)) && value !== null && value !== undefined && String(value).trim()) return String(value).trim();
+  }
+  return '';
+}
+
+function supplyNumber(source, names) {
+  const raw = supplyText(source, names);
+  if (!raw) return null;
+  const parsed = Number(raw.replace(/[^0-9.-]/g, ''));
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function normalizeSupplyPart(row, index) {
+  const name = supplyText(row, ['itemName','name','partDescription','part_Description','description','itemDescription']);
+  const category = supplyText(row, ['category','categoryName','itemCategory','assetClass','asset_Class']);
+  const subcategory = supplyText(row, ['subcategory','subcategoryName','itemSubcategory','partType','type']);
+  const size = supplyText(row, ['size','itemSize','partSize','part_Size','variant','option']);
+  const location = supplyText(row, ['location','locationName','warehouseName','storageLocation','currentLocation','to']);
+  const sku = supplyText(row, ['itemNumber','internalPartNumber','partNumber','sku','partUpc','partUPC','barcode']);
+  const onHand = supplyNumber(row, ['quantityOnHand','onHand','onHandQuantity','currentQuantity','quantity','qtyOnHand','availableQuantity','available','stockQuantity']);
+  const minimum = supplyNumber(row, ['minimumQuantity','minimum','minQuantity','reorderPoint','parLevel','minimumStock']);
+  const maximum = supplyNumber(row, ['maximumQuantity','maximum','maxQuantity','targetQuantity','maximumStock']);
+  const catalogPart = normalizeBoolean(row?.catalogPart ?? row?.catalog_Part ?? row?.isCatalogPart);
+  const active = row?.active === undefined && row?.partStatusActive === undefined && row?.part_Status_Active === undefined
+    ? true
+    : normalizeBoolean(row?.active ?? row?.partStatusActive ?? row?.part_Status_Active);
+  const text = `${name} ${category} ${subcategory}`;
+  const turnoutSupply = /turnout|hood|glove|leather\s*glove|nomex/i.test(text);
+  const warehouseMatch = !location || /turnout\s*gear\s*supply\s*warehouse|supply\s*room|warehouse/i.test(location);
+  return {
+    id: supplyText(row, ['id','itemId','itemID','partId']) || `${sku || name || 'supply'}-${index+1}`,
+    name: name || sku || `Supply item ${index+1}`,
+    sku,
+    category,
+    subcategory,
+    size,
+    location: location || 'Turnout Gear Supply Warehouse',
+    onHand,
+    minimum,
+    maximum,
+    catalogPart,
+    active,
+    turnoutSupply,
+    warehouseMatch,
+    manufacturer: supplyText(row, ['manufacturer','manufacturerName','brand','make']),
+    unitOfMeasure: supplyText(row, ['unitOfMeasure','uom','unit','measure']),
+    rawFields: Object.keys(row || {})
+  };
+}
+
+async function probeSupplyInventory(env) {
+  const token = await getAccessToken(env);
+  const results = [];
+  for (const endpoint of SUPPLY_INVENTORY_RESOURCE_CANDIDATES) {
+    const result = await fetchAllSafe(endpoint, token, 1000);
+    results.push({
+      endpoint,
+      status: result.status,
+      count: result.rows.length,
+      fields: Object.keys(result.rows[0] || {}),
+      sample: redactDiscoverySample(result.rows[0] || {}),
+      error: result.error || null
+    });
+  }
+  return {
+    success: true,
+    mode: 'READ_ONLY_SUPPLY_INVENTORY_PROBE',
+    results,
+    note: 'GET-only inventory probe. No OperativeIQ data was changed.'
+  };
+}
+
+async function previewSupplyInventory(env) {
+  const token = await getAccessToken(env);
+  const attempted = [];
+  let sourceEndpoint = '';
+  let sourceRows = [];
+
+  for (const endpoint of SUPPLY_INVENTORY_RESOURCE_CANDIDATES) {
+    const result = await fetchAllSafe(endpoint, token, 10000);
+    attempted.push({ endpoint, status: result.status, count: result.rows.length, error: result.error || null });
+    if (result.rows.length) {
+      const normalized = result.rows.map(normalizeSupplyPart);
+      const matching = normalized.filter(item => item.active && item.turnoutSupply && item.warehouseMatch && (item.catalogPart || /hood|glove/i.test(`${item.name} ${item.subcategory}`)));
+      if (matching.length) {
+        sourceEndpoint = endpoint;
+        sourceRows = matching;
+        break;
+      }
+    }
+  }
+
+  const inventory = sourceRows.map(item => {
+    const onHand = item.onHand;
+    const minimum = item.minimum;
+    const status = onHand === null
+      ? 'Quantity unavailable'
+      : onHand <= 0
+        ? 'Out of stock'
+        : minimum !== null && onHand < minimum
+          ? 'Low stock'
+          : minimum !== null && onHand <= minimum * 1.25
+            ? 'Near minimum'
+            : 'In stock';
+    return { ...item, status };
+  }).sort((a,b) => {
+    const rank = {'Out of stock':0,'Low stock':1,'Near minimum':2,'Quantity unavailable':3,'In stock':4};
+    return (rank[a.status] ?? 9) - (rank[b.status] ?? 9) || a.name.localeCompare(b.name) || a.size.localeCompare(b.size);
+  });
+
+  return {
+    success: true,
+    mode: 'READ_ONLY_SUPPLY_INVENTORY_PREVIEW',
+    sourceEndpoint,
+    attempted,
+    count: inventory.length,
+    totals: {
+      skuCount: inventory.length,
+      totalOnHand: inventory.reduce((sum,item)=>sum+(item.onHand || 0),0),
+      lowStock: inventory.filter(item=>item.status==='Low stock').length,
+      outOfStock: inventory.filter(item=>item.status==='Out of stock').length,
+      quantityUnavailable: inventory.filter(item=>item.status==='Quantity unavailable').length
+    },
+    inventory,
+    note: sourceEndpoint
+      ? 'Read-only supply inventory from OperativeIQ. Quantities are reported exactly as exposed by the selected source.'
+      : 'No compatible supply-inventory source returned matching turnout supply parts. Use /probe-supply-inventory to inspect available fields.'
   };
 }
 
