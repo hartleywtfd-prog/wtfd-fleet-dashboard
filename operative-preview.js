@@ -1849,13 +1849,14 @@ async function debugTurnoutAsset(env, rawSearch = '') {
 
   const token = await getAccessToken(env);
   const filter = encodeURIComponent("asset_Class eq 'Turnout Gear'");
-  const [managementRows, assetRows, turnoutItemRows] = await Promise.all([
+  const [managementRows, assetRows, turnoutItemRows, extendedProperties] = await Promise.all([
     fetchAll(`/api/dynamic-views/vw_Asset_Management?$filter=${filter}`, token, 5000),
     fetchAll(`/api/dynamic-views/vw_Assets_All?$filter=${filter}`, token, 5000),
-    // OperativeIQ custom turnout-size values are mirrored into the item's Notes
-    // field. Loading the Turnout Gear item catalog once avoids one custom-field
-    // request per asset and keeps the Worker below Cloudflare subrequest limits.
-    fetchAll(`/api/items?$filter=${encodeURIComponent('categoryId eq 15')}`, token, 200)
+    fetchAll(`/api/items?$filter=${encodeURIComponent('categoryId eq 15')}`, token, 200),
+    // Coat Size and Pant Size are customer-created OperativeIQ fields. Load the
+    // definitions once so their values can be retrieved in bulk rather than
+    // issuing one /api/items/{id}/custom-fields request per asset.
+    fetchAll('/api/extended-properties', token, 5000)
   ]);
 
   const query = search.toLowerCase();
@@ -1936,13 +1937,14 @@ async function previewTurnoutGear(env, requestedInstant = null) {
   const at = requestedInstant || new Date();
   const todayKey = easternDateKey(at);
   const filter = encodeURIComponent("asset_Class eq 'Turnout Gear'");
-  const [managementRows, assetRows, turnoutItemRows] = await Promise.all([
+  const [managementRows, assetRows, turnoutItemRows, extendedProperties] = await Promise.all([
     fetchAll(`/api/dynamic-views/vw_Asset_Management?$filter=${filter}`, token, 5000),
     fetchAll(`/api/dynamic-views/vw_Assets_All?$filter=${filter}`, token, 5000),
-    // OperativeIQ custom turnout-size values are mirrored into the item's Notes
-    // field. Loading the Turnout Gear item catalog once avoids one custom-field
-    // request per asset and keeps the Worker below Cloudflare subrequest limits.
-    fetchAll(`/api/items?$filter=${encodeURIComponent('categoryId eq 15')}`, token, 200)
+    fetchAll(`/api/items?$filter=${encodeURIComponent('categoryId eq 15')}`, token, 200),
+    // Coat Size and Pant Size are customer-created OperativeIQ fields. Load the
+    // definitions once so their values can be retrieved in bulk rather than
+    // issuing one /api/items/{id}/custom-fields request per asset.
+    fetchAll('/api/extended-properties', token, 5000)
   ]);
 
   const normalizeKey = value => String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -1982,6 +1984,59 @@ async function previewTurnoutGear(env, requestedInstant = null) {
   const indexedManagementRows = managementRows.map(indexed);
   const indexedAssetRows = assetRows.map(indexed);
   const indexedTurnoutItems = turnoutItemRows.map(indexed);
+
+  // Resolve the custom-field property IDs by their user-facing names. The API
+  // has used several naming variants across releases, so inspect all common
+  // label/name fields rather than assuming one schema.
+  const propertyName = property => text(
+    property?.propertyName ?? property?.extendedPropertyName ?? property?.name
+    ?? property?.displayName ?? property?.label ?? property?.description
+  );
+  const propertyId = property => property?.id ?? property?.propertyId
+    ?? property?.propertyID ?? property?.extendedPropertyId ?? null;
+  const coatSizeProperty = extendedProperties.find(property => normalize(propertyName(property)) === 'COAT SIZE');
+  const pantSizeProperty = extendedProperties.find(property => normalize(propertyName(property)) === 'PANT SIZE');
+  const sizePropertyIds = [propertyId(coatSizeProperty), propertyId(pantSizeProperty)]
+    .filter(value => value !== null && value !== undefined && String(value).trim());
+
+  let extendedPropertyValues = [];
+  if (sizePropertyIds.length) {
+    const valueFilter = sizePropertyIds.map(id => `propertyID eq ${odataLiteral(id)}`).join(' or ');
+    try {
+      extendedPropertyValues = await fetchAll(
+        `/api/extended-property-values?$filter=${encodeURIComponent(valueFilter)}`,
+        token,
+        20000
+      );
+    } catch (error) {
+      // Some OperativeIQ builds expose the same key as extendedPropertyId. If
+      // propertyID is rejected, safely fall back to the bounded collection.
+      extendedPropertyValues = await fetchAll('/api/extended-property-values', token, 20000);
+    }
+  }
+
+  const customValuePropertyId = value => value?.propertyID ?? value?.propertyId
+    ?? value?.extendedPropertyId ?? value?.extendedPropertyID ?? null;
+  const customValueItemId = value => value?.itemId ?? value?.itemID
+    ?? value?.recordId ?? value?.entityId ?? value?.parentId ?? value?.assetId
+    ?? value?.objectId ?? value?.referenceId ?? null;
+  const customValueText = value => text(
+    value?.value ?? value?.propertyValue ?? value?.extendedPropertyValue
+    ?? value?.textValue ?? value?.stringValue ?? value?.optionValue
+    ?? value?.selectedValue
+  );
+  const customSizesByItemId = new Map();
+  for (const value of extendedPropertyValues) {
+    const itemId = customValueItemId(value);
+    const propId = customValuePropertyId(value);
+    const fieldValue = customValueText(value);
+    if (itemId === null || itemId === undefined || !fieldValue) continue;
+    const key = String(itemId);
+    const current = customSizesByItemId.get(key) || { coatSize: '', pantSize: '' };
+    if (coatSizeProperty && String(propId) === String(propertyId(coatSizeProperty))) current.coatSize = fieldValue;
+    if (pantSizeProperty && String(propId) === String(propertyId(pantSizeProperty))) current.pantSize = fieldValue;
+    customSizesByItemId.set(key, current);
+  }
   const itemByTag = new Map();
   const itemByName = new Map();
   for (const item of indexedTurnoutItems) {
@@ -2008,7 +2063,11 @@ async function previewTurnoutGear(env, requestedInstant = null) {
     supplyWarehouse: 0,
     missingNextServiceDate: 0,
     outsideThirtyDays: 0,
-    duplicateAssetTag: 0
+    duplicateAssetTag: 0,
+    coatSizePropertyId: propertyId(coatSizeProperty),
+    pantSizePropertyId: propertyId(pantSizeProperty),
+    customSizeValueRows: extendedPropertyValues.length,
+    customSizeItemsMapped: customSizesByItemId.size
   };
   const selected = new Map();
   const assetTagSet = new Set();
@@ -2101,14 +2160,23 @@ async function previewTurnoutGear(env, requestedInstant = null) {
         || text(get(asset, 'asset_Description'));
       const catalogItem = itemByTag.get(joinKey(assetTag))
         || itemByName.get(joinKey(partDescription));
-      // Coat Size and Pant Size are custom-created fields in OperativeIQ. In the
-      // item API their current value is mirrored in Notes (as shown on the asset
-      // screen), so use Notes only for the garment's applicable size field.
-      const customSizeValue = text(get(catalogItem, 'notes'));
       const isCoat = normalize(subcategory).includes('COAT');
       const isPant = normalize(subcategory).includes('PANT');
-      const coatSize = isCoat ? customSizeValue : '';
-      const pantSize = isPant ? customSizeValue : '';
+      const catalogItemId = get(catalogItem, 'id', 'itemId', 'itemID');
+      const mappedCustomSizes = catalogItemId !== null && catalogItemId !== undefined
+        ? customSizesByItemId.get(String(catalogItemId))
+        : null;
+      // Use the true custom-created field first. Notes is retained only as a
+      // compatibility fallback for older records where OperativeIQ duplicated
+      // the same value there. Never use a coat field for pants or vice versa.
+      const notesSizeFallback = text(get(catalogItem, 'notes'));
+      const coatSize = isCoat
+        ? text(mappedCustomSizes?.coatSize) || notesSizeFallback
+        : '';
+      const pantSize = isPant
+        ? text(mappedCustomSizes?.pantSize) || notesSizeFallback
+        : '';
+      const customSizeValue = isCoat ? coatSize : isPant ? pantSize : '';
 
       const row = {
         issuedTo,
@@ -2142,7 +2210,7 @@ async function previewTurnoutGear(env, requestedInstant = null) {
             ? pantSize
             : (text(get(management, 'size', 'part_Size'))
               || text(get(asset, 'size', 'asset_Size'))),
-        sizeSource: (isCoat || isPant) && customSizeValue ? 'OperativeIQ custom field (item notes mirror)' : 'Not mapped',
+        sizeSource: mappedCustomSizes && customSizeValue ? 'OperativeIQ custom field' : customSizeValue ? 'OperativeIQ item notes fallback' : 'Not mapped',
         barcode: text(get(management, 'barcode'))
           || text(get(management, 'bar_Code'))
           || text(get(asset, 'barcode'))
