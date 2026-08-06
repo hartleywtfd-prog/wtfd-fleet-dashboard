@@ -1160,24 +1160,19 @@ async function probeTurnoutGear(env) {
 
 
 const SUPPLY_INVENTORY_RESOURCE_CANDIDATES = [
+  '/api/supply-rooms/room-parts-for-cycle-counting',
+  '/api/item-rooms',
+  '/api/item-room-batches',
   '/api/items',
-  '/api/inventory',
-  '/api/inventories',
-  '/api/item-inventory',
-  '/api/item-inventories',
-  '/api/inventory-items',
-  '/api/warehouse-inventory',
-  '/api/warehouse-items',
-  '/api/item-locations',
-  '/api/part-locations',
-  '/api/stock',
-  '/api/stock-levels',
-  '/api/parts',
-  '/api/supply-parts'
+  '/api/supply-rooms',
+  '/api/stock-locations',
+  '/api/categories',
+  '/api/sub-categories',
+  '/api/manufacturers',
+  '/api/uoms'
 ];
 
-const DEFAULT_SUPPLY_INCLUDE_PATTERN = 'hood|leather\s*(work\s*)?glove|structural\s*glove|firefighting\s*glove|turnout\s*glove';
-const DEFAULT_SUPPLY_EXCLUDE_PATTERN = '\btool\b|holder|display|sample|test|training|inspection|form|repair|service|cleaner|detergent';
+const DEFAULT_SUPPLY_EXCLUDE_PATTERN = '\\btool\\b|holder|display|sample|test|training|inspection|form|repair|service|cleaner|detergent';
 
 function compilePattern(value, fallback) {
   try { return new RegExp(String(value || fallback), 'i'); }
@@ -1185,7 +1180,7 @@ function compilePattern(value, fallback) {
 }
 
 function supplyEntries(source, depth = 0, prefix = '') {
-  if (!source || typeof source !== 'object' || depth > 4) return [];
+  if (!source || typeof source !== 'object' || depth > 5) return [];
   const out = [];
   for (const [key, value] of Object.entries(source)) {
     const path = prefix ? `${prefix}.${key}` : key;
@@ -1226,65 +1221,209 @@ function supplyNumber(source, names) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-function normalizeSupplyPart(row, index) {
+function supplyId(source, names) {
+  const value = supplyText(source, names);
+  return value ? String(value) : '';
+}
+
+function lookupName(map, id, fallback = '') {
+  if (!id) return fallback;
+  return map.get(String(id)) || fallback;
+}
+
+function makeLookup(rows, idNames, nameNames) {
+  const map = new Map();
+  for (const row of rows || []) {
+    const id = supplyId(row, idNames);
+    const name = supplyText(row, nameNames);
+    if (id && name) map.set(id, name);
+  }
+  return map;
+}
+
+function firstNumeric(source, candidates) {
+  for (const names of candidates) {
+    const value = supplyNumber(source, names);
+    if (value !== null) return value;
+  }
+  return null;
+}
+
+function roomNameFromRow(row, roomLookup) {
+  const direct = supplyText(row, ['roomName','supplyRoomName','warehouseName','locationName','room','supplyRoom']);
+  if (direct) return direct;
+  const id = supplyId(row, ['roomId','roomID','supplyRoomId','supplyRoomID','itemRoomRoomId']);
+  return lookupName(roomLookup, id, '');
+}
+
+function itemIdFromRow(row) {
+  return supplyId(row, ['itemId','itemID','partId','partID','supplyPartId','supplyPartID']);
+}
+
+function roomIdFromRow(row) {
+  return supplyId(row, ['roomId','roomID','supplyRoomId','supplyRoomID']);
+}
+
+function itemRoomIdFromRow(row) {
+  return supplyId(row, ['itemRoomId','itemRoomID','roomItemId','roomItemID','id']);
+}
+
+function quantityFromInventoryRow(row) {
+  return firstNumeric(row, [
+    ['quantityOnHand','onHand','onHandQuantity','currentQuantity','quantity','qty','qtyOnHand'],
+    ['availableQuantity','availableQty','available','stockQuantity','stockOnHand','currentStock'],
+    ['inventoryQuantity','warehouseQuantity','balance','count','batchQuantity','remainingQuantity']
+  ]);
+}
+
+function normalizeSupplyItem(row, index, lookups) {
+  const id = supplyId(row, ['id','itemId','itemID','partId','partID']) || `item-${index+1}`;
+  const categoryId = supplyId(row, ['categoryId','categoryID','itemCategoryId']);
+  const subcategoryId = supplyId(row, ['subcategoryId','subCategoryId','subCategoryID','itemSubcategoryId']);
+  const manufacturerId = supplyId(row, ['manufacturerId','manufacturerID']);
+  const uomId = supplyId(row, ['uomId','uomID','unitOfMeasureId']);
   const name = supplyText(row, ['itemName','name','partDescription','part_Description','description','itemDescription']);
-  const assetType = supplyText(row, ['assetType','asset_Type','assetTypeName','assetTypeDescription','itemType','itemTypeName','recordType','typeName']);
-  const category = supplyText(row, ['category','categoryName','itemCategory']);
-  const subcategory = supplyText(row, ['subcategory','subcategoryName','itemSubcategory','partType']);
-  const size = supplyText(row, ['size','itemSize','partSize','part_Size','variant','option']);
-  const location = supplyText(row, ['location','locationName','warehouseName','storageLocation','currentLocation','to']);
-  const sku = supplyText(row, ['itemNumber','internalPartNumber','partNumber','sku','partUpc','partUPC','barcode']);
-  const onHand = supplyNumber(row, ['quantityOnHand','onHand','onHandQuantity','currentQuantity','quantity','qty','qtyOnHand','availableQuantity','availableQty','available','stockQuantity','stockOnHand','currentStock','inventoryQuantity','warehouseQuantity','balance','count']);
-  const minimum = supplyNumber(row, ['minimumQuantity','minimum','minQuantity','reorderPoint','reorderLevel','parLevel','minimumStock','minStock']);
-  const maximum = supplyNumber(row, ['maximumQuantity','maximum','maxQuantity','targetQuantity','maximumStock','maxStock']);
-  const catalogPart = normalizeBoolean(row?.catalogPart ?? row?.catalog_Part ?? row?.isCatalogPart);
-  const active = row?.active === undefined && row?.partStatusActive === undefined && row?.part_Status_Active === undefined
+  const category = supplyText(row, ['category','categoryName','itemCategory']) || lookupName(lookups.category, categoryId);
+  const subcategory = supplyText(row, ['subcategory','subcategoryName','itemSubcategory','partType']) || lookupName(lookups.subcategory, subcategoryId);
+  const manufacturer = supplyText(row, ['manufacturer','manufacturerName','brand','make']) || lookupName(lookups.manufacturer, manufacturerId);
+  const unitOfMeasure = supplyText(row, ['unitOfMeasure','uom','unit','measure','stockingUom']) || lookupName(lookups.uom, uomId);
+  const assetType = supplyText(row, ['assetType','asset_Type','assetTypeName','assetTypeDescription','itemType','itemTypeName','recordType','typeName']) || 'Supply Part';
+  const active = row?.active === undefined && row?.partStatusActive === undefined && row?.part_Status_Active === undefined && row?.status === undefined
     ? true
-    : normalizeBoolean(row?.active ?? row?.partStatusActive ?? row?.part_Status_Active);
+    : normalizeBoolean(row?.active ?? row?.partStatusActive ?? row?.part_Status_Active ?? row?.status);
   const text = `${name} ${assetType} ${category} ${subcategory}`;
-  const includePattern = compilePattern(globalThis.__SUPPLY_INCLUDE_PATTERN, DEFAULT_SUPPLY_INCLUDE_PATTERN);
   const excludePattern = compilePattern(globalThis.__SUPPLY_EXCLUDE_PATTERN, DEFAULT_SUPPLY_EXCLUDE_PATTERN);
-  const normalizedAssetType = normalize(assetType);
-  const normalizedCategory = normalize(category);
-  // Source-of-truth inclusion rule confirmed by the department:
-  // only quantity-based records whose OperativeIQ Asset Type is Supply Part
-  // and whose Category is Turnout Gear belong on this page.
-  const exactSupplyPart = normalizedAssetType === 'SUPPLY PART';
-  const exactTurnoutCategory = normalizedCategory === 'TURNOUT GEAR';
-  const turnoutSupply = exactSupplyPart && exactTurnoutCategory;
-  // Keep the configurable exclusion pattern only as a final cleanup layer.
-  const excludedByPattern = excludePattern.test(text);
-  const warehouseMatch = !location || /turnout\s*gear\s*supply\s*warehouse|supply\s*room|warehouse/i.test(location);
   return {
-    id: supplyText(row, ['id','itemId','itemID','partId']) || `${sku || name || 'supply'}-${index+1}`,
-    name: name || sku || `Supply item ${index+1}`,
-    sku,
+    id,
+    name: name || `Supply item ${index+1}`,
+    sku: supplyText(row, ['itemNumber','internalPartNumber','partNumber','sku','partUpc','partUPC','barcode','upc']),
     assetType,
     category,
     subcategory,
-    size,
-    location: location || 'Turnout Gear Supply Warehouse',
-    onHand,
-    minimum,
-    maximum,
-    catalogPart,
+    size: supplyText(row, ['size','itemSize','partSize','part_Size','variant','option']) || sizeFromName(name),
+    manufacturer,
+    unitOfMeasure,
     active,
-    turnoutSupply,
-    excludedByPattern,
-    warehouseMatch,
-    manufacturer: supplyText(row, ['manufacturer','manufacturerName','brand','make']),
-    unitOfMeasure: supplyText(row, ['unitOfMeasure','uom','unit','measure']),
-    rawFields: Object.keys(row || {})
+    turnoutSupply: normalize(assetType) === 'SUPPLY PART' && normalize(category) === 'TURNOUT GEAR',
+    excludedByPattern: excludePattern.test(text),
+    raw: row
   };
 }
 
-async function probeSupplyInventory(env) {
-  globalThis.__SUPPLY_INCLUDE_PATTERN = env.SUPPLY_INCLUDE_PATTERN || DEFAULT_SUPPLY_INCLUDE_PATTERN;
-  globalThis.__SUPPLY_EXCLUDE_PATTERN = env.SUPPLY_EXCLUDE_PATTERN || DEFAULT_SUPPLY_EXCLUDE_PATTERN;
+function sizeFromName(name) {
+  const text = String(name || '').trim();
+  const match = text.match(/(?:\s|-)(XXXXL|XXXL|XXL|XL|LARGE|MEDIUM|SMALL|XS|S|M|L)$/i);
+  return match ? match[1].toUpperCase() : '';
+}
+
+function inventoryStatus(onHand, minimum) {
+  if (onHand === null) return 'Quantity unavailable';
+  if (onHand <= 0) return 'Out of stock';
+  if (minimum !== null && onHand < minimum) return 'Low stock';
+  if (minimum !== null && onHand <= minimum * 1.25) return 'Near minimum';
+  return 'In stock';
+}
+
+async function loadSupplyInventoryData(env) {
   const token = await getAccessToken(env);
-  const results = [];
-  for (const endpoint of SUPPLY_INVENTORY_RESOURCE_CANDIDATES) {
-    const result = await fetchAllSafe(endpoint, token, 1000);
+  const endpoints = [
+    '/api/items',
+    '/api/item-rooms',
+    '/api/item-room-batches',
+    '/api/supply-rooms',
+    '/api/stock-locations',
+    '/api/categories',
+    '/api/sub-categories',
+    '/api/manufacturers',
+    '/api/uoms',
+    '/api/supply-rooms/room-parts-for-cycle-counting'
+  ];
+  const results = await Promise.all(endpoints.map(endpoint => fetchAllSafe(endpoint, token, endpoint.includes('cycle-counting') ? 20000 : 10000)));
+  const byEndpoint = new Map(results.map(result => [result.endpoint, result]));
+  const rows = endpoint => byEndpoint.get(endpoint)?.rows || [];
+  const lookups = {
+    category: makeLookup(rows('/api/categories'), ['id','categoryId'], ['name','categoryName','description']),
+    subcategory: makeLookup(rows('/api/sub-categories'), ['id','subcategoryId','subCategoryId'], ['name','subcategoryName','description']),
+    manufacturer: makeLookup(rows('/api/manufacturers'), ['id','manufacturerId'], ['name','manufacturerName','description']),
+    uom: makeLookup(rows('/api/uoms'), ['id','uomId'], ['name','uomName','abbreviation','code','description']),
+    room: makeLookup(rows('/api/supply-rooms'), ['id','roomId','supplyRoomId'], ['name','roomName','supplyRoomName','description']),
+    stockLocation: makeLookup(rows('/api/stock-locations'), ['id','stockLocationId'], ['name','stockLocationName','description'])
+  };
+  return { results, rows, lookups };
+}
+
+function buildSupplyInventory(data) {
+  const items = data.rows('/api/items').map((row, index) => normalizeSupplyItem(row, index, data.lookups));
+  const itemById = new Map(items.map(item => [String(item.id), item]));
+  const roomRows = data.rows('/api/item-rooms');
+  const batchRows = data.rows('/api/item-room-batches');
+  const cycleRows = data.rows('/api/supply-rooms/room-parts-for-cycle-counting');
+
+  const batchesByItemRoom = new Map();
+  for (const batch of batchRows) {
+    const itemRoomId = supplyId(batch, ['itemRoomId','itemRoomID','roomItemId','roomItemID']);
+    if (!itemRoomId) continue;
+    const list = batchesByItemRoom.get(itemRoomId) || [];
+    list.push(batch);
+    batchesByItemRoom.set(itemRoomId, list);
+  }
+
+  const inventoryRows = [];
+  const seen = new Set();
+  const addInventory = (source, itemId, roomName, roomId, quantity, itemRoomId = '') => {
+    const item = itemById.get(String(itemId));
+    if (!item || !item.active || !item.turnoutSupply || item.excludedByPattern) return;
+    const resolvedRoom = roomName || lookupName(data.lookups.room, roomId, '');
+    if (!/turnout\s*gear\s*supply\s*warehouse/i.test(resolvedRoom)) return;
+    const key = `${item.id}|${resolvedRoom}|${itemRoomId || roomId}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    const minimum = supplyNumber(source, ['minimumQuantity','minimum','minQuantity','reorderPoint','reorderLevel','parLevel','minimumStock','minStock']);
+    const maximum = supplyNumber(source, ['maximumQuantity','maximum','maxQuantity','targetQuantity','maximumStock','maxStock']);
+    const stockLocationId = supplyId(source, ['stockLocationId','stockLocationID']);
+    inventoryRows.push({
+      ...item,
+      location: resolvedRoom,
+      stockLocation: supplyText(source, ['stockLocation','stockLocationName','bin','binName']) || lookupName(data.lookups.stockLocation, stockLocationId, ''),
+      onHand: quantity,
+      minimum,
+      maximum,
+      status: inventoryStatus(quantity, minimum),
+      sourceFields: Object.keys(source || {})
+    });
+  };
+
+  // Highest-fidelity source: the same room-parts collection used by cycle counting.
+  for (const row of cycleRows) {
+    const itemId = itemIdFromRow(row);
+    const roomId = roomIdFromRow(row);
+    const roomName = roomNameFromRow(row, data.lookups.room);
+    addInventory(row, itemId, roomName, roomId, quantityFromInventoryRow(row), itemRoomIdFromRow(row));
+  }
+
+  // Fallback: join item-room records to item-room batches and sum batch balances.
+  for (const roomRow of roomRows) {
+    const itemId = itemIdFromRow(roomRow);
+    const roomId = roomIdFromRow(roomRow);
+    const itemRoomId = itemRoomIdFromRow(roomRow);
+    const roomName = roomNameFromRow(roomRow, data.lookups.room);
+    let quantity = quantityFromInventoryRow(roomRow);
+    if (quantity === null && itemRoomId) {
+      const batches = batchesByItemRoom.get(itemRoomId) || [];
+      const values = batches.map(quantityFromInventoryRow).filter(value => value !== null);
+      if (values.length) quantity = values.reduce((sum, value) => sum + value, 0);
+    }
+    addInventory(roomRow, itemId, roomName, roomId, quantity, itemRoomId);
+  }
+
+  return { items, inventoryRows };
+}
+
+async function probeSupplyInventory(env) {
+  globalThis.__SUPPLY_EXCLUDE_PATTERN = env.SUPPLY_EXCLUDE_PATTERN || DEFAULT_SUPPLY_EXCLUDE_PATTERN;
+  const data = await loadSupplyInventoryData(env);
+  const built = buildSupplyInventory(data);
+  const results = data.results.map(result => {
     const sampleRows = result.rows.slice(0, 100);
     const coverage = new Map();
     const numeric = new Map();
@@ -1305,76 +1444,59 @@ async function probeSupplyInventory(env) {
         }
       }
     }
-    results.push({
-      endpoint,
+    return {
+      endpoint: result.endpoint,
       status: result.status,
       count: result.rows.length,
       fields: [...coverage.entries()].map(([path, info]) => ({ path, ...info })).sort((a,b)=>b.present-a.present||a.path.localeCompare(b.path)),
       numericCandidates: [...numeric.entries()].map(([path, info]) => ({ path, ...info })).sort((a,b)=>b.present-a.present||a.path.localeCompare(b.path)),
       sample: redactDiscoverySample(result.rows[0] || {}),
       error: result.error || null
-    });
-  }
+    };
+  });
   return {
     success: true,
-    mode: 'READ_ONLY_SUPPLY_INVENTORY_PROBE',
-    filterRules: {
-      includePattern: globalThis.__SUPPLY_INCLUDE_PATTERN,
-      excludePattern: globalThis.__SUPPLY_EXCLUDE_PATTERN
-    },
+    mode: 'READ_ONLY_SUPPLY_INVENTORY_JOIN_PROBE',
+    joinedInventoryCount: built.inventoryRows.length,
+    matchingCatalogCount: built.items.filter(item => item.active && item.turnoutSupply && !item.excludedByPattern).length,
     results,
-    note: 'GET-only inventory probe. Supply page inclusion requires Asset Type = Supply Part and Category = Turnout Gear. No OperativeIQ data was changed.'
+    note: 'GET-only discovery and join across items, item rooms, item-room batches, supply rooms, stock locations, categories, manufacturers, and UOMs. No OperativeIQ data was changed.'
   };
 }
 
 async function previewSupplyInventory(env) {
-  globalThis.__SUPPLY_INCLUDE_PATTERN = env.SUPPLY_INCLUDE_PATTERN || DEFAULT_SUPPLY_INCLUDE_PATTERN;
   globalThis.__SUPPLY_EXCLUDE_PATTERN = env.SUPPLY_EXCLUDE_PATTERN || DEFAULT_SUPPLY_EXCLUDE_PATTERN;
-  const token = await getAccessToken(env);
-  const attempted = [];
-  let sourceEndpoint = '';
-  let sourceRows = [];
-  let excludedRows = [];
-
-  for (const endpoint of SUPPLY_INVENTORY_RESOURCE_CANDIDATES) {
-    const result = await fetchAllSafe(endpoint, token, 10000);
-    attempted.push({ endpoint, status: result.status, count: result.rows.length, error: result.error || null });
-    if (result.rows.length) {
-      const normalized = result.rows.map(normalizeSupplyPart);
-      const matching = normalized.filter(item => item.active && item.turnoutSupply && !item.excludedByPattern && item.warehouseMatch);
-      const excluded = normalized.filter(item => item.active && item.warehouseMatch && (!item.turnoutSupply || item.excludedByPattern));
-      if (matching.length) {
-        sourceEndpoint = endpoint;
-        sourceRows = matching;
-        excludedRows = excluded;
-        break;
-      }
-    }
-  }
-
-  const inventory = sourceRows.map(item => {
-    const onHand = item.onHand;
-    const minimum = item.minimum;
-    const status = onHand === null
-      ? 'Quantity unavailable'
-      : onHand <= 0
-        ? 'Out of stock'
-        : minimum !== null && onHand < minimum
-          ? 'Low stock'
-          : minimum !== null && onHand <= minimum * 1.25
-            ? 'Near minimum'
-            : 'In stock';
-    return { ...item, status };
-  }).sort((a,b) => {
+  const data = await loadSupplyInventoryData(env);
+  const built = buildSupplyInventory(data);
+  const inventory = built.inventoryRows.sort((a,b) => {
     const rank = {'Out of stock':0,'Low stock':1,'Near minimum':2,'Quantity unavailable':3,'In stock':4};
     return (rank[a.status] ?? 9) - (rank[b.status] ?? 9) || a.name.localeCompare(b.name) || a.size.localeCompare(b.size);
   });
-
+  const matchingCatalog = built.items.filter(item => item.active && item.turnoutSupply && !item.excludedByPattern);
+  const includedIds = new Set(inventory.map(item => String(item.id)));
+  const excluded = built.items.filter(item => item.active && (!item.turnoutSupply || item.excludedByPattern)).map(item => ({
+    id:item.id,
+    name:item.name,
+    sku:item.sku,
+    assetType:item.assetType,
+    category:item.category,
+    subcategory:item.subcategory,
+    reason: !item.turnoutSupply
+      ? `Excluded: Asset Type must equal Supply Part and Category must equal Turnout Gear (received ${item.assetType || 'blank'} / ${item.category || 'blank'})`
+      : 'Matched SUPPLY_EXCLUDE_PATTERN'
+  }));
+  const unmatchedCatalog = matchingCatalog.filter(item => !includedIds.has(String(item.id))).map(item => ({
+    id:item.id,
+    name:item.name,
+    sku:item.sku,
+    category:item.category,
+    subcategory:item.subcategory,
+    reason:'Matching catalog part was not linked to Turnout Gear Supply Warehouse by item-room or cycle-count data.'
+  }));
   return {
     success: true,
-    mode: 'READ_ONLY_SUPPLY_INVENTORY_PREVIEW',
-    sourceEndpoint,
-    attempted,
+    mode: 'READ_ONLY_SUPPLY_ROOM_INVENTORY_JOIN',
+    sourceEndpoint: '/api/supply-rooms/room-parts-for-cycle-counting + /api/item-rooms + /api/item-room-batches',
     count: inventory.length,
     totals: {
       skuCount: inventory.length,
@@ -1384,27 +1506,16 @@ async function previewSupplyInventory(env) {
       quantityUnavailable: inventory.filter(item=>item.status==='Quantity unavailable').length
     },
     inventory,
-    excluded: excludedRows.map(item => ({
-      id:item.id,
-      name:item.name,
-      sku:item.sku,
-      assetType:item.assetType,
-      category:item.category,
-      subcategory:item.subcategory,
-      location:item.location,
-      reason: !item.turnoutSupply
-        ? `Excluded: Asset Type must equal Supply Part and Category must equal Turnout Gear (received ${item.assetType || 'blank'} / ${item.category || 'blank'})`
-        : 'Matched SUPPLY_EXCLUDE_PATTERN'
-    })),
+    excluded,
+    unmatchedCatalog,
+    attempted: data.results.map(result => ({ endpoint:result.endpoint,status:result.status,count:result.rows.length,error:result.error||null })),
     filterRules: {
       assetTypeEquals: 'Supply Part',
       categoryEquals: 'Turnout Gear',
       warehouseLocationContains: 'Turnout Gear Supply Warehouse',
       excludePattern: globalThis.__SUPPLY_EXCLUDE_PATTERN
     },
-    note: sourceEndpoint
-      ? 'Read-only supply inventory from OperativeIQ. Quantities are reported exactly as exposed by the selected source.'
-      : 'No compatible supply-inventory source returned matching turnout supply parts. Use /probe-supply-inventory to inspect available fields.'
+    note: 'Read-only joined supply-room inventory. Quantity is sourced from cycle-count room parts, item-room rows, or summed item-room batches.'
   };
 }
 
