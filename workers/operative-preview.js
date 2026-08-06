@@ -1289,16 +1289,18 @@ function normalizeSupplyItem(row, index, lookups) {
   const categoryId = supplyId(row, ['categoryId','categoryID','itemCategoryId']);
   const subcategoryId = supplyId(row, ['subcategoryId','subCategoryId','subCategoryID','itemSubcategoryId']);
   const manufacturerId = supplyId(row, ['manufacturerId','manufacturerID']);
-  const uomId = supplyId(row, ['uomId','uomID','unitOfMeasureId']);
+  const uomId = supplyId(row, ['uomId','uomID','unitOfMeasureId','uomlabelId','stockUomId']);
   const name = supplyText(row, ['itemName','name','partDescription','part_Description','description','itemDescription']);
   const category = supplyText(row, ['category','categoryName','itemCategory']) || lookupName(lookups.category, categoryId);
   const subcategory = supplyText(row, ['subcategory','subcategoryName','itemSubcategory','partType']) || lookupName(lookups.subcategory, subcategoryId);
   const manufacturer = supplyText(row, ['manufacturer','manufacturerName','brand','make']) || lookupName(lookups.manufacturer, manufacturerId);
-  const unitOfMeasure = supplyText(row, ['unitOfMeasure','uom','unit','measure','stockingUom']) || lookupName(lookups.uom, uomId);
-  const assetType = supplyText(row, ['assetType','asset_Type','assetTypeName','assetTypeDescription','itemType','itemTypeName','recordType','typeName']) || 'Supply Part';
-  const active = row?.active === undefined && row?.partStatusActive === undefined && row?.part_Status_Active === undefined && row?.status === undefined
+  const unitOfMeasure = supplyText(row, ['unitOfMeasure','uom','unit','measure','stockingUom','uomLabel','uomlabel']) || lookupName(lookups.uom, uomId);
+  const assetType = supplyText(row, ['partType','assetType','asset_Type','assetTypeName','assetTypeDescription','itemType','itemTypeName','recordType','typeName']) || 'Supply Part';
+  const activeValue = row?.active ?? row?.partStatusActive ?? row?.part_Status_Active ?? row?.status;
+  const activeText = normalize(activeValue);
+  const active = activeValue === undefined || activeValue === null || activeValue === ''
     ? true
-    : normalizeBoolean(row?.active ?? row?.partStatusActive ?? row?.part_Status_Active ?? row?.status);
+    : !['FALSE','0','NO','N','OFF','INACTIVE','DISABLED','DELETED','ARCHIVED'].includes(activeText);
   const text = `${name} ${assetType} ${category} ${subcategory}`;
   const excludePattern = compilePattern(globalThis.__SUPPLY_EXCLUDE_PATTERN, DEFAULT_SUPPLY_EXCLUDE_PATTERN);
   return {
@@ -1332,7 +1334,7 @@ function inventoryStatus(onHand, minimum) {
   return 'In stock';
 }
 
-async function fetchSinglePageSafe(endpoint, token, top = 500) {
+async function fetchSinglePageSafe(endpoint, token, top = 200) {
   try {
     const url = new URL(RESOURCE_ROOT + endpoint);
     if (!url.searchParams.has('$top')) url.searchParams.set('$top', String(top));
@@ -1359,8 +1361,8 @@ function odataLiteral(value) {
 
 async function loadSupplyInventoryData(env) {
   const token = await getAccessToken(env);
-  const roomResult = await fetchSinglePageSafe('/api/supply-rooms', token, 500);
-  const categoryResult = await fetchSinglePageSafe('/api/categories', token, 500);
+  const roomResult = await fetchSinglePageSafe('/api/supply-rooms', token, 200);
+  const categoryResult = await fetchSinglePageSafe('/api/categories', token, 200);
 
   const roomRows = roomResult.rows || [];
   const categoryRows = categoryResult.rows || [];
@@ -1385,8 +1387,8 @@ async function loadSupplyInventoryData(env) {
     : '/api/items?$top=0';
 
   const [batchResult, itemResult] = await Promise.all([
-    fetchSinglePageSafe(batchEndpoint, token, 1000),
-    fetchSinglePageSafe(itemEndpoint, token, 1000)
+    fetchSinglePageSafe(batchEndpoint, token, 200),
+    fetchSinglePageSafe(itemEndpoint, token, 200)
   ]);
 
   const endpointAliases = new Map([
@@ -1538,8 +1540,25 @@ function supplyDebugSafeRecord(source) {
 async function debugSupplyInventory(env, search = '') {
   globalThis.__SUPPLY_EXCLUDE_PATTERN = env.SUPPLY_EXCLUDE_PATTERN || DEFAULT_SUPPLY_EXCLUDE_PATTERN;
   const data = await loadSupplyInventoryData(env);
-  const query = String(search || '').trim().toLowerCase();
-  const itemRows = data.rows('/api/items');
+  const rawSearch = String(search || '').trim();
+  const query = rawSearch.toLowerCase();
+  let itemRows = data.rows('/api/items');
+
+  // The production join intentionally loads only Turnout Gear category items.
+  // For diagnostics, directly query a known numeric ID or itemName so the
+  // explorer can inspect a record even if the category join is misconfigured.
+  if (rawSearch) {
+    const token = await getAccessToken(env);
+    const filter = /^\d+$/.test(rawSearch)
+      ? `id eq ${rawSearch}`
+      : `contains(tolower(itemName), '${rawSearch.toLowerCase().replace(/'/g, "''")}')`;
+    const directEndpoint = `/api/items?$filter=${encodeURIComponent(filter)}&$top=25`;
+    const directResult = await fetchSinglePageSafe(directEndpoint, token, 25);
+    if (directResult.rows.length || directResult.error) {
+      itemRows = directResult.rows;
+      data.results.push({ ...directResult, endpoint: '/api/items-direct-search' });
+    }
+  }
   const normalizedItems = itemRows.map((row, index) => normalizeSupplyItem(row, index, data.lookups));
   const matches = normalizedItems.filter(item => {
     if (!query) return item.turnoutSupply;
@@ -1559,7 +1578,7 @@ async function debugSupplyInventory(env, search = '') {
     const linkedItemRooms = itemRooms.filter(row => itemIdFromRow(row) === itemId);
     const linkedCycleRows = cycleRows.filter(row => itemIdFromRow(row) === itemId);
     const linkedItemRoomIds = new Set(linkedItemRooms.map(itemRoomIdFromRow).filter(Boolean));
-    const linkedBatches = batches.filter(row => linkedItemRoomIds.has(itemRoomIdFromRow(row)));
+    const linkedBatches = batches.filter(row => itemIdFromRow(row) === itemId || linkedItemRoomIds.has(itemRoomIdFromRow(row)));
     const linkedRoomIds = new Set([
       ...linkedItemRooms.map(roomIdFromRow),
       ...linkedCycleRows.map(roomIdFromRow)
