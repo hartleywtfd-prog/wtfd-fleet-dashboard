@@ -126,6 +126,8 @@ let cachedToken = null;
 let cachedTokenExpiresAt = 0;
 let cachedGoogleToken = null;
 let cachedGoogleTokenExpiresAt = 0;
+let cachedTurnoutPreview = null;
+let cachedTurnoutPreviewExpiresAt = 0;
 
 export default {
   async fetch(request, env) {
@@ -1147,29 +1149,27 @@ async function probeTurnoutGear(env) {
 }
 
 async function previewTurnoutGear(env, requestedInstant = null) {
+  const now = Date.now();
+  // The dashboard refreshes frequently. Reuse the current read-only preview for
+  // two minutes inside a warm Worker isolate to reduce OperativeIQ traffic and
+  // avoid unnecessary CPU spent repeatedly normalizing the same dynamic views.
+  if (!requestedInstant && cachedTurnoutPreview && cachedTurnoutPreviewExpiresAt > now) {
+    return {
+      ...cachedTurnoutPreview,
+      cache: { hit: true, expiresAt: new Date(cachedTurnoutPreviewExpiresAt).toISOString() }
+    };
+  }
+
   const token = await getAccessToken(env);
   const at = requestedInstant || new Date();
   const todayKey = easternDateKey(at);
   const filter = encodeURIComponent("asset_Class eq 'Turnout Gear'");
   const [managementRows, assetRows] = await Promise.all([
-    fetchAll(`/api/dynamic-views/vw_Asset_Management?$filter=${filter}`, token, 20000),
-    fetchAll(`/api/dynamic-views/vw_Assets_All?$filter=${filter}`, token, 20000)
+    fetchAll(`/api/dynamic-views/vw_Asset_Management?$filter=${filter}`, token, 5000),
+    fetchAll(`/api/dynamic-views/vw_Assets_All?$filter=${filter}`, token, 5000)
   ]);
 
-  const normalizedKey = value => String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-  const valueByNames = (source, names) => {
-    const wanted = new Set(names.map(normalizedKey));
-    for (const [key, value] of Object.entries(source || {})) {
-      if (wanted.has(normalizedKey(key))) return value;
-    }
-    return null;
-  };
-  const valueByPattern = (source, pattern) => {
-    for (const [key, value] of Object.entries(source || {})) {
-      if (pattern.test(normalizedKey(key))) return value;
-    }
-    return null;
-  };
+  const normalizeKey = value => String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
   const text = value => value === null || value === undefined ? '' : String(value).trim();
   const joinKey = value => text(value).toUpperCase().replace(/\s+/g, ' ');
   const active = value => {
@@ -1185,12 +1185,33 @@ async function previewTurnoutGear(env, requestedInstant = null) {
       : null;
   };
 
+  // Normalize field names once per source record. The previous implementation
+  // repeatedly scanned Object.entries() for every field lookup, which could
+  // exceed the Cloudflare Worker CPU limit and surface as error 1102 / HTTP 503.
+  const indexed = source => {
+    const values = Object.create(null);
+    for (const [key, value] of Object.entries(source || {})) {
+      values[normalizeKey(key)] = value;
+    }
+    return { source, values };
+  };
+  const get = (record, ...names) => {
+    for (const name of names) {
+      const value = record?.values?.[normalizeKey(name)];
+      if (value !== null && value !== undefined) return value;
+    }
+    return null;
+  };
+
+  const indexedManagementRows = managementRows.map(indexed);
+  const indexedAssetRows = assetRows.map(indexed);
   const managementByTag = new Map();
-  for (const row of managementRows) {
-    const tag = joinKey(valueByNames(row, ['asset_Tag___Part_UPC', 'assetTagPartUpc']));
+  for (const row of indexedManagementRows) {
+    const tag = joinKey(get(row, 'asset_Tag___Part_UPC', 'assetTagPartUpc'));
     if (!tag) continue;
-    if (!managementByTag.has(tag)) managementByTag.set(tag, []);
-    managementByTag.get(tag).push(row);
+    const current = managementByTag.get(tag);
+    if (current) current.push(row);
+    else managementByTag.set(tag, [row]);
   }
 
   const diagnostics = {
@@ -1206,33 +1227,42 @@ async function previewTurnoutGear(env, requestedInstant = null) {
     duplicateAssetTag: 0
   };
   const selected = new Map();
+  const assetTagSet = new Set();
 
-  for (const asset of assetRows) {
-    const tag = joinKey(valueByNames(asset, ['asset_Tag_Number', 'assetTagNumber']));
+  for (const asset of indexedAssetRows) {
+    const tag = joinKey(get(asset, 'asset_Tag_Number', 'assetTagNumber'));
     if (!tag) {
       diagnostics.missingJoin++;
       continue;
     }
-    const matchingManagementRows = managementByTag.get(tag) || [];
-    if (!matchingManagementRows.length) {
+    assetTagSet.add(tag);
+    const matchingManagementRows = managementByTag.get(tag);
+    if (!matchingManagementRows?.length) {
       diagnostics.missingJoin++;
       continue;
     }
 
     for (const management of matchingManagementRows) {
-      const assetClass = text(valueByNames(asset, ['asset_Class']) || valueByNames(management, ['asset_Class']));
-      const category = text(valueByNames(asset, ['category']) || valueByNames(management, ['category']));
-      const subcategory = text(valueByNames(asset, ['subcategory']) || valueByNames(management, ['subcategory']));
-      const location = text(valueByNames(asset, ['location']));
-      const partStatus = valueByNames(management, ['part_Status_Active']);
-      const nextValue = valueByNames(management, ['next_Preventative_Maintenace_Date'])
-        ?? valueByPattern(management, /^nextpreventativemainten.*date$/i);
-      const lastValue = valueByNames(management, ['preventative_Maintenace_Date'])
-        ?? valueByPattern(management, /^preventativemainten.*date$/i);
-      const daysValue = valueByNames(management, ['days_Until_Next_Preventative_Maintenace'])
-        ?? valueByPattern(management, /^daysuntilnextpreventativemainten/i);
-      // Dynamic-view maintenance values are UTC timestamps. The OperativeIQ
-      // report renders them in America/New_York, which can be the prior date.
+      const assetClass = text(get(asset, 'asset_Class') ?? get(management, 'asset_Class'));
+      const category = text(get(asset, 'category') ?? get(management, 'category'));
+      const subcategory = text(get(asset, 'subcategory') ?? get(management, 'subcategory'));
+      const location = text(get(asset, 'location'));
+      const partStatus = get(management, 'part_Status_Active');
+      const nextValue = get(
+        management,
+        'next_Preventative_Maintenace_Date',
+        'next_Preventative_Maintenance_Date'
+      );
+      const lastValue = get(
+        management,
+        'preventative_Maintenace_Date',
+        'preventative_Maintenance_Date'
+      );
+      const daysValue = get(
+        management,
+        'days_Until_Next_Preventative_Maintenace',
+        'days_Until_Next_Preventative_Maintenance'
+      );
       const nextDate = dynamicViewDateKey(nextValue);
       const lastDate = dynamicViewDateKey(lastValue);
       const parsedDays = Number(String(daysValue ?? '').replace(/[^0-9.-]/g, ''));
@@ -1275,21 +1305,29 @@ async function previewTurnoutGear(env, requestedInstant = null) {
 
       const row = {
         issuedTo: location.replace(/^Crew:\s*/i, '').trim(),
-        gearIdentifier: text(valueByNames(asset, ['asset_Tag_Number']))
-          || text(valueByNames(management, ['asset_Tag___Part_UPC'])),
+        currentLocation: location,
+        locationType: /^Crew:/i.test(location)
+          ? 'Issued to Member'
+          : /warehouse|supply room/i.test(location)
+            ? 'Warehouse'
+            : /station/i.test(location)
+              ? 'Station'
+              : 'Other',
+        gearIdentifier: text(get(asset, 'asset_Tag_Number'))
+          || text(get(management, 'asset_Tag___Part_UPC')),
         lastServiceDate: lastDate,
         nextServiceDate: nextDate,
         daysLeft,
         assetClass,
         category,
         subcategory,
-        partDescription: text(valueByNames(management, ['part_Description']))
-          || text(valueByNames(asset, ['asset_Description'])),
+        partDescription: text(get(management, 'part_Description'))
+          || text(get(asset, 'asset_Description')),
         partStatusActive: active(partStatus),
-        locationStatus: text(valueByNames(asset, ['location_Status'])),
+        locationStatus: text(get(asset, 'location_Status')),
         plannedDecommissionDate: dateKey(
-          valueByNames(management, ['planned_Decommission_Date'])
-          || valueByNames(asset, ['planned_Decommission_Date'])
+          get(management, 'planned_Decommission_Date')
+          || get(asset, 'planned_Decommission_Date')
         )
       };
 
@@ -1302,11 +1340,8 @@ async function previewTurnoutGear(env, requestedInstant = null) {
     a.issuedTo.localeCompare(b.issuedTo)
     || a.gearIdentifier.localeCompare(b.gearIdentifier)
   );
-  const assetTagSet = new Set(
-    assetRows.map(asset => joinKey(valueByNames(asset, ['asset_Tag_Number']))).filter(Boolean)
-  );
 
-  return {
+  const result = {
     success: true,
     mode: 'READ_ONLY_TURNOUT_GEAR_PREVIEW',
     timezone: 'America/New_York',
@@ -1326,7 +1361,11 @@ async function previewTurnoutGear(env, requestedInstant = null) {
       excludedLocationPattern: 'Supply Room / Turnout Gear Supply Warehouse'
     },
     recordCount: rows.length,
-    columns: ['Issued To', 'Gear Identifier', 'Last Service Date', 'Next Service Date', 'Days Left'],
+    columns: [
+      'Issued To', 'Current Location', 'Location Type', 'Gear Identifier',
+      'Part Description', 'Subcategory', 'Last Service Date',
+      'Next Service Date', 'Days Left', 'Planned Decommission Date'
+    ],
     rows,
     sheetRows: rows.map(row => [
       row.issuedTo,
@@ -1336,8 +1375,15 @@ async function previewTurnoutGear(env, requestedInstant = null) {
       row.daysLeft
     ]),
     diagnostics,
-    note: 'Read-only dynamic-view join preview. No OperativeIQ, D1, Gmail, or Google Sheets data was changed.'
+    cache: { hit: false, ttlSeconds: 120 },
+    note: 'Read-only optimized dynamic-view join preview. No OperativeIQ, D1, Gmail, or Google Sheets data was changed.'
   };
+
+  if (!requestedInstant) {
+    cachedTurnoutPreview = result;
+    cachedTurnoutPreviewExpiresAt = now + 120000;
+  }
+  return result;
 }
 
 async function previewPhysicalDue(env, requestedInstant = null) {
