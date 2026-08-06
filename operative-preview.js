@@ -1852,7 +1852,7 @@ async function debugTurnoutAsset(env, rawSearch = '') {
   const [managementRows, assetRows, turnoutItemRows, extendedProperties] = await Promise.all([
     fetchAll(`/api/dynamic-views/vw_Asset_Management?$filter=${filter}`, token, 5000),
     fetchAll(`/api/dynamic-views/vw_Assets_All?$filter=${filter}`, token, 5000),
-    fetchAll(`/api/items?$filter=${encodeURIComponent('categoryId eq 15')}`, token, 200),
+    fetchAll(`/api/items?$filter=${encodeURIComponent('categoryId eq 15')}`, token, 5000),
     // Coat Size and Pant Size are customer-created OperativeIQ fields. Load the
     // definitions once so their values can be retrieved in bulk rather than
     // issuing one /api/items/{id}/custom-fields request per asset.
@@ -1940,7 +1940,7 @@ async function previewTurnoutGear(env, requestedInstant = null) {
   const [managementRows, assetRows, turnoutItemRows, extendedProperties] = await Promise.all([
     fetchAll(`/api/dynamic-views/vw_Asset_Management?$filter=${filter}`, token, 5000),
     fetchAll(`/api/dynamic-views/vw_Assets_All?$filter=${filter}`, token, 5000),
-    fetchAll(`/api/items?$filter=${encodeURIComponent('categoryId eq 15')}`, token, 200),
+    fetchAll(`/api/items?$filter=${encodeURIComponent('categoryId eq 15')}`, token, 5000),
     // Coat Size and Pant Size are customer-created OperativeIQ fields. Load the
     // definitions once so their values can be retrieved in bulk rather than
     // issuing one /api/items/{id}/custom-fields request per asset.
@@ -2039,11 +2039,33 @@ async function previewTurnoutGear(env, requestedInstant = null) {
   }
   const itemByTag = new Map();
   const itemByName = new Map();
+  const itemBySerial = new Map();
+  const addItemAlias = (map, value, item) => {
+    const key = joinKey(value);
+    if (key && !map.has(key)) map.set(key, item);
+  };
   for (const item of indexedTurnoutItems) {
-    const tag = joinKey(get(item, 'itemNumber', 'assetTagNumber', 'assetTag'));
-    const name = joinKey(get(item, 'itemName', 'description'));
-    if (tag) itemByTag.set(tag, item);
-    if (name) itemByName.set(name, item);
+    // Fixed assets are not consistent about which identifier is surfaced by
+    // each dynamic view. Index every stable item identifier so the final
+    // turnout row can resolve the underlying /api/items id used by custom
+    // fields, rather than relying on only itemNumber.
+    for (const value of [
+      get(item, 'itemNumber'),
+      get(item, 'assetTagNumber'),
+      get(item, 'assetTag'),
+      get(item, 'internalPartNumber'),
+      get(item, 'barCodeNumber'),
+      get(item, 'partUpc')
+    ]) addItemAlias(itemByTag, value, item);
+    for (const value of [
+      get(item, 'itemName'),
+      get(item, 'description'),
+      get(item, 'assetDescription')
+    ]) addItemAlias(itemByName, value, item);
+    for (const value of [
+      get(item, 'serialNumber'),
+      get(item, 'internalSerialNumber')
+    ]) addItemAlias(itemBySerial, value, item);
   }
   const managementByTag = new Map();
   for (const row of indexedManagementRows) {
@@ -2067,7 +2089,10 @@ async function previewTurnoutGear(env, requestedInstant = null) {
     coatSizePropertyId: propertyId(coatSizeProperty),
     pantSizePropertyId: propertyId(pantSizeProperty),
     customSizeValueRows: extendedPropertyValues.length,
-    customSizeItemsMapped: customSizesByItemId.size
+    customSizeItemsMapped: customSizesByItemId.size,
+    turnoutCatalogItemsLoaded: turnoutItemRows.length,
+    catalogItemsResolvedForRows: 0,
+    customSizesAppliedToRows: 0
   };
   const selected = new Map();
   const assetTagSet = new Set();
@@ -2158,14 +2183,28 @@ async function previewTurnoutGear(env, requestedInstant = null) {
         || text(get(management, 'asset_Tag___Part_UPC'));
       const partDescription = text(get(management, 'part_Description'))
         || text(get(asset, 'asset_Description'));
+      const assetSerial = text(
+        get(asset, 'serial_Number', 'serialNumber')
+        ?? get(management, 'serial___Part_Number', 'serialPartNumber')
+      );
+      const internalPartNumber = text(
+        get(asset, 'internal_Serial_Number', 'internalSerialNumber')
+        ?? get(management, 'internal_Part_Number', 'internalPartNumber')
+      );
       const catalogItem = itemByTag.get(joinKey(assetTag))
+        || itemByTag.get(joinKey(internalPartNumber))
+        || itemBySerial.get(joinKey(assetSerial))
         || itemByName.get(joinKey(partDescription));
       const isCoat = normalize(subcategory).includes('COAT');
       const isPant = normalize(subcategory).includes('PANT');
       const catalogItemId = get(catalogItem, 'id', 'itemId', 'itemID');
+      if (catalogItem) diagnostics.catalogItemsResolvedForRows++;
       const mappedCustomSizes = catalogItemId !== null && catalogItemId !== undefined
         ? customSizesByItemId.get(String(catalogItemId))
         : null;
+      if (mappedCustomSizes?.coatSize || mappedCustomSizes?.pantSize) {
+        diagnostics.customSizesAppliedToRows++;
+      }
       // Use the true custom-created field first. Notes is retained only as a
       // compatibility fallback for older records where OperativeIQ duplicated
       // the same value there. Never use a coat field for pants or vice versa.
