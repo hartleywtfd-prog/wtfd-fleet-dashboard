@@ -1218,7 +1218,6 @@ async function previewTurnoutGear(env, requestedInstant = null) {
     missingJoin: 0,
     wrongAssetClass: 0,
     wrongCategory: 0,
-    wrongSubcategory: 0,
     inactivePart: 0,
     blankLocation: 0,
     supplyWarehouse: 0,
@@ -1246,7 +1245,21 @@ async function previewTurnoutGear(env, requestedInstant = null) {
       const assetClass = text(get(asset, 'asset_Class') ?? get(management, 'asset_Class'));
       const category = text(get(asset, 'category') ?? get(management, 'category'));
       const subcategory = text(get(asset, 'subcategory') ?? get(management, 'subcategory'));
-      const location = text(get(asset, 'location'));
+      // OperativeIQ's asset history report exposes both assignment and physical
+      // location concepts. The physical Location/To value is authoritative for
+      // warehouse classification, even when a Crew Member remains on the row.
+      const location = text(
+        get(asset, 'location')
+        ?? get(asset, 'to')
+        ?? get(management, 'location')
+        ?? get(management, 'to')
+      );
+      const crewMember = text(
+        get(asset, 'crew_Member')
+        ?? get(asset, 'crewMember')
+        ?? get(management, 'crew_Member')
+        ?? get(management, 'crewMember')
+      );
       const partStatus = get(management, 'part_Status_Active');
       const nextValue = get(
         management,
@@ -1278,10 +1291,8 @@ async function previewTurnoutGear(env, requestedInstant = null) {
         diagnostics.wrongCategory++;
         continue;
       }
-      if (!/^(coat|pant|pants)$/i.test(subcategory)) {
-        diagnostics.wrongSubcategory++;
-        continue;
-      }
+      // Include every active Turnout Gear subcategory. Warehouse inventory can
+      // include coats, pants, boots, helmets, hoods, gloves, and other PPE.
       if (!active(partStatus)) {
         diagnostics.inactivePart++;
         continue;
@@ -1290,31 +1301,37 @@ async function previewTurnoutGear(env, requestedInstant = null) {
         diagnostics.blankLocation++;
         continue;
       }
-      if (/supply\s*room|turnout\s*gear\s*supply\s*warehouse/i.test(location)) {
-        diagnostics.supplyWarehouse++;
-        continue;
-      }
-      if (!nextDate) {
-        diagnostics.missingNextServiceDate++;
-        continue;
-      }
-      if (!Number.isFinite(daysLeft) || daysLeft < 0 || daysLeft > 30) {
-        diagnostics.outsideThirtyDays++;
-        continue;
-      }
+      const isSupplyWarehouse = /turnout\s*gear\s*supply\s*warehouse|supply\s*room/i.test(location);
+      if (isSupplyWarehouse) diagnostics.supplyWarehouse++;
+      if (!nextDate) diagnostics.missingNextServiceDate++;
+      if (!Number.isFinite(daysLeft) || daysLeft < 0 || daysLeft > 30) diagnostics.outsideThirtyDays++;
+
+      const issuedTo = crewMember
+        || (/^Crew:/i.test(location) ? location.replace(/^Crew:\s*/i, '').trim() : '')
+        || (isSupplyWarehouse ? 'Turnout Gear Supply Warehouse' : 'Unassigned');
 
       const row = {
-        issuedTo: location.replace(/^Crew:\s*/i, '').trim(),
+        issuedTo,
         currentLocation: location,
-        locationType: /^Crew:/i.test(location)
-          ? 'Issued to Member'
-          : /warehouse|supply room/i.test(location)
-            ? 'Warehouse'
-            : /station/i.test(location)
-              ? 'Station'
-              : 'Other',
+        locationType: isSupplyWarehouse
+          ? 'Warehouse'
+          : /^Crew:/i.test(location)
+            ? 'Issued to Member'
+            : /warehouse|supply room/i.test(location)
+              ? 'Warehouse'
+              : /reserve|cache|spare/i.test(location)
+                ? 'Reserve'
+                : /station/i.test(location)
+                  ? 'Station'
+                  : 'Other',
         gearIdentifier: text(get(asset, 'asset_Tag_Number'))
           || text(get(management, 'asset_Tag___Part_UPC')),
+        serialNumber: text(get(asset, 'serial_Number'))
+          || text(get(asset, 'serialNumber'))
+          || text(get(management, 'serial_Number'))
+          || text(get(management, 'serialNumber')),
+        physicalLocation: location,
+        crewMember,
         lastServiceDate: lastDate,
         nextServiceDate: nextDate,
         daysLeft,
@@ -1337,7 +1354,9 @@ async function previewTurnoutGear(env, requestedInstant = null) {
   }
 
   const rows = [...selected.values()].sort((a, b) =>
-    a.issuedTo.localeCompare(b.issuedTo)
+    a.locationType.localeCompare(b.locationType)
+    || a.currentLocation.localeCompare(b.currentLocation)
+    || a.issuedTo.localeCompare(b.issuedTo)
     || a.gearIdentifier.localeCompare(b.gearIdentifier)
   );
 
@@ -1355,16 +1374,16 @@ async function previewTurnoutGear(env, requestedInstant = null) {
     filters: {
       assetClass: 'Turnout Gear',
       category: 'Turnout Gear when populated',
-      subcategories: ['Coat', 'Pant', 'Pants'],
+      subcategories: 'All active Turnout Gear subcategories',
       partStatusActive: true,
-      daysUntilNextPreventativeMaintenance: { minimum: 0, maximum: 30 },
-      excludedLocationPattern: 'Supply Room / Turnout Gear Supply Warehouse'
+      serviceWindow: 'All records returned; dashboard applies due-date filters',
+      warehouseLocation: 'Turnout Gear Supply Warehouse'
     },
     recordCount: rows.length,
     columns: [
       'Issued To', 'Current Location', 'Location Type', 'Gear Identifier',
-      'Part Description', 'Subcategory', 'Last Service Date',
-      'Next Service Date', 'Days Left', 'Planned Decommission Date'
+      'Part Description', 'Subcategory', 'Serial Number', 'Crew Member',
+      'Last Service Date', 'Next Service Date', 'Days Left', 'Planned Decommission Date'
     ],
     rows,
     sheetRows: rows.map(row => [
@@ -1376,7 +1395,7 @@ async function previewTurnoutGear(env, requestedInstant = null) {
     ]),
     diagnostics,
     cache: { hit: false, ttlSeconds: 120 },
-    note: 'Read-only optimized dynamic-view join preview. No OperativeIQ, D1, Gmail, or Google Sheets data was changed.'
+    note: 'Read-only active turnout gear inventory preview. Physical Location/To overrides crew assignment for warehouse classification. No OperativeIQ, D1, Gmail, or Google Sheets data was changed.'
   };
 
   if (!requestedInstant) {
