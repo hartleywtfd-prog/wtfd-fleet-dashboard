@@ -1410,10 +1410,11 @@ async function loadSupplyInventoryData(env) {
   const knownSupplyPart = knownSupplyPartResult.rows[0] || null;
   const supplyPartTypeId = knownSupplyPart ? supplyId(knownSupplyPart, ['itemTypeId','itemTypeID']) : '';
 
-  // Supply-room stock levels are stored on ItemRooms, not ItemRoomBatches.
-  // Some tenants do not honor the roomId OData filter consistently, so load the
-  // ItemRooms collection in bounded 200-row pages and filter locally by roomId.
-  const itemRoomEndpoint = '/api/item-rooms';
+  // Supply-room stock levels are stored on ItemRooms. OperativeIQ returns the
+  // expected record when ItemRooms is filtered by itemId, but the room-wide
+  // collection/paging path can omit those rows. Load the small Turnout Gear
+  // Supply Part catalog first, then query ItemRooms directly for each item ID.
+  const itemRoomEndpoint = '/api/item-rooms (direct itemId lookups)';
 
   let itemEndpoint = '/api/items?$top=0';
   let itemResult = { endpoint: '/api/items', status: 200, rows: [], error: null };
@@ -1440,10 +1441,29 @@ async function loadSupplyInventoryData(env) {
     itemEndpoint = `${categoryEndpoint} (paged fallback; local Supply Part filter)`;
   }
 
-  const itemRoomResult = roomId
-    ? await fetchPagedSafe(itemRoomEndpoint, token, 200, 10)
-    : { endpoint: itemRoomEndpoint, status: 200, rows: [], error: null };
-  const warehouseItemRooms = (itemRoomResult.rows || []).filter(row => roomIdFromRow(row) === String(roomId));
+  let itemRoomResult = { endpoint: '/api/item-rooms', status: 200, rows: [], error: null };
+  let warehouseItemRooms = [];
+  if (roomId && itemResult.rows.length) {
+    const itemRoomRequests = await Promise.all(itemResult.rows.map(async itemRow => {
+      const itemId = supplyId(itemRow, ['id','itemId','itemID','partId','partID']);
+      if (!itemId) return { endpoint: '/api/item-rooms', status: 200, rows: [], error: null };
+      const filter = `itemId eq ${odataLiteral(itemId)}`;
+      const endpoint = `/api/item-rooms?$filter=${encodeURIComponent(filter)}`;
+      return fetchSinglePageSafe(endpoint, token, 200);
+    }));
+
+    const errors = itemRoomRequests.map(result => result.error).filter(Boolean);
+    const allItemRooms = itemRoomRequests.flatMap(result => result.rows || []);
+    warehouseItemRooms = allItemRooms.filter(row => roomIdFromRow(row) === String(roomId));
+    itemRoomResult = {
+      endpoint: '/api/item-rooms',
+      status: itemRoomRequests.every(result => result.status === 200) ? 200 : (itemRoomRequests.find(result => result.status !== 200)?.status || 0),
+      rows: warehouseItemRooms,
+      error: errors.length ? errors.join(' | ') : null,
+      requestCount: itemRoomRequests.length,
+      loadedRowsBeforeRoomFilter: allItemRooms.length
+    };
+  }
 
   const endpointAliases = new Map([
     ['/api/supply-rooms', roomResult],
@@ -1561,7 +1581,7 @@ async function probeSupplyInventory(env) {
     joinedInventoryCount: built.inventoryRows.length,
     matchingCatalogCount: built.items.filter(item => item.active && item.turnoutSupply && !item.excludedByPattern).length,
     results,
-    note: 'GET-only Version 24 probe using supply rooms, categories, category-filtered items, and room-filtered item-room rows. No OperativeIQ data was changed.'
+    note: 'GET-only Version 25 probe using direct itemId-filtered ItemRooms lookups for the Turnout Gear Supply Part catalog. No OperativeIQ data was changed.'
   };
 }
 
@@ -1777,7 +1797,7 @@ async function previewSupplyInventory(env) {
       itemRoomRowsLoaded: data.rows('/api/item-rooms').length,
       matchedInventoryRows: inventory.length
     },
-    note: 'Read-only Version 24 supply-room inventory. Quantity is sourced from item-rooms.quantityOnHand; items.totalQuantity is used only as a fallback.'
+    note: 'Read-only Version 25 supply-room inventory. ItemRooms are queried directly by itemId; quantity is sourced from quantityOnHand and items.totalQuantity is only a fallback.'
   };
 }
 
