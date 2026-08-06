@@ -223,6 +223,13 @@ export default {
         ));
       }
 
+      if (url.pathname === '/debug/turnout-asset') {
+        return json(await debugTurnoutAsset(
+          env,
+          url.searchParams.get('search') || ''
+        ));
+      }
+
       if (url.pathname === '/preview-physical-due') {
         return json(await previewPhysicalDue(
           env,
@@ -324,6 +331,7 @@ export default {
           '/probe-supply-inventory',
           '/preview-supply-inventory',
           '/debug/supply',
+          '/debug/turnout-asset?search=Coat-26',
           '/preview-physical-due?at=ISO_TIMESTAMP',
           '/preview-crew-emails',
           '/preview-inferred-operational-checks?at=ISO_TIMESTAMP',
@@ -1798,6 +1806,90 @@ async function previewSupplyInventory(env) {
       matchedInventoryRows: inventory.length
     },
     note: 'Read-only Version 25 supply-room inventory. ItemRooms are queried directly by itemId; quantity is sourced from quantityOnHand and items.totalQuantity is only a fallback.'
+  };
+}
+
+async function debugTurnoutAsset(env, rawSearch = '') {
+  const search = String(rawSearch || '').trim();
+  if (!search) {
+    return {
+      success: false,
+      mode: 'READ_ONLY_TURNOUT_ASSET_FIELD_EXPLORER',
+      error: 'A search value is required.',
+      examples: [
+        '/debug/turnout-asset?search=Coat-26',
+        '/debug/turnout-asset?search=TG%20-%20Coat-26',
+        '/debug/turnout-asset?search=1607001078'
+      ]
+    };
+  }
+
+  const token = await getAccessToken(env);
+  const filter = encodeURIComponent("asset_Class eq 'Turnout Gear'");
+  const [managementRows, assetRows] = await Promise.all([
+    fetchAll(`/api/dynamic-views/vw_Asset_Management?$filter=${filter}`, token, 5000),
+    fetchAll(`/api/dynamic-views/vw_Assets_All?$filter=${filter}`, token, 5000)
+  ]);
+
+  const query = search.toLowerCase();
+  const matches = rows => rows.filter(row =>
+    JSON.stringify(row || {}).toLowerCase().includes(query)
+  ).slice(0, 20);
+  const matchedManagement = matches(managementRows);
+  const matchedAssets = matches(assetRows);
+
+  const compact = row => {
+    const populated = {};
+    const sizeCandidates = {};
+    for (const [key, value] of Object.entries(row || {})) {
+      if (value !== null && value !== undefined && String(value).trim() !== '') {
+        populated[key] = value;
+      }
+      if (/size|coat|pant|trouser|inseam|waist|length|note|model|description/i.test(key)) {
+        sizeCandidates[key] = value;
+      }
+    }
+    return {
+      populatedFields: populated,
+      sizeRelatedFields: sizeCandidates,
+      allFieldNames: Object.keys(row || {}).sort()
+    };
+  };
+
+  const normalize = value => String(value || '').trim().toUpperCase().replace(/\s+/g, ' ');
+  const tagFrom = row => {
+    for (const [key, value] of Object.entries(row || {})) {
+      const normalizedKey = key.toLowerCase().replace(/[^a-z0-9]/g, '');
+      if (['assettagnumber','assettagpartupc','assettag','partupc'].includes(normalizedKey)) {
+        if (value !== null && value !== undefined && String(value).trim()) return normalize(value);
+      }
+    }
+    return '';
+  };
+  const assetTags = new Set(matchedAssets.map(tagFrom).filter(Boolean));
+  const linkedManagement = managementRows.filter(row => assetTags.has(tagFrom(row))).slice(0, 20);
+
+  return {
+    success: true,
+    mode: 'READ_ONLY_TURNOUT_ASSET_FIELD_EXPLORER',
+    search,
+    sourceCounts: {
+      assetManagement: managementRows.length,
+      assetsAll: assetRows.length
+    },
+    matchCounts: {
+      assetManagement: matchedManagement.length,
+      assetsAll: matchedAssets.length,
+      linkedManagementByAssetTag: linkedManagement.length
+    },
+    assetManagementMatches: matchedManagement.map(compact),
+    assetMatches: matchedAssets.map(compact),
+    linkedManagementMatches: linkedManagement.map(compact),
+    instructions: {
+      purpose: 'Identify the exact OperativeIQ coat-size and pant-size field names for a known turnout asset.',
+      nextStep: 'Copy the sizeRelatedFields sections for one known coat and one known pant.'
+    },
+    note: 'Read-only diagnostic. No OperativeIQ, D1, Gmail, or Google Sheets data was changed.'
   };
 }
 
