@@ -1359,10 +1359,39 @@ function odataLiteral(value) {
   return `'${text.replace(/'/g, "''")}'`;
 }
 
+async function fetchPagedSafe(baseEndpoint, token, pageSize = 200, maxPages = 10) {
+  const allRows = [];
+  const pageErrors = [];
+  let finalStatus = 200;
+  for (let page = 0; page < maxPages; page++) {
+    const url = new URL(RESOURCE_ROOT + baseEndpoint);
+    url.searchParams.set('$top', String(Math.min(200, pageSize)));
+    url.searchParams.set('$skip', String(page * Math.min(200, pageSize)));
+    const endpoint = url.pathname.replace('/FrontlineV_live', '') + url.search;
+    const result = await fetchSinglePageSafe(endpoint, token, Math.min(200, pageSize));
+    finalStatus = result.status;
+    if (result.error) {
+      pageErrors.push(result.error);
+      break;
+    }
+    allRows.push(...result.rows);
+    if (result.rows.length < Math.min(200, pageSize)) break;
+  }
+  return {
+    endpoint: baseEndpoint,
+    status: finalStatus,
+    rows: allRows,
+    error: pageErrors.length ? pageErrors.join(' | ') : null
+  };
+}
+
 async function loadSupplyInventoryData(env) {
   const token = await getAccessToken(env);
-  const roomResult = await fetchSinglePageSafe('/api/supply-rooms', token, 200);
-  const categoryResult = await fetchSinglePageSafe('/api/categories', token, 200);
+  const [roomResult, categoryResult, knownSupplyPartResult] = await Promise.all([
+    fetchSinglePageSafe('/api/supply-rooms', token, 200),
+    fetchSinglePageSafe('/api/categories', token, 200),
+    fetchSinglePageSafe(`/api/items?$filter=${encodeURIComponent('id eq 3311')}`, token, 1)
+  ]);
 
   const roomRows = roomResult.rows || [];
   const categoryRows = categoryResult.rows || [];
@@ -1378,22 +1407,44 @@ async function loadSupplyInventoryData(env) {
 
   const roomId = targetRoom ? supplyId(targetRoom, ['id','roomId','supplyRoomId']) : '';
   const categoryId = targetCategory ? supplyId(targetCategory, ['id','categoryId']) : '';
+  const knownSupplyPart = knownSupplyPartResult.rows[0] || null;
+  const supplyPartTypeId = knownSupplyPart ? supplyId(knownSupplyPart, ['itemTypeId','itemTypeID']) : '';
 
   const batchEndpoint = roomId
     ? `/api/item-room-batches?$filter=${encodeURIComponent(`roomId eq ${odataLiteral(roomId)}`)}`
     : '/api/item-room-batches?$top=0';
-  const itemEndpoint = categoryId
-    ? `/api/items?$filter=${encodeURIComponent(`categoryId eq ${odataLiteral(categoryId)}`)}`
-    : '/api/items?$top=0';
 
-  const [batchResult, itemResult] = await Promise.all([
-    fetchSinglePageSafe(batchEndpoint, token, 200),
-    fetchSinglePageSafe(itemEndpoint, token, 200)
-  ]);
+  let itemEndpoint = '/api/items?$top=0';
+  let itemResult = { endpoint: '/api/items', status: 200, rows: [], error: null };
+  if (categoryId && supplyPartTypeId) {
+    const combinedFilter = `categoryId eq ${odataLiteral(categoryId)} and itemTypeId eq ${odataLiteral(supplyPartTypeId)}`;
+    itemEndpoint = `/api/items?$filter=${encodeURIComponent(combinedFilter)}`;
+    itemResult = await fetchSinglePageSafe(itemEndpoint, token, 200);
+  }
+
+  // Some OperativeIQ tenants reject combined OData filters. In that case,
+  // page only the Turnout Gear category and retain Supply Parts locally.
+  if (categoryId && (!itemResult.rows.length || itemResult.error)) {
+    const categoryEndpoint = `/api/items?$filter=${encodeURIComponent(`categoryId eq ${odataLiteral(categoryId)}`)}`;
+    const categoryPaged = await fetchPagedSafe(categoryEndpoint, token, 200, 10);
+    itemResult = {
+      ...categoryPaged,
+      rows: categoryPaged.rows.filter(row => {
+        const typeId = supplyId(row, ['itemTypeId','itemTypeID']);
+        const partType = normalize(supplyText(row, ['partType','itemType','itemTypeName']));
+        return (supplyPartTypeId && typeId === supplyPartTypeId) || partType === 'SUPPLY PART';
+      }),
+      endpoint: '/api/items'
+    };
+    itemEndpoint = `${categoryEndpoint} (paged fallback; local Supply Part filter)`;
+  }
+
+  const batchResult = await fetchSinglePageSafe(batchEndpoint, token, 200);
 
   const endpointAliases = new Map([
     ['/api/supply-rooms', roomResult],
     ['/api/categories', categoryResult],
+    ['/api/known-supply-part', { ...knownSupplyPartResult, endpoint: '/api/known-supply-part' }],
     ['/api/item-room-batches', { ...batchResult, endpoint: '/api/item-room-batches' }],
     ['/api/items', { ...itemResult, endpoint: '/api/items' }]
   ]);
@@ -1420,7 +1471,7 @@ async function loadSupplyInventoryData(env) {
       id: categoryId,
       name: supplyText(targetCategory, ['name','categoryName','description'])
     } : null,
-    requestedEndpoints: { itemEndpoint, batchEndpoint }
+    requestedEndpoints: { itemEndpoint, batchEndpoint, knownSupplyPartId: '3311', supplyPartTypeId }
   };
 }
 
@@ -1562,7 +1613,7 @@ async function debugSupplyInventory(env, search = '') {
   const normalizedItems = itemRows.map((row, index) => normalizeSupplyItem(row, index, data.lookups));
   const matches = normalizedItems.filter(item => {
     if (!query) return item.turnoutSupply;
-    const haystack = [item.name, item.sku, item.assetType, item.category, item.subcategory, item.manufacturer, item.size]
+    const haystack = [item.id, item.name, item.sku, item.assetType, item.category, item.subcategory, item.manufacturer, item.size]
       .join(' ')
       .toLowerCase();
     return haystack.includes(query);
