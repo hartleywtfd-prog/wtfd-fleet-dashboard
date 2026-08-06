@@ -1826,9 +1826,13 @@ async function debugTurnoutAsset(env, rawSearch = '') {
 
   const token = await getAccessToken(env);
   const filter = encodeURIComponent("asset_Class eq 'Turnout Gear'");
-  const [managementRows, assetRows] = await Promise.all([
+  const [managementRows, assetRows, turnoutItemRows] = await Promise.all([
     fetchAll(`/api/dynamic-views/vw_Asset_Management?$filter=${filter}`, token, 5000),
-    fetchAll(`/api/dynamic-views/vw_Assets_All?$filter=${filter}`, token, 5000)
+    fetchAll(`/api/dynamic-views/vw_Assets_All?$filter=${filter}`, token, 5000),
+    // OperativeIQ custom turnout-size values are mirrored into the item's Notes
+    // field. Loading the Turnout Gear item catalog once avoids one custom-field
+    // request per asset and keeps the Worker below Cloudflare subrequest limits.
+    fetchAll(`/api/items?$filter=${encodeURIComponent('categoryId eq 15')}`, token, 200)
   ]);
 
   const query = search.toLowerCase();
@@ -1909,9 +1913,13 @@ async function previewTurnoutGear(env, requestedInstant = null) {
   const at = requestedInstant || new Date();
   const todayKey = easternDateKey(at);
   const filter = encodeURIComponent("asset_Class eq 'Turnout Gear'");
-  const [managementRows, assetRows] = await Promise.all([
+  const [managementRows, assetRows, turnoutItemRows] = await Promise.all([
     fetchAll(`/api/dynamic-views/vw_Asset_Management?$filter=${filter}`, token, 5000),
-    fetchAll(`/api/dynamic-views/vw_Assets_All?$filter=${filter}`, token, 5000)
+    fetchAll(`/api/dynamic-views/vw_Assets_All?$filter=${filter}`, token, 5000),
+    // OperativeIQ custom turnout-size values are mirrored into the item's Notes
+    // field. Loading the Turnout Gear item catalog once avoids one custom-field
+    // request per asset and keeps the Worker below Cloudflare subrequest limits.
+    fetchAll(`/api/items?$filter=${encodeURIComponent('categoryId eq 15')}`, token, 200)
   ]);
 
   const normalizeKey = value => String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -1950,6 +1958,15 @@ async function previewTurnoutGear(env, requestedInstant = null) {
 
   const indexedManagementRows = managementRows.map(indexed);
   const indexedAssetRows = assetRows.map(indexed);
+  const indexedTurnoutItems = turnoutItemRows.map(indexed);
+  const itemByTag = new Map();
+  const itemByName = new Map();
+  for (const item of indexedTurnoutItems) {
+    const tag = joinKey(get(item, 'itemNumber', 'assetTagNumber', 'assetTag'));
+    const name = joinKey(get(item, 'itemName', 'description'));
+    if (tag) itemByTag.set(tag, item);
+    if (name) itemByName.set(name, item);
+  }
   const managementByTag = new Map();
   for (const row of indexedManagementRows) {
     const tag = joinKey(get(row, 'asset_Tag___Part_UPC', 'assetTagPartUpc'));
@@ -2055,6 +2072,21 @@ async function previewTurnoutGear(env, requestedInstant = null) {
         || (/^Crew:/i.test(location) ? location.replace(/^Crew:\s*/i, '').trim() : '')
         || (isSupplyWarehouse ? 'Turnout Gear Supply Warehouse' : 'Unassigned');
 
+      const assetTag = text(get(asset, 'asset_Tag_Number'))
+        || text(get(management, 'asset_Tag___Part_UPC'));
+      const partDescription = text(get(management, 'part_Description'))
+        || text(get(asset, 'asset_Description'));
+      const catalogItem = itemByTag.get(joinKey(assetTag))
+        || itemByName.get(joinKey(partDescription));
+      // Coat Size and Pant Size are custom-created fields in OperativeIQ. In the
+      // item API their current value is mirrored in Notes (as shown on the asset
+      // screen), so use Notes only for the garment's applicable size field.
+      const customSizeValue = text(get(catalogItem, 'notes'));
+      const isCoat = normalize(subcategory).includes('COAT');
+      const isPant = normalize(subcategory).includes('PANT');
+      const coatSize = isCoat ? customSizeValue : '';
+      const pantSize = isPant ? customSizeValue : '';
+
       const row = {
         issuedTo,
         currentLocation: location,
@@ -2069,10 +2101,8 @@ async function previewTurnoutGear(env, requestedInstant = null) {
                 : /station/i.test(location)
                   ? 'Station'
                   : 'Other',
-        gearIdentifier: text(get(asset, 'asset_Tag_Number'))
-          || text(get(management, 'asset_Tag___Part_UPC')),
-        assetTag: text(get(asset, 'asset_Tag_Number'))
-          || text(get(management, 'asset_Tag___Part_UPC')),
+        gearIdentifier: assetTag,
+        assetTag,
         manufacturer: text(get(management, 'manufacturer'))
           || text(get(management, 'manufacturer_Name'))
           || text(get(asset, 'manufacturer'))
@@ -2081,25 +2111,15 @@ async function previewTurnoutGear(env, requestedInstant = null) {
           || text(get(management, 'model_Number'))
           || text(get(asset, 'model'))
           || text(get(asset, 'model_Number')),
-        // OperativeIQ stores coat and pant sizes in separate fields. A blank
-        // Pant Size on a coat (or blank Coat Size on pants) is expected and must
-        // not cause the garment to be classified as missing its size.
-        coatSize: text(get(management, 'coat_Size', 'coatSize', 'coat_size'))
-          || text(get(asset, 'coat_Size', 'coatSize', 'coat_size')),
-        pantSize: text(get(management, 'pant_Size', 'pantSize', 'pant_size'))
-          || text(get(asset, 'pant_Size', 'pantSize', 'pant_size')),
-        size: normalize(subcategory).includes('COAT')
-          ? (text(get(management, 'coat_Size', 'coatSize', 'coat_size'))
-            || text(get(asset, 'coat_Size', 'coatSize', 'coat_size'))
-            || text(get(management, 'size', 'part_Size'))
-            || text(get(asset, 'size', 'asset_Size')))
-          : normalize(subcategory).includes('PANT')
-            ? (text(get(management, 'pant_Size', 'pantSize', 'pant_size'))
-              || text(get(asset, 'pant_Size', 'pantSize', 'pant_size'))
-              || text(get(management, 'size', 'part_Size'))
-              || text(get(asset, 'size', 'asset_Size')))
+        coatSize,
+        pantSize,
+        size: isCoat
+          ? coatSize
+          : isPant
+            ? pantSize
             : (text(get(management, 'size', 'part_Size'))
               || text(get(asset, 'size', 'asset_Size'))),
+        sizeSource: (isCoat || isPant) && customSizeValue ? 'OperativeIQ custom field (item notes mirror)' : 'Not mapped',
         barcode: text(get(management, 'barcode'))
           || text(get(management, 'bar_Code'))
           || text(get(asset, 'barcode'))
@@ -2116,8 +2136,7 @@ async function previewTurnoutGear(env, requestedInstant = null) {
         assetClass,
         category,
         subcategory,
-        partDescription: text(get(management, 'part_Description'))
-          || text(get(asset, 'asset_Description')),
+        partDescription,
         partStatusActive: active(partStatus),
         locationStatus: text(get(asset, 'location_Status')),
         plannedDecommissionDate: dateKey(
@@ -2147,6 +2166,7 @@ async function previewTurnoutGear(env, requestedInstant = null) {
     sourceCounts: {
       assetManagement: managementRows.length,
       assetsAll: assetRows.length,
+      turnoutItems: turnoutItemRows.length,
       joinedAssetTags: [...managementByTag.keys()].filter(key => assetTagSet.has(key)).length
     },
     filters: {
@@ -2160,7 +2180,7 @@ async function previewTurnoutGear(env, requestedInstant = null) {
     recordCount: rows.length,
     columns: [
       'Issued To', 'Current Location', 'Location Type', 'Gear Identifier',
-      'Part Description', 'Subcategory', 'Serial Number', 'Crew Member',
+      'Part Description', 'Subcategory', 'Size', 'Serial Number', 'Crew Member',
       'Last Service Date', 'Next Service Date', 'Days Left', 'Planned Decommission Date'
     ],
     rows,
@@ -2360,6 +2380,7 @@ async function previewPhysicalDue(env, requestedInstant = null) {
     sourceCounts: {
       assetManagement: managementRows.length,
       assetsAll: assetRows.length,
+      turnoutItems: turnoutItemRows.length,
       joinedSerialNumbers: [...managementBySerial.keys()].filter(key => assetSerialSet.has(key)).length
     },
     filters: {
