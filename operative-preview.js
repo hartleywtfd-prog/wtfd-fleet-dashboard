@@ -1441,6 +1441,22 @@ async function loadSupplyInventoryData(env) {
     itemEndpoint = `${categoryEndpoint} (paged fallback; local Supply Part filter)`;
   }
 
+  // Resolve the small set of reference names used by the Supply Inventory UI.
+  const uniqueIds = (rows, keys) => [...new Set(rows.map(row => supplyId(row, keys)).filter(Boolean))];
+  const loadRefs = async (endpoint, ids) => {
+    if (!ids.length) return { endpoint, status: 200, rows: [], error: null };
+    const filter = ids.map(id => `id eq ${odataLiteral(id)}`).join(' or ');
+    return fetchSinglePageSafe(`${endpoint}?$filter=${encodeURIComponent(filter)}`, token, 200);
+  };
+  const manufacturerIds = uniqueIds(itemResult.rows, ['manufacturerId','manufacturerID']);
+  const uomIds = uniqueIds(itemResult.rows, ['uomlabelId','stockUomId','uomId','uomID']);
+  const supplierIds = uniqueIds(itemResult.rows, ['supplierId','supplierID']);
+  const [manufacturerResult, uomResult, supplierResult] = await Promise.all([
+    loadRefs('/api/manufacturers', manufacturerIds),
+    loadRefs('/api/uoms', uomIds),
+    loadRefs('/api/suppliers', supplierIds)
+  ]);
+
   let itemRoomResult = { endpoint: '/api/item-rooms', status: 200, rows: [], error: null };
   let warehouseItemRooms = [];
   if (roomId && itemResult.rows.length) {
@@ -1470,14 +1486,18 @@ async function loadSupplyInventoryData(env) {
     ['/api/categories', categoryResult],
     ['/api/known-supply-part', { ...knownSupplyPartResult, endpoint: '/api/known-supply-part' }],
     ['/api/item-rooms', { ...itemRoomResult, rows: warehouseItemRooms, endpoint: '/api/item-rooms' }],
-    ['/api/items', { ...itemResult, endpoint: '/api/items' }]
+    ['/api/items', { ...itemResult, endpoint: '/api/items' }],
+    ['/api/manufacturers', manufacturerResult],
+    ['/api/uoms', uomResult],
+    ['/api/suppliers', supplierResult]
   ]);
   const rows = endpoint => endpointAliases.get(endpoint)?.rows || [];
   const lookups = {
     category: categoryLookup,
     subcategory: new Map(),
-    manufacturer: new Map(),
-    uom: new Map(),
+    manufacturer: makeLookup(manufacturerResult.rows || [], ['id','manufacturerId'], ['manufacturerName','name','description']),
+    uom: makeLookup(uomResult.rows || [], ['id','uomId'], ['uomName','name','description','label']),
+    supplier: makeLookup(supplierResult.rows || [], ['id','supplierId'], ['supplierName','name','description']),
     room: roomLookup,
     stockLocation: new Map()
   };
@@ -1531,6 +1551,9 @@ function buildSupplyInventory(data) {
       minimum,
       maximum,
       stockOrderQuantity,
+      supplier: lookupName(data.lookups.supplier, supplyId(item.raw, ['supplierId','supplierID'])),
+      partUpc: supplyText(item.raw, ['partUpc','partUPC','barCodeNumber']),
+      unitPrice: supplyNumber(item.raw, ['unitOrderPrice','partPrice','unitPrice']),
       status: quantity === null ? 'Quantity unavailable' : inventoryStatus(quantity, minimum),
       sourceFields: Object.keys(itemRoom || {}),
       quantitySource: onHand !== null ? 'item-rooms.quantityOnHand' : (fallbackTotal !== null ? 'items.totalQuantity fallback' : 'unavailable')
@@ -1797,7 +1820,7 @@ async function previewSupplyInventory(env) {
       itemRoomRowsLoaded: data.rows('/api/item-rooms').length,
       matchedInventoryRows: inventory.length
     },
-    note: 'Read-only Version 25 supply-room inventory. ItemRooms are queried directly by itemId; quantity is sourced from quantityOnHand and items.totalQuantity is only a fallback.'
+    note: 'Read-only Version 26 supply-room inventory. ItemRooms are queried directly by itemId; quantity is sourced from quantityOnHand and items.totalQuantity is only a fallback.'
   };
 }
 
