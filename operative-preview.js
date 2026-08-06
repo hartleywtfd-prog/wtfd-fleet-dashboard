@@ -216,6 +216,13 @@ export default {
         return json(await previewSupplyInventory(env));
       }
 
+      if (url.pathname === '/debug/supply') {
+        return json(await debugSupplyInventory(
+          env,
+          url.searchParams.get('search') || ''
+        ));
+      }
+
       if (url.pathname === '/preview-physical-due') {
         return json(await previewPhysicalDue(
           env,
@@ -316,6 +323,7 @@ export default {
           '/preview-turnout-gear?at=ISO_TIMESTAMP',
           '/probe-supply-inventory',
           '/preview-supply-inventory',
+          '/debug/supply',
           '/preview-physical-due?at=ISO_TIMESTAMP',
           '/preview-crew-emails',
           '/preview-inferred-operational-checks?at=ISO_TIMESTAMP',
@@ -1461,6 +1469,142 @@ async function probeSupplyInventory(env) {
     matchingCatalogCount: built.items.filter(item => item.active && item.turnoutSupply && !item.excludedByPattern).length,
     results,
     note: 'GET-only discovery and join across items, item rooms, item-room batches, supply rooms, stock locations, categories, manufacturers, and UOMs. No OperativeIQ data was changed.'
+  };
+}
+
+function supplyDebugNumericFields(source) {
+  const output = [];
+  for (const [path, value] of supplyEntries(source || {})) {
+    if (value === null || value === undefined || value === '') continue;
+    const parsed = typeof value === 'number'
+      ? value
+      : (typeof value === 'string' && value.trim() && Number.isFinite(Number(value.replace(/[^0-9.-]/g, '')))
+        ? Number(value.replace(/[^0-9.-]/g, ''))
+        : null);
+    if (parsed !== null) output.push({ path, value: parsed, raw: String(value).slice(0, 120) });
+  }
+  return output;
+}
+
+function supplyDebugQuantityCandidates(source) {
+  return supplyDebugNumericFields(source).filter(entry =>
+    /qty|quant|count|stock|balance|available|minimum|maximum|reorder|par|onhand|remaining|batch/i.test(entry.path)
+  );
+}
+
+function supplyDebugSafeRecord(source) {
+  return redactDiscoverySample(source || {});
+}
+
+async function debugSupplyInventory(env, search = '') {
+  globalThis.__SUPPLY_EXCLUDE_PATTERN = env.SUPPLY_EXCLUDE_PATTERN || DEFAULT_SUPPLY_EXCLUDE_PATTERN;
+  const data = await loadSupplyInventoryData(env);
+  const query = String(search || '').trim().toLowerCase();
+  const itemRows = data.rows('/api/items');
+  const normalizedItems = itemRows.map((row, index) => normalizeSupplyItem(row, index, data.lookups));
+  const matches = normalizedItems.filter(item => {
+    if (!query) return item.turnoutSupply;
+    const haystack = [item.name, item.sku, item.assetType, item.category, item.subcategory, item.manufacturer, item.size]
+      .join(' ')
+      .toLowerCase();
+    return haystack.includes(query);
+  }).slice(0, 25);
+
+  const itemRooms = data.rows('/api/item-rooms');
+  const batches = data.rows('/api/item-room-batches');
+  const cycleRows = data.rows('/api/supply-rooms/room-parts-for-cycle-counting');
+  const rooms = data.rows('/api/supply-rooms');
+
+  const matchDetails = matches.map(item => {
+    const itemId = String(item.id);
+    const linkedItemRooms = itemRooms.filter(row => itemIdFromRow(row) === itemId);
+    const linkedCycleRows = cycleRows.filter(row => itemIdFromRow(row) === itemId);
+    const linkedItemRoomIds = new Set(linkedItemRooms.map(itemRoomIdFromRow).filter(Boolean));
+    const linkedBatches = batches.filter(row => linkedItemRoomIds.has(itemRoomIdFromRow(row)));
+    const linkedRoomIds = new Set([
+      ...linkedItemRooms.map(roomIdFromRow),
+      ...linkedCycleRows.map(roomIdFromRow)
+    ].filter(Boolean));
+    const linkedRooms = rooms.filter(row => {
+      const id = supplyId(row, ['id','roomId','supplyRoomId']);
+      return linkedRoomIds.has(id);
+    });
+
+    const summarize = rows => rows.map(row => ({
+      ids: {
+        id: supplyId(row, ['id']),
+        itemId: itemIdFromRow(row),
+        itemRoomId: itemRoomIdFromRow(row),
+        roomId: roomIdFromRow(row)
+      },
+      roomName: roomNameFromRow(row, data.lookups.room),
+      mappedQuantity: quantityFromInventoryRow(row),
+      quantityCandidates: supplyDebugQuantityCandidates(row),
+      numericFields: supplyDebugNumericFields(row),
+      raw: supplyDebugSafeRecord(row)
+    }));
+
+    return {
+      item: {
+        normalized: {
+          id: item.id,
+          name: item.name,
+          sku: item.sku,
+          assetType: item.assetType,
+          category: item.category,
+          subcategory: item.subcategory,
+          manufacturer: item.manufacturer,
+          size: item.size,
+          unitOfMeasure: item.unitOfMeasure,
+          active: item.active,
+          turnoutSupply: item.turnoutSupply,
+          excludedByPattern: item.excludedByPattern
+        },
+        ids: {
+          id: supplyId(item.raw, ['id','itemId','itemID','partId','partID']),
+          categoryId: supplyId(item.raw, ['categoryId','categoryID','itemCategoryId']),
+          subcategoryId: supplyId(item.raw, ['subcategoryId','subCategoryId','subCategoryID','itemSubcategoryId']),
+          manufacturerId: supplyId(item.raw, ['manufacturerId','manufacturerID']),
+          uomId: supplyId(item.raw, ['uomId','uomID','unitOfMeasureId'])
+        },
+        quantityCandidates: supplyDebugQuantityCandidates(item.raw),
+        numericFields: supplyDebugNumericFields(item.raw),
+        raw: supplyDebugSafeRecord(item.raw)
+      },
+      joins: {
+        itemRooms: summarize(linkedItemRooms),
+        itemRoomBatches: summarize(linkedBatches),
+        cycleCountRows: summarize(linkedCycleRows),
+        supplyRooms: linkedRooms.map(supplyDebugSafeRecord)
+      },
+      joinStatus: {
+        item: true,
+        itemRooms: linkedItemRooms.length,
+        itemRoomBatches: linkedBatches.length,
+        cycleCountRows: linkedCycleRows.length,
+        supplyRooms: linkedRooms.length
+      }
+    };
+  });
+
+  return {
+    success: true,
+    mode: 'READ_ONLY_SUPPLY_API_EXPLORER',
+    search: search || null,
+    matchedItems: matchDetails.length,
+    sourceSummary: data.results.map(result => ({
+      endpoint: result.endpoint,
+      status: result.status,
+      count: result.rows.length,
+      error: result.error || null,
+      firstRecordFields: Object.keys(result.rows[0] || {})
+    })),
+    matches: matchDetails,
+    instructions: {
+      examples: ['/debug/supply?search=Leather', '/debug/supply?search=Hood', '/debug/supply?search=XXXXL'],
+      purpose: 'Identify the exact item, item-room, batch, cycle-count, room, quantity, and ID relationship fields used by OperativeIQ.'
+    },
+    note: 'Read-only diagnostic. All source calls are GET requests and sensitive-looking fields are sanitized.'
   };
 }
 
