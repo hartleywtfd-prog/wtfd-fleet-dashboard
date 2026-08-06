@@ -1165,9 +1165,35 @@ const SUPPLY_INVENTORY_RESOURCE_CANDIDATES = [
   '/api/inventories',
   '/api/item-inventory',
   '/api/item-inventories',
+  '/api/inventory-items',
   '/api/warehouse-inventory',
-  '/api/stock'
+  '/api/warehouse-items',
+  '/api/item-locations',
+  '/api/part-locations',
+  '/api/stock',
+  '/api/stock-levels',
+  '/api/parts',
+  '/api/supply-parts'
 ];
+
+const DEFAULT_SUPPLY_INCLUDE_PATTERN = 'hood|leather\s*(work\s*)?glove|structural\s*glove|firefighting\s*glove|turnout\s*glove';
+const DEFAULT_SUPPLY_EXCLUDE_PATTERN = '\btool\b|holder|display|sample|test|training|inspection|form|repair|service|cleaner|detergent';
+
+function compilePattern(value, fallback) {
+  try { return new RegExp(String(value || fallback), 'i'); }
+  catch { return new RegExp(fallback, 'i'); }
+}
+
+function supplyEntries(source, depth = 0, prefix = '') {
+  if (!source || typeof source !== 'object' || depth > 4) return [];
+  const out = [];
+  for (const [key, value] of Object.entries(source)) {
+    const path = prefix ? `${prefix}.${key}` : key;
+    out.push([path, value]);
+    if (value && typeof value === 'object' && !Array.isArray(value)) out.push(...supplyEntries(value, depth + 1, path));
+  }
+  return out;
+}
 
 async function fetchAllSafe(endpoint, token, maxRecords = 10000) {
   try {
@@ -1186,8 +1212,9 @@ function supplyText(source, names) {
   }
   const normalizeKey = value => String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
   const wanted = new Set(names.map(normalizeKey));
-  for (const [key, value] of Object.entries(source || {})) {
-    if (wanted.has(normalizeKey(key)) && value !== null && value !== undefined && String(value).trim()) return String(value).trim();
+  for (const [path, value] of supplyEntries(source || {})) {
+    const leaf = path.split('.').at(-1) || path;
+    if ((wanted.has(normalizeKey(leaf)) || wanted.has(normalizeKey(path))) && value !== null && value !== undefined && String(value).trim()) return String(value).trim();
   }
   return '';
 }
@@ -1206,15 +1233,18 @@ function normalizeSupplyPart(row, index) {
   const size = supplyText(row, ['size','itemSize','partSize','part_Size','variant','option']);
   const location = supplyText(row, ['location','locationName','warehouseName','storageLocation','currentLocation','to']);
   const sku = supplyText(row, ['itemNumber','internalPartNumber','partNumber','sku','partUpc','partUPC','barcode']);
-  const onHand = supplyNumber(row, ['quantityOnHand','onHand','onHandQuantity','currentQuantity','quantity','qtyOnHand','availableQuantity','available','stockQuantity']);
-  const minimum = supplyNumber(row, ['minimumQuantity','minimum','minQuantity','reorderPoint','parLevel','minimumStock']);
-  const maximum = supplyNumber(row, ['maximumQuantity','maximum','maxQuantity','targetQuantity','maximumStock']);
+  const onHand = supplyNumber(row, ['quantityOnHand','onHand','onHandQuantity','currentQuantity','quantity','qty','qtyOnHand','availableQuantity','availableQty','available','stockQuantity','stockOnHand','currentStock','inventoryQuantity','warehouseQuantity','balance','count']);
+  const minimum = supplyNumber(row, ['minimumQuantity','minimum','minQuantity','reorderPoint','reorderLevel','parLevel','minimumStock','minStock']);
+  const maximum = supplyNumber(row, ['maximumQuantity','maximum','maxQuantity','targetQuantity','maximumStock','maxStock']);
   const catalogPart = normalizeBoolean(row?.catalogPart ?? row?.catalog_Part ?? row?.isCatalogPart);
   const active = row?.active === undefined && row?.partStatusActive === undefined && row?.part_Status_Active === undefined
     ? true
     : normalizeBoolean(row?.active ?? row?.partStatusActive ?? row?.part_Status_Active);
   const text = `${name} ${category} ${subcategory}`;
-  const turnoutSupply = /turnout|hood|glove|leather\s*glove|nomex/i.test(text);
+  const includePattern = compilePattern(globalThis.__SUPPLY_INCLUDE_PATTERN, DEFAULT_SUPPLY_INCLUDE_PATTERN);
+  const excludePattern = compilePattern(globalThis.__SUPPLY_EXCLUDE_PATTERN, DEFAULT_SUPPLY_EXCLUDE_PATTERN);
+  const turnoutSupply = includePattern.test(text);
+  const excludedByPattern = excludePattern.test(text);
   const warehouseMatch = !location || /turnout\s*gear\s*supply\s*warehouse|supply\s*room|warehouse/i.test(location);
   return {
     id: supplyText(row, ['id','itemId','itemID','partId']) || `${sku || name || 'supply'}-${index+1}`,
@@ -1230,6 +1260,7 @@ function normalizeSupplyPart(row, index) {
     catalogPart,
     active,
     turnoutSupply,
+    excludedByPattern,
     warehouseMatch,
     manufacturer: supplyText(row, ['manufacturer','manufacturerName','brand','make']),
     unitOfMeasure: supplyText(row, ['unitOfMeasure','uom','unit','measure']),
@@ -1238,15 +1269,38 @@ function normalizeSupplyPart(row, index) {
 }
 
 async function probeSupplyInventory(env) {
+  globalThis.__SUPPLY_INCLUDE_PATTERN = env.SUPPLY_INCLUDE_PATTERN || DEFAULT_SUPPLY_INCLUDE_PATTERN;
+  globalThis.__SUPPLY_EXCLUDE_PATTERN = env.SUPPLY_EXCLUDE_PATTERN || DEFAULT_SUPPLY_EXCLUDE_PATTERN;
   const token = await getAccessToken(env);
   const results = [];
   for (const endpoint of SUPPLY_INVENTORY_RESOURCE_CANDIDATES) {
     const result = await fetchAllSafe(endpoint, token, 1000);
+    const sampleRows = result.rows.slice(0, 100);
+    const coverage = new Map();
+    const numeric = new Map();
+    for (const row of sampleRows) {
+      for (const [path, value] of supplyEntries(row)) {
+        if (value === null || value === undefined || value === '') continue;
+        const entry = coverage.get(path) || { present: 0, samples: [] };
+        entry.present++;
+        const text = typeof value === 'object' ? JSON.stringify(value).slice(0, 160) : String(value).slice(0, 160);
+        if (!entry.samples.includes(text) && entry.samples.length < 3) entry.samples.push(text);
+        coverage.set(path, entry);
+        const parsed = typeof value === 'number' ? value : (typeof value === 'string' && value.trim() && Number.isFinite(Number(value.replace(/[^0-9.-]/g,''))) ? Number(value.replace(/[^0-9.-]/g,'')) : null);
+        if (parsed !== null && /qty|quant|count|stock|balance|available|minimum|maximum|reorder|par|onhand/i.test(path)) {
+          const n = numeric.get(path) || { present: 0, samples: [] };
+          n.present++;
+          if (!n.samples.includes(parsed) && n.samples.length < 5) n.samples.push(parsed);
+          numeric.set(path, n);
+        }
+      }
+    }
     results.push({
       endpoint,
       status: result.status,
       count: result.rows.length,
-      fields: Object.keys(result.rows[0] || {}),
+      fields: [...coverage.entries()].map(([path, info]) => ({ path, ...info })).sort((a,b)=>b.present-a.present||a.path.localeCompare(b.path)),
+      numericCandidates: [...numeric.entries()].map(([path, info]) => ({ path, ...info })).sort((a,b)=>b.present-a.present||a.path.localeCompare(b.path)),
       sample: redactDiscoverySample(result.rows[0] || {}),
       error: result.error || null
     });
@@ -1254,26 +1308,35 @@ async function probeSupplyInventory(env) {
   return {
     success: true,
     mode: 'READ_ONLY_SUPPLY_INVENTORY_PROBE',
+    filterRules: {
+      includePattern: globalThis.__SUPPLY_INCLUDE_PATTERN,
+      excludePattern: globalThis.__SUPPLY_EXCLUDE_PATTERN
+    },
     results,
     note: 'GET-only inventory probe. No OperativeIQ data was changed.'
   };
 }
 
 async function previewSupplyInventory(env) {
+  globalThis.__SUPPLY_INCLUDE_PATTERN = env.SUPPLY_INCLUDE_PATTERN || DEFAULT_SUPPLY_INCLUDE_PATTERN;
+  globalThis.__SUPPLY_EXCLUDE_PATTERN = env.SUPPLY_EXCLUDE_PATTERN || DEFAULT_SUPPLY_EXCLUDE_PATTERN;
   const token = await getAccessToken(env);
   const attempted = [];
   let sourceEndpoint = '';
   let sourceRows = [];
+  let excludedRows = [];
 
   for (const endpoint of SUPPLY_INVENTORY_RESOURCE_CANDIDATES) {
     const result = await fetchAllSafe(endpoint, token, 10000);
     attempted.push({ endpoint, status: result.status, count: result.rows.length, error: result.error || null });
     if (result.rows.length) {
       const normalized = result.rows.map(normalizeSupplyPart);
-      const matching = normalized.filter(item => item.active && item.turnoutSupply && item.warehouseMatch && (item.catalogPart || /hood|glove/i.test(`${item.name} ${item.subcategory}`)));
+      const matching = normalized.filter(item => item.active && item.turnoutSupply && !item.excludedByPattern && item.warehouseMatch && (item.catalogPart || /hood|glove/i.test(`${item.name} ${item.subcategory}`)));
+      const excluded = normalized.filter(item => item.active && item.turnoutSupply && item.excludedByPattern && item.warehouseMatch);
       if (matching.length) {
         sourceEndpoint = endpoint;
         sourceRows = matching;
+        excludedRows = excluded;
         break;
       }
     }
@@ -1311,6 +1374,8 @@ async function previewSupplyInventory(env) {
       quantityUnavailable: inventory.filter(item=>item.status==='Quantity unavailable').length
     },
     inventory,
+    excluded: excludedRows.map(item => ({ id:item.id, name:item.name, sku:item.sku, category:item.category, subcategory:item.subcategory, location:item.location, reason:'Matched SUPPLY_EXCLUDE_PATTERN' })),
+    filterRules: { includePattern: globalThis.__SUPPLY_INCLUDE_PATTERN, excludePattern: globalThis.__SUPPLY_EXCLUDE_PATTERN },
     note: sourceEndpoint
       ? 'Read-only supply inventory from OperativeIQ. Quantities are reported exactly as exposed by the selected source.'
       : 'No compatible supply-inventory source returned matching turnout supply parts. Use /probe-supply-inventory to inspect available fields.'
