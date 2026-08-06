@@ -1326,6 +1326,24 @@ async function previewTurnoutGear(env, requestedInstant = null) {
                   : 'Other',
         gearIdentifier: text(get(asset, 'asset_Tag_Number'))
           || text(get(management, 'asset_Tag___Part_UPC')),
+        assetTag: text(get(asset, 'asset_Tag_Number'))
+          || text(get(management, 'asset_Tag___Part_UPC')),
+        manufacturer: text(get(management, 'manufacturer'))
+          || text(get(management, 'manufacturer_Name'))
+          || text(get(asset, 'manufacturer'))
+          || text(get(asset, 'manufacturer_Name')),
+        model: text(get(management, 'model'))
+          || text(get(management, 'model_Number'))
+          || text(get(asset, 'model'))
+          || text(get(asset, 'model_Number')),
+        size: text(get(management, 'size'))
+          || text(get(management, 'part_Size'))
+          || text(get(asset, 'size'))
+          || text(get(asset, 'asset_Size')),
+        barcode: text(get(management, 'barcode'))
+          || text(get(management, 'bar_Code'))
+          || text(get(asset, 'barcode'))
+          || text(get(asset, 'bar_Code')),
         serialNumber: text(get(asset, 'serial_Number'))
           || text(get(asset, 'serialNumber'))
           || text(get(management, 'serial_Number'))
