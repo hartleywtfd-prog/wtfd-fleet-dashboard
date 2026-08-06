@@ -1410,9 +1410,10 @@ async function loadSupplyInventoryData(env) {
   const knownSupplyPart = knownSupplyPartResult.rows[0] || null;
   const supplyPartTypeId = knownSupplyPart ? supplyId(knownSupplyPart, ['itemTypeId','itemTypeID']) : '';
 
-  const batchEndpoint = roomId
-    ? `/api/item-room-batches?$filter=${encodeURIComponent(`roomId eq ${odataLiteral(roomId)}`)}`
-    : '/api/item-room-batches?$top=0';
+  // Supply-room stock levels are stored on ItemRooms, not ItemRoomBatches.
+  // Some tenants do not honor the roomId OData filter consistently, so load the
+  // ItemRooms collection in bounded 200-row pages and filter locally by roomId.
+  const itemRoomEndpoint = '/api/item-rooms';
 
   let itemEndpoint = '/api/items?$top=0';
   let itemResult = { endpoint: '/api/items', status: 200, rows: [], error: null };
@@ -1439,13 +1440,16 @@ async function loadSupplyInventoryData(env) {
     itemEndpoint = `${categoryEndpoint} (paged fallback; local Supply Part filter)`;
   }
 
-  const batchResult = await fetchSinglePageSafe(batchEndpoint, token, 200);
+  const itemRoomResult = roomId
+    ? await fetchPagedSafe(itemRoomEndpoint, token, 200, 10)
+    : { endpoint: itemRoomEndpoint, status: 200, rows: [], error: null };
+  const warehouseItemRooms = (itemRoomResult.rows || []).filter(row => roomIdFromRow(row) === String(roomId));
 
   const endpointAliases = new Map([
     ['/api/supply-rooms', roomResult],
     ['/api/categories', categoryResult],
     ['/api/known-supply-part', { ...knownSupplyPartResult, endpoint: '/api/known-supply-part' }],
-    ['/api/item-room-batches', { ...batchResult, endpoint: '/api/item-room-batches' }],
+    ['/api/item-rooms', { ...itemRoomResult, rows: warehouseItemRooms, endpoint: '/api/item-rooms' }],
     ['/api/items', { ...itemResult, endpoint: '/api/items' }]
   ]);
   const rows = endpoint => endpointAliases.get(endpoint)?.rows || [];
@@ -1471,52 +1475,49 @@ async function loadSupplyInventoryData(env) {
       id: categoryId,
       name: supplyText(targetCategory, ['name','categoryName','description'])
     } : null,
-    requestedEndpoints: { itemEndpoint, batchEndpoint, knownSupplyPartId: '3311', supplyPartTypeId }
+    requestedEndpoints: { itemEndpoint, itemRoomEndpoint, knownSupplyPartId: '3311', supplyPartTypeId }
   };
 }
 
 function buildSupplyInventory(data) {
   const items = data.rows('/api/items').map((row, index) => normalizeSupplyItem(row, index, data.lookups));
   const itemById = new Map(items.map(item => [String(item.id), item]));
-  const batchRows = data.rows('/api/item-room-batches');
-  const targetRoomId = String(data.targetRoom?.id || '');
+  const itemRoomRows = data.rows('/api/item-rooms');
   const targetRoomName = data.targetRoom?.name || 'Turnout Gear Supply Warehouse';
 
-  const quantityByItem = new Map();
-  const sourceByItem = new Map();
-  const batchCountByItem = new Map();
-  for (const batch of batchRows) {
-    const itemId = itemIdFromRow(batch);
-    const roomId = roomIdFromRow(batch);
-    if (!itemId || (targetRoomId && roomId !== targetRoomId)) continue;
-    const currentQty = supplyNumber(batch, ['currentQty']);
-    if (currentQty === null) continue;
-    quantityByItem.set(itemId, (quantityByItem.get(itemId) || 0) + currentQty);
-    batchCountByItem.set(itemId, (batchCountByItem.get(itemId) || 0) + 1);
-    if (!sourceByItem.has(itemId)) sourceByItem.set(itemId, batch);
-  }
-
   const inventoryRows = [];
-  for (const [itemId, onHand] of quantityByItem.entries()) {
+  const linkedItemIds = new Set();
+  for (const itemRoom of itemRoomRows) {
+    const itemId = itemIdFromRow(itemRoom);
     const item = itemById.get(String(itemId));
     if (!item || !item.active || !item.turnoutSupply || item.excludedByPattern) continue;
-    const source = sourceByItem.get(itemId) || {};
-    const minimum = supplyNumber(item.raw, ['minimumQuantity','minimum','minQuantity','reorderPoint','reorderLevel','parLevel','minimumStock','minStock']);
-    const maximum = supplyNumber(item.raw, ['maximumQuantity','maximum','maxQuantity','targetQuantity','maximumStock','maxStock']);
+
+    const onHand = supplyNumber(itemRoom, ['quantityOnHand','onHand','onHandQuantity','currentQuantity','quantity','qty','qtyOnHand']);
+    const fallbackTotal = supplyNumber(item.raw, ['totalQuantity']);
+    const quantity = onHand ?? fallbackTotal;
+    const minimum = supplyNumber(itemRoom, ['reorderPoint','minimumQuantity','minimum','minQuantity','reorderLevel','parLevel','minimumStock','minStock'])
+      ?? supplyNumber(item.raw, ['reorderPoint','minimumQuantity','minimum','minQuantity']);
+    const maximum = supplyNumber(itemRoom, ['maxQuantity','maximumQuantity','maximum','targetQuantity','maximumStock','maxStock'])
+      ?? supplyNumber(item.raw, ['maxQuantity','maximumQuantity','maximum']);
+    const stockOrderQuantity = supplyNumber(itemRoom, ['stockOrderQuantity','orderQuantity','recommendedOrderQuantity'])
+      ?? supplyNumber(item.raw, ['stockOrderQuantity']);
+
+    linkedItemIds.add(String(itemId));
     inventoryRows.push({
       ...item,
       location: targetRoomName,
-      stockLocation: supplyText(source, ['stockLocation','stockLocationName','bin','binName']),
-      onHand,
+      stockLocation: supplyText(itemRoom, ['stockLocation','stockLocationName','bin','binName','stockLocationId']),
+      onHand: quantity,
       minimum,
       maximum,
-      status: inventoryStatus(onHand, minimum),
-      sourceFields: Object.keys(source || {}),
-      batchCount: batchCountByItem.get(itemId) || 0
+      stockOrderQuantity,
+      status: quantity === null ? 'Quantity unavailable' : inventoryStatus(quantity, minimum),
+      sourceFields: Object.keys(itemRoom || {}),
+      quantitySource: onHand !== null ? 'item-rooms.quantityOnHand' : (fallbackTotal !== null ? 'items.totalQuantity fallback' : 'unavailable')
     });
   }
 
-  return { items, inventoryRows, quantityByItem };
+  return { items, inventoryRows, linkedItemIds };
 }
 
 async function probeSupplyInventory(env) {
@@ -1560,7 +1561,7 @@ async function probeSupplyInventory(env) {
     joinedInventoryCount: built.inventoryRows.length,
     matchingCatalogCount: built.items.filter(item => item.active && item.turnoutSupply && !item.excludedByPattern).length,
     results,
-    note: 'GET-only Version 21 probe using supply rooms, categories, category-filtered items, and room-filtered item-room batches. No OperativeIQ data was changed.'
+    note: 'GET-only Version 24 probe using supply rooms, categories, category-filtered items, and room-filtered item-room rows. No OperativeIQ data was changed.'
   };
 }
 
@@ -1620,7 +1621,7 @@ async function debugSupplyInventory(env, search = '') {
   }).slice(0, 25);
 
   const itemRooms = data.rows('/api/item-rooms');
-  const batches = data.rows('/api/item-room-batches');
+  const batches = [];
   const cycleRows = data.rows('/api/supply-rooms/room-parts-for-cycle-counting');
   const rooms = data.rows('/api/supply-rooms');
 
@@ -1744,12 +1745,12 @@ async function previewSupplyInventory(env) {
     sku:item.sku,
     category:item.category,
     subcategory:item.subcategory,
-    reason:'Matching catalog part was not linked to Turnout Gear Supply Warehouse by item-room or cycle-count data.'
+    reason:'Matching catalog part was not linked to a Turnout Gear Supply Warehouse item-room record.'
   }));
   return {
     success: true,
     mode: 'READ_ONLY_SUPPLY_ROOM_INVENTORY_JOIN',
-    sourceEndpoint: '/api/supply-rooms + /api/categories + filtered /api/items + filtered /api/item-room-batches',
+    sourceEndpoint: '/api/supply-rooms + /api/categories + filtered /api/items + /api/item-rooms',
     count: inventory.length,
     totals: {
       skuCount: inventory.length,
@@ -1773,10 +1774,10 @@ async function previewSupplyInventory(env) {
       targetCategory: data.targetCategory,
       requestedEndpoints: data.requestedEndpoints,
       itemRowsLoaded: data.rows('/api/items').length,
-      batchRowsLoaded: data.rows('/api/item-room-batches').length,
+      itemRoomRowsLoaded: data.rows('/api/item-rooms').length,
       matchedInventoryRows: inventory.length
     },
-    note: 'Read-only Version 21 supply-room inventory. Quantity is the sum of currentQty from warehouse item-room batches; receivedQty is not used.'
+    note: 'Read-only Version 24 supply-room inventory. Quantity is sourced from item-rooms.quantityOnHand; items.totalQuantity is used only as a fallback.'
   };
 }
 
