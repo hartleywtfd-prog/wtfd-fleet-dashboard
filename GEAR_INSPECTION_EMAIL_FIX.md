@@ -20,3 +20,10 @@ Deployment:
 5. Do not run sendGearDueNotifications() until the preview looks correct.
 
 No write operations to OperativeIQ are added by this build.
+
+
+## V3 crew-email synchronization fix
+- `/preview-crew-emails` now treats blank/unknown OperativeIQ crew status as eligible and excludes only explicitly inactive values.
+- Every preview and scheduled gear-email run now refreshes blank Email Reference list addresses from OperativeIQ before recipient matching.
+- Existing nonblank addresses remain preserved.
+- This fixes valid active members who exist in OperativeIQ with email addresses but were previously omitted by the status filter.

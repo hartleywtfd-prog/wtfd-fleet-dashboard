@@ -195,6 +195,10 @@ function processGearDueNotifications_(options) {
   const importResult = importTurnoutGearFromApi();
   const rows = importResult.rows;
 
+  // Keep blank member email mappings synchronized from OperativeIQ on every
+  // preview and scheduled run. Existing nonblank email addresses are preserved.
+  const crewEmailResult = refreshCrewEmailReferences();
+
   const referenceSheet = ss.getSheetByName(
     TURNOUT_GEAR_CONFIG.referenceSheetName
   );
@@ -295,7 +299,11 @@ function processGearDueNotifications_(options) {
     unmatchedRows: noMatchRows.length,
     alreadySentRows: alreadySentRows,
     emailsSent: emailsSent,
-    notifiedItems: notifiedItems
+    notifiedItems: notifiedItems,
+    crewEmailsPopulated: crewEmailResult.populatedEmails,
+    crewEmailsPreserved: crewEmailResult.preservedEmails,
+    crewEmailUnmatchedNames: crewEmailResult.unmatchedNames,
+    crewEmailAmbiguousNames: crewEmailResult.ambiguousNames
   };
 
   return {

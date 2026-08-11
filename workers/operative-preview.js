@@ -2057,8 +2057,15 @@ async function previewTurnoutGear(env, requestedInstant = null) {
   const text = value => value === null || value === undefined ? '' : String(value).trim();
   const joinKey = value => text(value).toUpperCase().replace(/\s+/g, ' ');
   const active = value => {
-    if (value === true || value === 1) return true;
-    return /^(true|1|yes|active)$/i.test(text(value));
+    // OperativeIQ /api/crews does not consistently populate `status` for
+    // active members. Treat blank/unknown status as eligible and exclude
+    // only values that are explicitly inactive. This keeps valid roster
+    // emails from being dropped while still rejecting known inactive rows.
+    if (value === false || value === 0) return false;
+    const normalized = text(value);
+    if (!normalized) return true;
+    if (/^(false|0|no|inactive|disabled|deleted)$/i.test(normalized)) return false;
+    return true;
   };
   const dayDifference = (fromKey, toKey) => {
     if (!fromKey || !toKey) return null;
@@ -2642,8 +2649,14 @@ async function previewCrewEmails(env) {
   const crewRows = await fetchAll('/api/crews', token, 10000);
   const text = value => value === null || value === undefined ? '' : String(value).trim();
   const active = value => {
-    if (value === true || value === 1) return true;
-    return /^(true|1|yes|active)$/i.test(text(value));
+    // OperativeIQ /api/crews does not consistently populate `status` for
+    // active members. Treat blank/unknown status as eligible and exclude
+    // only values that are explicitly inactive.
+    if (value === false || value === 0) return false;
+    const normalized = text(value);
+    if (!normalized) return true;
+    if (/^(false|0|no|inactive|disabled|deleted)$/i.test(normalized)) return false;
+    return true;
   };
   const validEmail = value => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(text(value));
   const statusValueCounts = {};

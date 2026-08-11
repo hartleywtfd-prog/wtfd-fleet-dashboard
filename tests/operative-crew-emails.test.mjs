@@ -29,6 +29,14 @@ globalThis.fetch = async input => {
         lastName: 'Email',
         email: '',
         status: true
+      },
+      {
+        id: 13,
+        employeeId: '1023',
+        firstName: 'Dylan',
+        lastName: 'Dullea',
+        email: 'Dylan.Dullea@example.org',
+        status: ''
       }
     ]);
   }
@@ -50,9 +58,10 @@ if (response.status !== 200) {
 const result = await response.json();
 assert.equal(result.success, true);
 assert.equal(result.mode, 'READ_ONLY_CREW_EMAIL_PREVIEW');
-assert.equal(result.sourceRecordCount, 3);
-assert.equal(result.activeEmailCount, 1);
-assert.deepEqual(result.rows[0], {
+assert.equal(result.sourceRecordCount, 4);
+assert.equal(result.activeEmailCount, 2);
+const blakey = result.rows.find(row => row.crewId === 10);
+assert.deepEqual(blakey, {
   crewId: 10,
   employeeId: '100',
   firstName: 'Naymon',
@@ -62,6 +71,10 @@ assert.deepEqual(result.rows[0], {
   email: 'nblakey@example.org',
   status: true
 });
+const dullea = result.rows.find(row => row.crewId === 13);
+assert.equal(dullea.email, 'dylan.dullea@example.org');
+assert.equal(dullea.operativeLocationName, 'Dullea Dylan');
+
 assert.equal(result.diagnostics.inactive, 1);
 assert.equal(result.diagnostics.missingOrInvalidEmail, 1);
 
