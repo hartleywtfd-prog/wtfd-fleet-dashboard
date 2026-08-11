@@ -208,6 +208,13 @@ export default {
         ));
       }
 
+      if (url.pathname === '/preview-turnout-gear-inspections') {
+        return json(await previewTurnoutGearInspections(
+          env,
+          validatedInstantParameter(url.searchParams.get('at'))
+        ));
+      }
+
       if (url.pathname === '/probe-supply-inventory') {
         return json(await probeSupplyInventory(env));
       }
@@ -1920,6 +1927,174 @@ async function debugTurnoutAsset(env, rawSearch = '') {
     note: 'Read-only diagnostic. No OperativeIQ, D1, Gmail, or Google Sheets data was changed.'
   };
 }
+
+
+async function previewTurnoutGearInspections(env, requestedInstant = null) {
+  const token = await getAccessToken(env);
+  const at = requestedInstant || new Date();
+  const todayKey = easternDateKey(at);
+  const filter = encodeURIComponent("asset_Class eq 'Turnout Gear'");
+
+  // This endpoint is intentionally lightweight for the Google Apps Script
+  // inspection-email job. It reads only the Asset Management dynamic view,
+  // avoiding the catalog/custom-field lookups used by /preview-turnout-gear.
+  // That keeps the Worker well below Cloudflare's subrequest limit.
+  const managementRows = await fetchAll(
+    `/api/dynamic-views/vw_Asset_Management?$filter=${filter}`,
+    token,
+    5000
+  );
+
+  const normalizeKey = value =>
+    String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const text = value =>
+    value === null || value === undefined ? '' : String(value).trim();
+  const normalize = value =>
+    text(value).toUpperCase().replace(/\s+/g, ' ');
+  const indexed = source => {
+    const values = Object.create(null);
+    for (const [key, value] of Object.entries(source || {})) {
+      values[normalizeKey(key)] = value;
+    }
+    return { source, values };
+  };
+  const get = (record, ...names) => {
+    for (const name of names) {
+      const value = record?.values?.[normalizeKey(name)];
+      if (value !== null && value !== undefined) return value;
+    }
+    return null;
+  };
+  const isActive = value => {
+    if (value === true || value === 1) return true;
+    const normalized = text(value);
+    // Blank is treated as active because some valid OperativeIQ dynamic-view
+    // rows do not populate Part Status Active.
+    if (!normalized) return true;
+    return /^(true|1|yes|active|enabled)$/i.test(normalized);
+  };
+  const dayDifference = (fromKey, toKey) => {
+    if (!fromKey || !toKey) return null;
+    const from = Date.parse(`${fromKey}T00:00:00Z`);
+    const to = Date.parse(`${toKey}T00:00:00Z`);
+    return Number.isFinite(from) && Number.isFinite(to)
+      ? Math.round((to - from) / 86400000)
+      : null;
+  };
+
+  const rows = [];
+  let coatRows = 0;
+  let pantRows = 0;
+  let excludedOtherSubcategories = 0;
+  let excludedOutsideWindow = 0;
+
+  for (const raw of managementRows) {
+    const row = indexed(raw);
+    const assetClass = text(get(row, 'asset_Class'));
+    const category = text(get(row, 'category'));
+    const subcategory = text(get(row, 'subcategory'));
+    const normalizedSubcategory = normalize(subcategory);
+
+    if (normalize(assetClass) !== 'TURNOUT GEAR') continue;
+    if (category && normalize(category) !== 'TURNOUT GEAR') continue;
+
+    // Hard allow-list: only Coat and Pants can ever be returned to the
+    // inspection-email automation.
+    const isCoat = normalizedSubcategory === 'COAT';
+    const isPant = normalizedSubcategory === 'PANTS' || normalizedSubcategory === 'PANT';
+    if (!isCoat && !isPant) {
+      excludedOtherSubcategories++;
+      continue;
+    }
+
+    if (!isActive(get(row, 'part_Status_Active'))) continue;
+
+    const nextValue = get(
+      row,
+      'next_Preventative_Maintenace_Date',
+      'next_Preventative_Maintenance_Date'
+    );
+    const nextDate = dynamicViewDateKey(nextValue);
+    const daysValue = get(
+      row,
+      'days_Until_Next_Preventative_Maintenace',
+      'days_Until_Next_Preventative_Maintenance'
+    );
+    const parsedDays = Number(String(daysValue ?? '').replace(/[^0-9.-]/g, ''));
+    const daysLeft = Number.isFinite(parsedDays) && text(daysValue)
+      ? parsedDays
+      : dayDifference(todayKey, nextDate);
+
+    if (!nextDate || !Number.isFinite(daysLeft) || daysLeft < 0 || daysLeft > 30) {
+      excludedOutsideWindow++;
+      continue;
+    }
+
+    const location = text(
+      get(row, 'location')
+      ?? get(row, 'to')
+    );
+    const crewMember = text(
+      get(row, 'crew_Member')
+      ?? get(row, 'crewMember')
+    );
+    const issuedTo = crewMember
+      || (/^Crew:/i.test(location) ? location.replace(/^Crew:\s*/i, '').trim() : '')
+      || location
+      || 'Unassigned';
+
+    const assetTag = text(get(row, 'asset_Tag___Part_UPC', 'assetTagPartUpc'));
+    const serialNumber = text(
+      get(row, 'serial___Part_Number', 'serialPartNumber')
+      ?? get(row, 'serial_Number', 'serialNumber')
+    );
+    const partDescription = text(get(row, 'part_Description'));
+
+    if (isCoat) coatRows++;
+    if (isPant) pantRows++;
+
+    rows.push({
+      issuedTo,
+      location: issuedTo,
+      crewMember,
+      gearIdentifier: assetTag,
+      assetTag,
+      serialNumber,
+      itemName: partDescription,
+      partDescription,
+      assetClass,
+      category,
+      subcategory: isCoat ? 'Coat' : 'Pants',
+      inspectionDueDate: nextDate,
+      nextServiceDate: nextDate,
+      daysRemaining: daysLeft,
+      daysLeft,
+      partStatusActive: true
+    });
+  }
+
+  rows.sort((a, b) =>
+    a.issuedTo.localeCompare(b.issuedTo)
+    || a.subcategory.localeCompare(b.subcategory)
+    || a.assetTag.localeCompare(b.assetTag)
+  );
+
+  return {
+    success: true,
+    mode: 'READ_ONLY_TURNOUT_GEAR_INSPECTION_EMAIL_PREVIEW',
+    timezone: 'America/New_York',
+    evaluatedAt: at.toISOString(),
+    reportDate: todayKey,
+    sourceRows: managementRows.length,
+    coatRows,
+    pantRows,
+    eligibleRows: rows.length,
+    excludedOtherSubcategories,
+    excludedOutsideWindow,
+    rows
+  };
+}
+
 
 async function previewTurnoutGear(env, requestedInstant = null) {
   const now = Date.now();
