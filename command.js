@@ -4,11 +4,12 @@
   const STORAGE_KEY = 'wtfd-incident-command-v2';
   const LEGACY_STORAGE_KEY = 'wtfd-incident-command-v1';
   const LAST_CLOSED_KEY = 'wtfd-last-closed-command-v2';
+  const LAST_SWITCHED_KEY = 'wtfd-last-switched-command-v1';
   const POLL_MS = 5000;
   const DASHBOARD_CONFIG = window.WTFD_DASHBOARD_CONFIG || {};
   const CREWSENSE_URL = DASHBOARD_CONFIG.crewSenseApiUrl || '/api/crewsense';
   const CREWSENSE_REFRESH_MS = DASHBOARD_CONFIG.crewSenseRefreshMs || 30 * 60 * 1000;
-  const PAGE_SIZES = { position: 4, assignment: 9, bank: 9, benchmark: 4 };
+  const PAGE_SIZES = { position: 4, assignment: 4, bank: 9, benchmark: 4 };
 
   const POLICY_STATUS = {
     required: 'Required',
@@ -1394,6 +1395,32 @@
     if (state.incident) { renderAssignments(); renderBenchmarks(); }
   }
 
+  function switchToPendingDispatch() {
+    const alert = state.pendingAlert;
+    if (!alert) return;
+
+    const activeMayday = state.incident?.mayday && !state.incident.mayday.resolvedAt;
+    if (activeMayday) {
+      window.alert('Resolve the active MAYDAY before switching the command board to another incident.');
+      return;
+    }
+
+    if (state.incident) {
+      const previous = structuredClone(state.incident);
+      previous.switchedAwayAt = nowIso();
+      previous.log.unshift({
+        at: previous.switchedAwayAt,
+        message: `Command board switched to new dispatch: ${alert.description || 'Emergency Call'}`,
+        type: 'system'
+      });
+      try { localStorage.setItem(LAST_SWITCHED_KEY, JSON.stringify(previous)); } catch (_) {}
+    }
+
+    if ($('newDispatchDialog').open) $('newDispatchDialog').close();
+    createIncident(alert);
+    $('newDispatchBanner').hidden = true;
+  }
+
   async function pollActive911() {
     if (state.pollInFlight || document.visibilityState === 'hidden') return;
     state.pollInFlight = true;
@@ -1485,20 +1512,6 @@
     $('transferCommandDialog').showModal();
   }
 
-  function openEndIncidentDialog() {
-    const incident = state.incident;
-    if (!incident) return;
-    const activeMayday = incident.mayday && !incident.mayday.resolvedAt;
-    const requiredOpen = incident.benchmarks.filter(item => item.policyStatus === 'required' && !item.completedAt);
-    $('endIncidentBlockMessage').hidden = !activeMayday;
-    $('endIncidentBlockMessage').textContent = activeMayday ? 'Incident termination is blocked while a MAYDAY is active.' : '';
-    $('endIncidentWarning').hidden = requiredOpen.length === 0;
-    $('endIncidentWarning').textContent = requiredOpen.length
-      ? `${requiredOpen.length} required benchmark${requiredOpen.length === 1 ? ' remains' : 's remain'} open. Complete or document applicability before termination.`
-      : '';
-    $('confirmEndIncident').disabled = Boolean(activeMayday);
-    $('endIncidentDialog').showModal();
-  }
 
   function completeTransfer(event) {
     event.preventDefault();
@@ -1543,23 +1556,16 @@
     render();
   }
 
-  function endIncident(event) {
-    event.preventDefault();
-    const form = event.currentTarget;
-    if (state.incident?.mayday && !state.incident.mayday.resolvedAt) return;
-    if (!form.checkValidity()) { form.reportValidity(); return; }
+  function endIncident() {
     const incident = state.incident;
     if (!incident) return;
-    completeBenchmarkRecord(incident, 'accountability_active', 'Final PAR', false);
-    incident.log.unshift({ at: nowIso(), message: 'Incident objectives achieved; hazards addressed; final accountability confirmed; command terminated', type: 'termination' });
+    incident.log.unshift({ at: nowIso(), message: 'Command ended and incident cleared', type: 'termination' });
     incident.closedAt = nowIso();
     try { localStorage.setItem(LAST_CLOSED_KEY, JSON.stringify(incident)); } catch (_) {}
     state.incident = null;
     state.selectedUnit = '';
     persist();
     hidePendingAlert();
-    form.reset();
-    $('endIncidentDialog').close();
     render();
   }
 
@@ -1672,6 +1678,12 @@
 
     $('detailsButton').addEventListener('click', () => { renderDetails(); $('detailsDialog').showModal(); });
     $('closeDetailsButton').addEventListener('click', () => $('detailsDialog').close());
+    $('buildingButton').addEventListener('click', () => $('buildingDialog').showModal());
+    $('closeBuildingButton').addEventListener('click', () => $('buildingDialog').close());
+    $('doneBuildingButton').addEventListener('click', () => $('buildingDialog').close());
+    $('commandLogButton').addEventListener('click', () => { renderLog(); $('commandLogDialog').showModal(); });
+    $('closeCommandLogButton').addEventListener('click', () => $('commandLogDialog').close());
+    $('doneCommandLogButton').addEventListener('click', () => $('commandLogDialog').close());
     $('crewRosterButton').addEventListener('click', openCrewRoster);
     $('closeCrewRosterButton').addEventListener('click', () => $('crewRosterDialog').close());
     $('doneCrewRosterButton').addEventListener('click', () => $('crewRosterDialog').close());
@@ -1685,10 +1697,7 @@
     $('closeTransferButton').addEventListener('click', () => $('transferCommandDialog').close());
     $('cancelTransferButton').addEventListener('click', () => $('transferCommandDialog').close());
 
-    $('clearIncidentButton').addEventListener('click', openEndIncidentDialog);
-    $('endIncidentForm').addEventListener('submit', endIncident);
-    $('closeEndIncidentButton').addEventListener('click', () => $('endIncidentDialog').close());
-    $('cancelEndIncidentButton').addEventListener('click', () => $('endIncidentDialog').close());
+    $('clearIncidentButton').addEventListener('click', endIncident);
 
     $('dismissDispatchButton').addEventListener('click', hidePendingAlert);
     $('viewDispatchButton').addEventListener('click', () => {
@@ -1696,6 +1705,12 @@
       if (!alert) return;
       $('newDispatchDetails').innerHTML = `<h3>${escapeHtml(alert.description || 'Emergency Call')}</h3><p>${escapeHtml([alert.address, alert.unit, alert.city].filter(Boolean).join(' '))}</p><p><strong>Units:</strong> ${escapeHtml(alert.units || 'Not listed')}</p><p>${escapeHtml(alert.details || '')}</p>`;
       $('newDispatchDialog').showModal();
+    });
+    $('switchDispatchButton').addEventListener('click', switchToPendingDispatch);
+    $('switchDispatchDialogButton').addEventListener('click', switchToPendingDispatch);
+    $('keepCurrentDispatchButton').addEventListener('click', () => {
+      $('newDispatchDialog').close();
+      hidePendingAlert();
     });
     $('closeDispatchDialog').addEventListener('click', () => $('newDispatchDialog').close());
     $('previousPositionPage').addEventListener('click', () => changePage('position', -1));

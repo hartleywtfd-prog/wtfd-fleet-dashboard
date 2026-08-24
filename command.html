@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#09111f">
   <title>WTFD Incident Command</title>
-  <link rel="stylesheet" href="command.css?v=0.3.2">
+  <link rel="stylesheet" href="command.css?v=0.4.0">
 </head>
 <body>
   <div class="command-app">
@@ -31,7 +31,8 @@
       </div>
       <div class="button-row">
         <button id="dismissDispatchButton" class="secondary-button" type="button">Keep Current Incident</button>
-        <button id="viewDispatchButton" class="warning-button" type="button">Review Dispatch</button>
+        <button id="viewDispatchButton" class="secondary-button" type="button">Review Dispatch</button>
+        <button id="switchDispatchButton" class="warning-button" type="button">Switch to New Dispatch</button>
       </div>
     </section>
 
@@ -70,13 +71,20 @@
               <strong id="incidentElapsed">0:00 elapsed</strong>
             </div>
           </div>
-          <div class="incident-actions">
-            <button id="detailsButton" class="secondary-button" type="button">Incident Details</button>
-            <button id="crewRosterButton" class="secondary-button" type="button">Crew Roster</button>
-            <button id="tacticalSketchButton" class="secondary-button" type="button">Tactical Sketch</button>
-            <button id="transferCommandButton" class="secondary-button" type="button">Transfer Command</button>
-            <button id="printButton" class="secondary-button" type="button">Print Board</button>
-            <button id="exportButton" class="secondary-button" type="button">Export Log</button>
+          <div class="incident-actions compact-actions">
+            <details class="tools-menu">
+              <summary class="secondary-button">Tools</summary>
+              <div class="tools-menu-panel">
+                <button id="detailsButton" class="secondary-button" type="button">Incident Details</button>
+                <button id="buildingButton" class="secondary-button" type="button">Building / Occupancy</button>
+                <button id="commandLogButton" class="secondary-button" type="button">Command Log</button>
+                <button id="crewRosterButton" class="secondary-button" type="button">Crew Roster</button>
+                <button id="tacticalSketchButton" class="secondary-button" type="button">Tactical Sketch</button>
+                <button id="transferCommandButton" class="secondary-button" type="button">Transfer Command</button>
+                <button id="printButton" class="secondary-button" type="button">Print Board</button>
+                <button id="exportButton" class="secondary-button" type="button">Export Log</button>
+              </div>
+            </details>
             <button id="clearIncidentButton" class="danger-button" type="button">End Incident</button>
           </div>
         </section>
@@ -218,26 +226,6 @@
               </form>
             </section>
 
-            <section class="resource-panel status-panel">
-              <div class="section-heading compact">
-                <div><span class="eyebrow">INCIDENT PROFILE</span><h2>Building / Occupancy</h2></div>
-              </div>
-              <label>Occupancy type<input id="occupancyInput" type="text" placeholder="Set from size-up or preplan"></label>
-              <div class="profile-grid">
-                <label>Floors<input id="floorsInput" type="number" min="0" max="99" inputmode="numeric"></label>
-                <label>Basement
-                  <select id="basementInput">
-                    <option value="unknown">Unknown</option>
-                    <option value="none">None</option>
-                    <option value="present">Present</option>
-                    <option value="walkout">Walkout</option>
-                  </select>
-                </label>
-              </div>
-              <div id="preplanLinks" class="preplan-links"></div>
-            </section>
-
-
             <section class="resource-panel benchmark-panel">
               <div class="section-heading compact">
                 <div><span class="eyebrow">POLICY-SOURCED</span><h2>Benchmarks</h2></div>
@@ -255,16 +243,6 @@
               </div>
             </section>
 
-            <section class="resource-panel log-panel">
-              <div class="section-heading compact">
-                <div><span class="eyebrow">DOCUMENTATION</span><h2>Command Log</h2></div>
-              </div>
-              <form id="logForm" class="inline-form log-form">
-                <input id="logInput" type="text" autocomplete="off" placeholder="Add command note…">
-                <button class="secondary-button" type="submit">Log</button>
-              </form>
-              <ol id="commandLog" class="command-log"></ol>
-            </section>
           </aside>
         </section>
       </section>
@@ -342,6 +320,48 @@
       </div>
       <div id="newDispatchDetails"></div>
       <p class="dialog-note">This dispatch has not changed the active command board.</p>
+      <div class="dialog-actions dispatch-switch-actions">
+        <button id="keepCurrentDispatchButton" class="secondary-button" type="button">Keep Current Incident</button>
+        <button id="switchDispatchDialogButton" class="warning-button" type="button">Switch Command Board to This Dispatch</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="buildingDialog" class="tool-dialog">
+    <div class="dialog-form details-dialog">
+      <div class="dialog-heading">
+        <div><span class="eyebrow">INCIDENT PROFILE</span><h2>Building / Occupancy</h2></div>
+        <button id="closeBuildingButton" class="icon-button" type="button" aria-label="Close">×</button>
+      </div>
+      <label>Occupancy type<input id="occupancyInput" type="text" placeholder="Set from size-up or preplan"></label>
+      <div class="profile-grid">
+        <label>Floors<input id="floorsInput" type="number" min="0" max="99" inputmode="numeric"></label>
+        <label>Basement
+          <select id="basementInput">
+            <option value="unknown">Unknown</option>
+            <option value="none">None</option>
+            <option value="present">Present</option>
+            <option value="walkout">Walkout</option>
+          </select>
+        </label>
+      </div>
+      <div id="preplanLinks" class="preplan-links"></div>
+      <div class="dialog-actions"><button id="doneBuildingButton" class="primary-button" type="button">Done</button></div>
+    </div>
+  </dialog>
+
+  <dialog id="commandLogDialog" class="tool-dialog log-tool-dialog">
+    <div class="dialog-form details-dialog">
+      <div class="dialog-heading">
+        <div><span class="eyebrow">DOCUMENTATION</span><h2>Command Log</h2></div>
+        <button id="closeCommandLogButton" class="icon-button" type="button" aria-label="Close">×</button>
+      </div>
+      <form id="logForm" class="inline-form log-form">
+        <input id="logInput" type="text" autocomplete="off" placeholder="Add command note…">
+        <button class="secondary-button" type="submit">Log</button>
+      </form>
+      <ol id="commandLog" class="command-log"></ol>
+      <div class="dialog-actions"><button id="doneCommandLogButton" class="primary-button" type="button">Done</button></div>
     </div>
   </dialog>
 
@@ -418,28 +438,6 @@
     </form>
   </dialog>
 
-  <dialog id="endIncidentDialog">
-    <form id="endIncidentForm" class="dialog-form">
-      <div class="dialog-heading">
-        <div><span class="eyebrow danger-text">STANDARD 210</span><h2>Terminate Command</h2></div>
-        <button id="closeEndIncidentButton" class="icon-button" type="button" aria-label="Close">×</button>
-      </div>
-      <p id="endIncidentBlockMessage" class="dialog-note danger-note" hidden></p>
-      <p id="endIncidentWarning" class="dialog-note" hidden></p>
-      <p>Command cannot be cleared until the termination safeguards are confirmed.</p>
-      <div class="checklist">
-        <label><input name="objectives" type="checkbox" required> Incident objectives have been achieved</label>
-        <label><input name="hazards" type="checkbox" required> Remaining hazards are controlled, mitigated, or transferred</label>
-        <label><input name="accountability" type="checkbox" required> Final personnel accountability is confirmed</label>
-        <label><input name="demobilization" type="checkbox" required> Resources are demobilized or scene control is transferred</label>
-      </div>
-      <div class="dialog-actions">
-        <button id="cancelEndIncidentButton" class="secondary-button" type="button">Keep Incident</button>
-        <button id="confirmEndIncident" class="danger-button" type="submit">End and Clear</button>
-      </div>
-    </form>
-  </dialog>
-
   <dialog id="removeBoardItemDialog">
     <div class="dialog-form">
       <div class="dialog-heading">
@@ -475,6 +473,6 @@
   </dialog>
 
   <script src="dashboard-config.js?v=5.3.2"></script>
-  <script src="command.js?v=0.3.0"></script>
+  <script src="command.js?v=0.4.0"></script>
 </body>
 </html>
