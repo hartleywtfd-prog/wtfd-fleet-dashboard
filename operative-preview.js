@@ -2414,7 +2414,6 @@ async function previewTurnoutGear(env, requestedInstant = null) {
     sourceCounts: {
       assetManagement: managementRows.length,
       assetsAll: assetRows.length,
-      turnoutItems: turnoutItemRows.length,
       joinedAssetTags: [...managementByTag.keys()].filter(key => assetTagSet.has(key)).length
     },
     filters: {
