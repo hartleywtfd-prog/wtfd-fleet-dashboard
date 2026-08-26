@@ -88,7 +88,7 @@ function importDueForPhysicalFromApi() {
   }
 }
 
-function createDailyTriggerForDueForPhysicalApi() {
+function createFourHourTriggerForDueForPhysicalApi() {
   const handlersToReplace = new Set([
     'importDueForPhysicalFromEmail',
     'importDueForPhysicalFromApi'
@@ -102,11 +102,16 @@ function createDailyTriggerForDueForPhysicalApi() {
 
   ScriptApp.newTrigger('importDueForPhysicalFromApi')
     .timeBased()
-    .everyDays(1)
-    .atHour(6)
+    .everyHours(4)
     .create();
 
-  Logger.log('Daily Due For Physical API trigger created for the 6:00 AM hour.');
+  Logger.log('Four-hour Due For Physical API trigger created.');
+}
+
+// Backward-compatible setup name. Running the old installer now creates
+// the new four-hour trigger instead of a daily trigger.
+function createDailyTriggerForDueForPhysicalApi() {
+  createFourHourTriggerForDueForPhysicalApi();
 }
 
 function physicalDueDate_(value) {

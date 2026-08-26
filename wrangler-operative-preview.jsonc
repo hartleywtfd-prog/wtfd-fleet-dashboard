@@ -1,6 +1,6 @@
 {
   "name": "wtfd-operative-preview",
-  "main": "workers/operative-preview.js",
+  "main": "workers/operative-preview-shared.js",
   "compatibility_date": "2026-07-31",
   "keep_vars": true,
   "vars": {
