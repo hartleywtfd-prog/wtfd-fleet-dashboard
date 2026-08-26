@@ -378,7 +378,7 @@ export default {
       }
     }
 
-    if (cron === '15 * * * *') {
+    if (cron === '15 */2 * * *') {
       if (normalizeBoolean(env.OPEN_SERVICE_TICKETS_SHEETS_EXPORT_ENABLED)) {
         tasks.push(runScheduledOpenServiceTicketExport(env));
       } else {

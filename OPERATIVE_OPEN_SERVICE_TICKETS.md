@@ -78,14 +78,14 @@ OPEN_SERVICE_TICKETS_SHEETS_EXPORT_ENABLED=false
 ```
 
 Run `importOpenServiceTicketsFromApi` once manually. After confirming the sheet,
-run `createThirtyMinuteTriggerForOpenServiceTicketsApi` once to remove the old
-email trigger and install the API trigger.
+run `createTwoHourTriggerForOpenServiceTicketsApi` once to remove the old
+email/API trigger and install the two-hour API trigger.
 
 ## 5. Keep direct Worker writes disabled
 
 `OPEN_SERVICE_TICKETS_SHEETS_EXPORT_ENABLED` remains `false`. The Worker cron
 does not write Google Sheets; the Apps Script trigger clears and replaces
-columns A:F every 30 minutes while preserving formatting.
+columns A:F every two hours while preserving formatting.
 
 ## Routes
 

@@ -102,7 +102,7 @@ function importOpenServiceTicketsFromApi() {
   }
 }
 
-function createThirtyMinuteTriggerForOpenServiceTicketsApi() {
+function createTwoHourTriggerForOpenServiceTicketsApi() {
   const handlersToReplace = new Set([
     'importOpenServiceTicketsFromEmail',
     'importOpenServiceTicketsFromApi'
@@ -116,8 +116,13 @@ function createThirtyMinuteTriggerForOpenServiceTicketsApi() {
 
   ScriptApp.newTrigger('importOpenServiceTicketsFromApi')
     .timeBased()
-    .everyMinutes(30)
+    .everyHours(2)
     .create();
 
-  Logger.log('30-minute Open Service Tickets API trigger created.');
+  Logger.log('Two-hour Open Service Tickets API trigger created.');
+}
+
+// Backward-compatible setup name. Running it now installs the two-hour trigger.
+function createThirtyMinuteTriggerForOpenServiceTicketsApi() {
+  createTwoHourTriggerForOpenServiceTicketsApi();
 }
