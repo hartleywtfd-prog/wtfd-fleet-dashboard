@@ -370,13 +370,15 @@ export default {
       }
     }
 
-    if (cron === '*/30 * * * *') {
+    if (cron === '0 * * * *') {
       if (normalizeBoolean(env.INCOMPLETE_CHECKS_D1_ENABLED)) {
         tasks.push(runScheduledIncompleteCheckSync(env));
       } else {
         console.log('Incomplete-check sync skipped: INCOMPLETE_CHECKS_D1_ENABLED is false.');
       }
+    }
 
+    if (cron === '15 * * * *') {
       if (normalizeBoolean(env.OPEN_SERVICE_TICKETS_SHEETS_EXPORT_ENABLED)) {
         tasks.push(runScheduledOpenServiceTicketExport(env));
       } else {
