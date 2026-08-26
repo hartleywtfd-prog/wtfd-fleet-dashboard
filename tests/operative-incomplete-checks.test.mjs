@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import worker from '../workers/operative-preview.js';
+import worker, { planIncompleteCheckChanges } from '../workers/operative-preview.js';
 
 const states = [
   state(1, 100, 'Daily Engine', 1, 1),
@@ -91,6 +91,55 @@ const blockedSheets = await worker.fetch(new Request(
   { headers: { Authorization: 'Bearer admin-test-token' } }
 ), env);
 assert.equal(blockedSheets.status, 409);
+
+const unchangedPlan = planIncompleteCheckChanges({
+  shiftKey: '2026-08-03',
+  rows: [{
+    stateId: 6,
+    shiftId: 101,
+    truckId: 11,
+    questionaryId: 1006,
+    date: '2026-08-03',
+    locationName: 'Station 41',
+    unitNumber: 'Vehicle F111',
+    inServiceStatus: 'In-Service',
+    questionnaireName: 'Daily Engine',
+    status: 'Not Completed'
+  }]
+}, [{
+  shift_key: '2026-08-03',
+  state_id: 6,
+  shift_id: 101,
+  truck_id: 11,
+  questionary_id: 1006,
+  report_date: '2026-08-03',
+  location_name: 'Station 41',
+  unit_number: 'Vehicle F111',
+  in_service_status: 'In-Service',
+  questionnaire_name: 'Daily Engine',
+  check_status: 'Not Completed'
+}]);
+assert.equal(unchangedPlan.changed, false);
+assert.equal(unchangedPlan.unchangedCount, 1);
+
+const changedPlan = planIncompleteCheckChanges({
+  shiftKey: '2026-08-03',
+  rows: [{
+    stateId: 7,
+    shiftId: 102,
+    truckId: 12,
+    questionaryId: 1007,
+    date: '2026-08-03',
+    locationName: 'Station 42',
+    unitNumber: 'Vehicle F112',
+    inServiceStatus: 'In-Service',
+    questionnaireName: 'Daily Engine',
+    status: 'Not Completed'
+  }]
+}, [{ state_id: 6 }]);
+assert.equal(changedPlan.changed, true);
+assert.equal(changedPlan.upserts.length, 1);
+assert.deepEqual(changedPlan.deletedStateIds, [6]);
 
 console.log('operative-incomplete-checks tests passed');
 

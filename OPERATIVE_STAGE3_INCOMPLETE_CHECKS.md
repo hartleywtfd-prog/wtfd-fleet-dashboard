@@ -7,6 +7,9 @@ This stage replaces the emailed CSV import with:
 The active shift runs from 07:00 through 06:59:59 in America/New_York. Checks
 do not carry into the next shift. Only operational apparatus/equipment
 questionnaires are eligible. Completed and out-of-service checks are excluded.
+The scheduled sync runs every 30 minutes. It compares the prepared current-shift
+result with D1 and writes only added, changed, or removed rows. An unchanged run
+does not rewrite D1 or Google Sheets.
 
 ## Safety defaults
 
@@ -131,4 +134,3 @@ replaced by the new shift result.
 - `/preview-current-incomplete-checks` - read-only final-filter preview
 - `/sync-incomplete-checks` - guarded OperativeIQ-to-D1 synchronization
 - `/export-incomplete-checks` - guarded D1-to-Google-Sheets export
-

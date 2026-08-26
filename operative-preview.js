@@ -370,7 +370,7 @@ export default {
       }
     }
 
-    if (cron === '0 * * * *') {
+    if (cron === '*/30 * * * *') {
       if (normalizeBoolean(env.INCOMPLETE_CHECKS_D1_ENABLED)) {
         tasks.push(runScheduledIncompleteCheckSync(env));
       } else {
@@ -416,6 +416,9 @@ async function runScheduledIncompleteCheckSync(env) {
       event: 'operative_incomplete_checks_sync_completed',
       shiftKey: result.shiftKey,
       recordCount: result.recordCount,
+      changed: result.changed,
+      changedCount: result.changedCount,
+      deletedCount: result.deletedCount,
       sheetsExported: result.sheetsExported,
       timestamp: result.timestamp
     }));
@@ -3336,24 +3339,69 @@ async function syncIncompleteChecks(env) {
   }
 
   await ensureIncompleteCheckTables(env);
-  const startedAt = new Date().toISOString();
-  const run = await env.DB.prepare(`
-    INSERT INTO operative_incomplete_check_runs(started_at,status,mode)
-    VALUES(?,'running','d1') RETURNING id
-  `).bind(startedAt).first();
-
+  let run = null;
   try {
     const preview = await previewCurrentIncompleteChecks(env);
     const now = new Date().toISOString();
-    const writes = [env.DB.prepare('DELETE FROM operative_incomplete_checks')];
+    const stored = await env.DB.prepare(`
+      SELECT shift_key,state_id,shift_id,truck_id,questionary_id,report_date,
+             location_name,unit_number,in_service_status,questionnaire_name,
+             check_status
+      FROM operative_incomplete_checks
+      WHERE shift_key=?
+      ORDER BY state_id
+    `).bind(preview.shiftKey).all();
+    const plan = planIncompleteCheckChanges(preview, stored.results || []);
 
-    for (const row of preview.rows) {
+    if (!plan.changed) {
+      return {
+        success: true,
+        mode: 'D1_CURRENT_SHIFT_INCOMPLETE_CHECK_SYNC',
+        shiftKey: preview.shiftKey,
+        recordCount: preview.recordCount,
+        changed: false,
+        changedCount: 0,
+        deletedCount: 0,
+        unchangedCount: plan.unchangedCount,
+        sheetsExported: false,
+        sheetResult: null,
+        rows: preview.rows,
+        timestamp: now
+      };
+    }
+
+    run = await env.DB.prepare(`
+      INSERT INTO operative_incomplete_check_runs(started_at,status,mode)
+      VALUES(?,'running','d1_changed_only') RETURNING id
+    `).bind(now).first();
+    const writes = [
+      env.DB.prepare('DELETE FROM operative_incomplete_checks WHERE shift_key<>?').bind(preview.shiftKey)
+    ];
+
+    for (const stateId of plan.deletedStateIds) {
+      writes.push(env.DB.prepare(`
+        DELETE FROM operative_incomplete_checks WHERE shift_key=? AND state_id=?
+      `).bind(preview.shiftKey, stateId));
+    }
+
+    for (const row of plan.upserts) {
       writes.push(env.DB.prepare(`
         INSERT INTO operative_incomplete_checks(
           shift_key,state_id,shift_id,truck_id,questionary_id,report_date,
           location_name,unit_number,in_service_status,questionnaire_name,
           check_status,last_seen_at
         ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)
+        ON CONFLICT(shift_key,state_id) DO UPDATE SET
+          shift_id=excluded.shift_id,
+          truck_id=excluded.truck_id,
+          questionary_id=excluded.questionary_id,
+          report_date=excluded.report_date,
+          location_name=excluded.location_name,
+          unit_number=excluded.unit_number,
+          in_service_status=excluded.in_service_status,
+          questionnaire_name=excluded.questionnaire_name,
+          check_status=excluded.check_status,
+          last_seen_at=excluded.last_seen_at
       `).bind(
         preview.shiftKey,
         row.stateId,
@@ -3395,19 +3443,63 @@ async function syncIncompleteChecks(env) {
       mode: 'D1_CURRENT_SHIFT_INCOMPLETE_CHECK_SYNC',
       shiftKey: preview.shiftKey,
       recordCount: preview.recordCount,
+      changed: true,
+      changedCount: plan.upserts.length,
+      deletedCount: plan.deletedStateIds.length,
+      unchangedCount: plan.unchangedCount,
       sheetsExported: Boolean(sheetResult),
       sheetResult,
       rows: preview.rows,
       timestamp: now
     };
   } catch (error) {
-    await env.DB.prepare(`
-      UPDATE operative_incomplete_check_runs
-      SET completed_at=?,status='failed',error_message=?
-      WHERE id=?
-    `).bind(new Date().toISOString(), errorMessage(error), run.id).run();
+    if (run?.id) {
+      await env.DB.prepare(`
+        UPDATE operative_incomplete_check_runs
+        SET completed_at=?,status='failed',error_message=?
+        WHERE id=?
+      `).bind(new Date().toISOString(), errorMessage(error), run.id).run();
+    }
     throw error;
   }
+}
+
+export function planIncompleteCheckChanges(preview, storedRows) {
+  const fields = [
+    ['shiftKey', 'shift_key'],
+    ['stateId', 'state_id'],
+    ['shiftId', 'shift_id'],
+    ['truckId', 'truck_id'],
+    ['questionaryId', 'questionary_id'],
+    ['date', 'report_date'],
+    ['locationName', 'location_name'],
+    ['unitNumber', 'unit_number'],
+    ['inServiceStatus', 'in_service_status'],
+    ['questionnaireName', 'questionnaire_name'],
+    ['status', 'check_status']
+  ];
+  const key = value => String(value ?? '');
+  const storedByState = new Map((storedRows || []).map(row => [key(row.state_id), row]));
+  const upserts = [];
+  let unchangedCount = 0;
+
+  for (const row of preview.rows || []) {
+    const existing = storedByState.get(key(row.stateId));
+    const changed = !existing || fields.some(([currentName, storedName]) =>
+      key(currentName === 'shiftKey' ? preview.shiftKey : row[currentName]) !== key(existing[storedName])
+    );
+    if (changed) upserts.push(row);
+    else unchangedCount += 1;
+    storedByState.delete(key(row.stateId));
+  }
+
+  const deletedStateIds = [...storedByState.values()].map(row => row.state_id);
+  return {
+    changed: upserts.length > 0 || deletedStateIds.length > 0,
+    upserts,
+    deletedStateIds,
+    unchangedCount
+  };
 }
 
 async function exportIncompleteChecksToSheets(env, requestedShiftKey = '') {

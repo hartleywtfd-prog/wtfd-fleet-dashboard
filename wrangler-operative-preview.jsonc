@@ -9,7 +9,7 @@
     "OPEN_SERVICE_TICKETS_SHEETS_EXPORT_ENABLED": "false"
   },
   "triggers": {
-    "crons": ["*/5 * * * *", "0 * * * *", "15 * * * *"]
+    "crons": ["*/5 * * * *", "*/30 * * * *", "15 * * * *"]
   },
   "d1_databases": [
     {
