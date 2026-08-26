@@ -1,24 +1,25 @@
-WTFD PHYSICAL-DUE 4-HOUR PATCH
+WTFD Physical-Due FINAL Replacement
 
-This is an overlay/patch package for the current wtfd-fleet-dashboard repository.
+This package avoids manual editing of the large operative-preview.js files.
 
-Because the connected GitHub integration has read-only access to
-hartleywtfd-prog/wtfd-fleet-dashboard, this package cannot be committed there automatically.
+REPLACE these files in GitHub:
+1. /operative-preview-shared.js
+2. /workers/operative-preview-shared.js
+3. /wrangler-operative-preview.jsonc
 
-Preferred use:
-1. Download/extract the current wtfd-fleet-dashboard repository.
-2. Copy this patch folder into the repository root.
-3. From the repository root run:
-      python apply_physical_due_4h_patch.py
-4. Commit the resulting repository to GitHub.
-5. Confirm the wtfd-operative-preview Worker deploys.
-6. In the Due For Physical Apps Script project, run:
-      createFourHourTriggerForDueForPhysicalApi
-7. Verify the old daily trigger is gone and the new trigger is present.
-8. Test the Worker twice with the existing Authorization token.
-   First normal request should show:
-      X-WTFD-Physical-Due-Cache: MISS
-   Second normal request should show:
-      X-WTFD-Physical-Due-Cache: HIT
+Do NOT edit operative-preview.js or workers/operative-preview.js.
 
-No Pi restart is required for this change.
+What this replacement does:
+- Intercepts /preview-physical-due before the large base Worker handles it.
+- Implements the physical-due report directly without the bad turnoutItemRows reference.
+- Keeps SYNC_ADMIN_TOKEN authorization in front of all physical-due responses.
+- Uses one shared Cloudflare Cache API snapshot for 4 hours.
+- Adds X-WTFD-Physical-Due-Cache: MISS/HIT.
+- Historical ?at= requests bypass the shared cache.
+- All non-physical-due routes continue through the existing Worker unchanged.
+- Existing scheduled jobs are delegated unchanged.
+
+The Apps Script trigger file you already committed can remain as-is.
+After this deploys, run createFourHourTriggerForDueForPhysicalApi() once in Apps Script.
+
+No Raspberry Pi restart is required.
