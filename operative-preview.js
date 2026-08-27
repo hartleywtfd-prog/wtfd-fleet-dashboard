@@ -126,8 +126,9 @@ let cachedToken = null;
 let cachedTokenExpiresAt = 0;
 let cachedGoogleToken = null;
 let cachedGoogleTokenExpiresAt = 0;
-let cachedTurnoutPreview = null;
-let cachedTurnoutPreviewExpiresAt = 0;
+const TURNOUT_SNAPSHOT_KEY = 'current';
+const TURNOUT_PENDING_KEY = 'pending';
+const TURNOUT_SNAPSHOT_REFRESH_MINUTES = 30;
 
 export default {
   async fetch(request, env) {
@@ -206,6 +207,14 @@ export default {
           env,
           validatedInstantParameter(url.searchParams.get('at'))
         ));
+      }
+
+      if (url.pathname === '/refresh-turnout-gear-snapshot') {
+        return json(await refreshTurnoutGearSnapshot(env, { force: url.searchParams.get('force') === '1', reason: 'manual' }));
+      }
+
+      if (url.pathname === '/turnout-gear-snapshot-status') {
+        return json(await turnoutGearSnapshotStatus(env));
       }
 
       if (url.pathname === '/preview-turnout-gear-inspections') {
@@ -335,6 +344,8 @@ export default {
           '/probe-operational-question-linkage?at=ISO_TIMESTAMP',
           '/probe-turnout-gear',
           '/preview-turnout-gear?at=ISO_TIMESTAMP',
+          '/refresh-turnout-gear-snapshot',
+          '/turnout-gear-snapshot-status',
           '/probe-supply-inventory',
           '/preview-supply-inventory',
           '/debug/supply',
@@ -371,6 +382,10 @@ export default {
     }
 
     if (cron === '*/30 * * * *') {
+      // Turnout gear is snapshot-backed. Build a candidate every 30 minutes and
+      // only promote it after it is observed consistently, preserving the last
+      // known-good snapshot if OperativeIQ pagination returns an unstable view.
+      tasks.push(runScheduledTurnoutSnapshotRefresh(env));
       if (normalizeBoolean(env.INCOMPLETE_CHECKS_D1_ENABLED)) {
         tasks.push(runScheduledIncompleteCheckSync(env));
       } else {
@@ -389,6 +404,27 @@ export default {
     if (tasks.length) ctx.waitUntil(Promise.all(tasks));
   }
 };
+
+async function runScheduledTurnoutSnapshotRefresh(env) {
+  try {
+    const result = await refreshTurnoutGearSnapshot(env, { reason: 'scheduled' });
+    console.log(JSON.stringify({
+      event: 'turnout_gear_snapshot_refresh_completed',
+      promoted: Boolean(result.snapshot?.promoted),
+      rowCount: result.recordCount,
+      signature: result.snapshot?.signature || '',
+      timestamp: new Date().toISOString()
+    }));
+  } catch (error) {
+    // Never delete or replace the last known-good snapshot when the source is
+    // incomplete or unavailable. Log the failure and let the next cycle retry.
+    console.error(JSON.stringify({
+      event: 'turnout_gear_snapshot_refresh_failed',
+      error: errorMessage(error),
+      timestamp: new Date().toISOString()
+    }));
+  }
+}
 
 async function runScheduledAssignmentSync(env) {
   try {
@@ -2029,18 +2065,7 @@ async function previewTurnoutGearInspections(env, requestedInstant = null) {
 }
 
 
-async function previewTurnoutGear(env, requestedInstant = null) {
-  const now = Date.now();
-  // The dashboard refreshes frequently. Reuse the current read-only preview for
-  // two minutes inside a warm Worker isolate to reduce OperativeIQ traffic and
-  // avoid unnecessary CPU spent repeatedly normalizing the same dynamic views.
-  if (!requestedInstant && cachedTurnoutPreview && cachedTurnoutPreviewExpiresAt > now) {
-    return {
-      ...cachedTurnoutPreview,
-      cache: { hit: true, expiresAt: new Date(cachedTurnoutPreviewExpiresAt).toISOString() }
-    };
-  }
-
+async function buildTurnoutGearPreviewLive(env, requestedInstant = null) {
   const token = await getAccessToken(env);
   const at = requestedInstant || new Date();
   const todayKey = easternDateKey(at);
@@ -2519,15 +2544,184 @@ async function previewTurnoutGear(env, requestedInstant = null) {
       row.daysLeft
     ]),
     diagnostics,
-    cache: { hit: false, ttlSeconds: 120 },
-    note: 'Read-only active turnout gear inventory preview. Physical Location/To overrides crew assignment for warehouse classification. No OperativeIQ, D1, Gmail, or Google Sheets data was changed.'
+    cache: { hit: false, mode: 'LIVE_SOURCE_BUILD' },
+    note: 'Read-only active turnout gear inventory preview. Physical Location/To overrides crew assignment for warehouse classification. Snapshot persistence writes only the prepared dashboard JSON to D1; OperativeIQ is never modified.'
   };
 
-  if (!requestedInstant) {
-    cachedTurnoutPreview = result;
-    cachedTurnoutPreviewExpiresAt = now + 120000;
-  }
   return result;
+}
+
+async function ensureTurnoutSnapshotTable(env) {
+  if (!env.DB) throw new Error('D1 binding DB is required for turnout gear snapshots.');
+  await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS turnout_gear_snapshots (
+      snapshot_key TEXT PRIMARY KEY,
+      payload TEXT NOT NULL,
+      signature TEXT NOT NULL,
+      row_count INTEGER NOT NULL,
+      source_counts TEXT,
+      generated_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `).run();
+}
+
+function turnoutSnapshotSignature(preview) {
+  // Signature only operational fields that should remain identical when the
+  // source has not changed. evaluatedAt/cache metadata is intentionally ignored.
+  const stable = (preview?.rows || []).map(row => [
+    row.assetTag || row.gearIdentifier || '',
+    row.serialNumber || '',
+    row.currentLocation || row.physicalLocation || '',
+    row.issuedTo || '',
+    row.locationType || '',
+    row.lastServiceDate || '',
+    row.nextServiceDate || '',
+    row.daysLeft ?? '',
+    row.size || ''
+  ]).sort((a,b)=>String(a[0]).localeCompare(String(b[0])));
+  const text = JSON.stringify(stable);
+  let hash = 2166136261;
+  for (let i = 0; i < text.length; i++) {
+    hash ^= text.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return `${stable.length}-${(hash >>> 0).toString(16).padStart(8,'0')}`;
+}
+
+async function readTurnoutSnapshotRecord(env, key) {
+  await ensureTurnoutSnapshotTable(env);
+  return await env.DB.prepare(`
+    SELECT snapshot_key, payload, signature, row_count, source_counts, generated_at, updated_at
+    FROM turnout_gear_snapshots
+    WHERE snapshot_key = ?
+  `).bind(key).first();
+}
+
+async function writeTurnoutSnapshotRecord(env, key, preview, signature) {
+  await ensureTurnoutSnapshotTable(env);
+  const generatedAt = preview?.evaluatedAt || new Date().toISOString();
+  await env.DB.prepare(`
+    INSERT INTO turnout_gear_snapshots
+      (snapshot_key, payload, signature, row_count, source_counts, generated_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+    ON CONFLICT(snapshot_key) DO UPDATE SET
+      payload = excluded.payload,
+      signature = excluded.signature,
+      row_count = excluded.row_count,
+      source_counts = excluded.source_counts,
+      generated_at = excluded.generated_at,
+      updated_at = CURRENT_TIMESTAMP
+  `).bind(
+    key,
+    JSON.stringify(preview),
+    signature,
+    Number(preview?.recordCount || preview?.rows?.length || 0),
+    JSON.stringify(preview?.sourceCounts || {}),
+    generatedAt
+  ).run();
+}
+
+async function deleteTurnoutSnapshotRecord(env, key) {
+  await ensureTurnoutSnapshotTable(env);
+  await env.DB.prepare('DELETE FROM turnout_gear_snapshots WHERE snapshot_key = ?').bind(key).run();
+}
+
+function parseTurnoutSnapshotRecord(record, extra = {}) {
+  if (!record?.payload) return null;
+  const payload = JSON.parse(record.payload);
+  const ageMinutes = Math.max(0, Math.round((Date.now() - Date.parse(record.generated_at || record.updated_at || new Date().toISOString())) / 60000));
+  return {
+    ...payload,
+    snapshot: {
+      servedFromSnapshot: true,
+      key: record.snapshot_key,
+      signature: record.signature,
+      generatedAt: record.generated_at,
+      updatedAt: record.updated_at,
+      ageMinutes,
+      refreshIntervalMinutes: TURNOUT_SNAPSHOT_REFRESH_MINUTES,
+      ...extra
+    },
+    cache: { hit: true, mode: 'D1_SNAPSHOT', refreshIntervalMinutes: TURNOUT_SNAPSHOT_REFRESH_MINUTES }
+  };
+}
+
+async function refreshTurnoutGearSnapshot(env, options = {}) {
+  const force = Boolean(options.force);
+  const reason = options.reason || 'manual';
+  const candidate = await buildTurnoutGearPreviewLive(env, null);
+  if (!candidate?.success || !Array.isArray(candidate.rows) || candidate.rows.length === 0) {
+    throw new Error('Turnout gear source did not produce a complete non-empty candidate snapshot.');
+  }
+  if (!candidate.sourceCounts?.assetManagement || !candidate.sourceCounts?.assetsAll) {
+    throw new Error('Turnout gear candidate snapshot is missing required source counts.');
+  }
+
+  const signature = turnoutSnapshotSignature(candidate);
+  const [current, pending] = await Promise.all([
+    readTurnoutSnapshotRecord(env, TURNOUT_SNAPSHOT_KEY),
+    readTurnoutSnapshotRecord(env, TURNOUT_PENDING_KEY)
+  ]);
+
+  // A forced refresh is explicit operator intent. Otherwise, a changed candidate
+  // must be seen on two consecutive refresh cycles before it replaces current.
+  if (force || !current) {
+    await writeTurnoutSnapshotRecord(env, TURNOUT_SNAPSHOT_KEY, candidate, signature);
+    await deleteTurnoutSnapshotRecord(env, TURNOUT_PENDING_KEY);
+    const saved = await readTurnoutSnapshotRecord(env, TURNOUT_SNAPSHOT_KEY);
+    return parseTurnoutSnapshotRecord(saved, { promoted: true, validation: force ? 'forced' : 'bootstrap', reason });
+  }
+
+  if (current.signature === signature) {
+    // Same operational dataset: refresh the timestamp/content and clear any stale
+    // pending candidate without changing what the dashboard sees.
+    await writeTurnoutSnapshotRecord(env, TURNOUT_SNAPSHOT_KEY, candidate, signature);
+    await deleteTurnoutSnapshotRecord(env, TURNOUT_PENDING_KEY);
+    const saved = await readTurnoutSnapshotRecord(env, TURNOUT_SNAPSHOT_KEY);
+    return parseTurnoutSnapshotRecord(saved, { promoted: false, validation: 'confirmed-current', reason });
+  }
+
+  if (pending?.signature === signature) {
+    await writeTurnoutSnapshotRecord(env, TURNOUT_SNAPSHOT_KEY, candidate, signature);
+    await deleteTurnoutSnapshotRecord(env, TURNOUT_PENDING_KEY);
+    const saved = await readTurnoutSnapshotRecord(env, TURNOUT_SNAPSHOT_KEY);
+    return parseTurnoutSnapshotRecord(saved, { promoted: true, validation: 'confirmed-twice', reason });
+  }
+
+  await writeTurnoutSnapshotRecord(env, TURNOUT_PENDING_KEY, candidate, signature);
+  return parseTurnoutSnapshotRecord(current, {
+    promoted: false,
+    validation: 'candidate-pending-confirmation',
+    pendingSignature: signature,
+    pendingRowCount: candidate.recordCount,
+    reason
+  });
+}
+
+async function turnoutGearSnapshotStatus(env) {
+  const [current, pending] = await Promise.all([
+    readTurnoutSnapshotRecord(env, TURNOUT_SNAPSHOT_KEY),
+    readTurnoutSnapshotRecord(env, TURNOUT_PENDING_KEY)
+  ]);
+  return {
+    success: true,
+    refreshIntervalMinutes: TURNOUT_SNAPSHOT_REFRESH_MINUTES,
+    current: current ? { signature: current.signature, rowCount: current.row_count, generatedAt: current.generated_at, updatedAt: current.updated_at } : null,
+    pending: pending ? { signature: pending.signature, rowCount: pending.row_count, generatedAt: pending.generated_at, updatedAt: pending.updated_at } : null
+  };
+}
+
+async function previewTurnoutGear(env, requestedInstant = null) {
+  // Explicit historical/diagnostic requests stay live and are never persisted.
+  if (requestedInstant) return buildTurnoutGearPreviewLive(env, requestedInstant);
+
+  const current = await readTurnoutSnapshotRecord(env, TURNOUT_SNAPSHOT_KEY);
+  if (current) return parseTurnoutSnapshotRecord(current, { validation: 'last-known-good' });
+
+  // First deployment only: bootstrap one current snapshot so the dashboard stays
+  // available immediately. All subsequent changes require two-cycle confirmation.
+  return refreshTurnoutGearSnapshot(env, { reason: 'bootstrap' });
 }
 
 async function previewPhysicalDue(env, requestedInstant = null) {
@@ -4643,6 +4837,15 @@ async function fetchAll(endpoint, token, maxRecords = 20000) {
     if (!page.length || page.length < PAGE_SIZE || records.length >= maxRecords) break;
     skip += page.length;
     if (skip > maxRecords) throw new Error(`OperativeIQ pagination exceeded the ${maxRecords}-record safety limit.`);
+  }
+
+  if (overall !== null) {
+    if (overall > maxRecords) {
+      throw new Error(`OperativeIQ reported ${overall} records, exceeding the ${maxRecords}-record safety limit.`);
+    }
+    if (records.length < overall) {
+      throw new Error(`OperativeIQ pagination was incomplete: received ${records.length} of ${overall} records.`);
+    }
   }
 
   return records.slice(0, maxRecords);
