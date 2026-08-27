@@ -2225,6 +2225,7 @@ async function previewTurnoutGear(env, requestedInstant = null) {
     inactivePart: 0,
     blankLocation: 0,
     supplyWarehouse: 0,
+    repairInspection: 0,
     missingNextServiceDate: 0,
     outsideThirtyDays: 0,
     duplicateAssetTag: 0,
@@ -2314,14 +2315,33 @@ async function previewTurnoutGear(env, requestedInstant = null) {
         diagnostics.blankLocation++;
         continue;
       }
+      // Physical Location / To is authoritative for the asset's current status.
+      // OperativeIQ can retain the staff member who performed a Back Office
+      // Check In in Crew Member, even after the garment has been moved to a
+      // warehouse or repair vendor. Do not let that historical crew value
+      // override the actual physical location.
+      const isRepairInspection = /\bphoenix\s+gear\s+repair\b|\bgear\s+repair\b|\brepair\s*(?:\/|&|and)?\s*inspection\b/i.test(location);
       const isSupplyWarehouse = /turnout\s*gear\s*supply\s*warehouse|supply\s*room/i.test(location);
+      const isCrewLocation = /^Crew:/i.test(location);
+      const isReserveLocation = /reserve|cache|spare/i.test(location);
+      const isStationLocation = /station/i.test(location);
       if (isSupplyWarehouse) diagnostics.supplyWarehouse++;
+      if (isRepairInspection) diagnostics.repairInspection++;
       if (!nextDate) diagnostics.missingNextServiceDate++;
       if (!Number.isFinite(daysLeft) || daysLeft < 0 || daysLeft > 30) diagnostics.outsideThirtyDays++;
 
-      const issuedTo = crewMember
-        || (/^Crew:/i.test(location) ? location.replace(/^Crew:\s*/i, '').trim() : '')
-        || (isSupplyWarehouse ? 'Turnout Gear Supply Warehouse' : 'Unassigned');
+      const locationCrewMember = isCrewLocation
+        ? location.replace(/^Crew:\s*/i, '').trim()
+        : '';
+      const issuedTo = isCrewLocation
+        ? (locationCrewMember || crewMember || 'Unassigned')
+        : isRepairInspection
+          ? location
+          : isSupplyWarehouse
+            ? 'Turnout Gear Supply Warehouse'
+            : isReserveLocation || isStationLocation
+              ? location
+              : (location || 'Unassigned');
 
       const assetTag = text(get(asset, 'asset_Tag_Number'))
         || text(get(management, 'asset_Tag___Part_UPC'));
@@ -2367,17 +2387,19 @@ async function previewTurnoutGear(env, requestedInstant = null) {
       const row = {
         issuedTo,
         currentLocation: location,
-        locationType: isSupplyWarehouse
-          ? 'Warehouse'
-          : /^Crew:/i.test(location)
-            ? 'Issued to Member'
-            : /warehouse|supply room/i.test(location)
-              ? 'Warehouse'
-              : /reserve|cache|spare/i.test(location)
-                ? 'Reserve'
-                : /station/i.test(location)
-                  ? 'Station'
-                  : 'Other',
+        locationType: isRepairInspection
+          ? 'Out for Repair / Inspection'
+          : isSupplyWarehouse
+            ? 'Warehouse'
+            : isCrewLocation
+              ? 'Issued to Member'
+              : /warehouse|supply room/i.test(location)
+                ? 'Warehouse'
+                : isReserveLocation
+                  ? 'Reserve'
+                  : isStationLocation
+                    ? 'Station'
+                    : 'Other',
         gearIdentifier: assetTag,
         assetTag,
         manufacturer: text(get(management, 'manufacturer'))
