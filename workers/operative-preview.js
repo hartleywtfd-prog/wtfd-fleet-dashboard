@@ -1861,14 +1861,11 @@ async function debugTurnoutAsset(env, rawSearch = '') {
 
   const token = await getAccessToken(env);
   const filter = encodeURIComponent("asset_Class eq 'Turnout Gear'");
-  const [managementRows, assetRows, turnoutItemRows, extendedProperties] = await Promise.all([
+  // This route only inspects the two dynamic views. Keep it independent of the
+  // optional extended-properties API so a size-enrichment outage cannot break diagnostics.
+  const [managementRows, assetRows] = await Promise.all([
     fetchAll(`/api/dynamic-views/vw_Asset_Management?$filter=${filter}`, token, 5000),
-    fetchAll(`/api/dynamic-views/vw_Assets_All?$filter=${filter}`, token, 5000),
-    fetchAll(`/api/items?$filter=${encodeURIComponent('categoryId eq 15')}`, token, 5000),
-    // Coat Size and Pant Size are customer-created OperativeIQ fields. Load the
-    // definitions once so their values can be retrieved in bulk rather than
-    // issuing one /api/items/{id}/custom-fields request per asset.
-    fetchAll('/api/extended-properties', token, 5000)
+    fetchAll(`/api/dynamic-views/vw_Assets_All?$filter=${filter}`, token, 5000)
   ]);
 
   const query = search.toLowerCase();
@@ -2048,15 +2045,26 @@ async function previewTurnoutGear(env, requestedInstant = null) {
   const at = requestedInstant || new Date();
   const todayKey = easternDateKey(at);
   const filter = encodeURIComponent("asset_Class eq 'Turnout Gear'");
-  const [managementRows, assetRows, turnoutItemRows, extendedProperties] = await Promise.all([
+  // Core turnout data is required. Coat/Pant custom fields are optional
+  // enrichment and must never be allowed to blank the turnout-gear dashboard.
+  const [managementRows, assetRows, turnoutItemRows] = await Promise.all([
     fetchAll(`/api/dynamic-views/vw_Asset_Management?$filter=${filter}`, token, 5000),
     fetchAll(`/api/dynamic-views/vw_Assets_All?$filter=${filter}`, token, 5000),
-    fetchAll(`/api/items?$filter=${encodeURIComponent('categoryId eq 15')}`, token, 5000),
-    // Coat Size and Pant Size are customer-created OperativeIQ fields. Load the
-    // definitions once so their values can be retrieved in bulk rather than
-    // issuing one /api/items/{id}/custom-fields request per asset.
-    fetchAll('/api/extended-properties', token, 5000)
+    fetchAll(`/api/items?$filter=${encodeURIComponent('categoryId eq 15')}`, token, 5000)
   ]);
+
+  const sizeWarnings = [];
+  let extendedProperties = [];
+  try {
+    extendedProperties = await fetchAll('/api/extended-properties', token, 5000);
+  } catch (error) {
+    sizeWarnings.push(`Extended-property definitions unavailable: ${errorMessage(error)}`);
+    console.warn(JSON.stringify({
+      event: 'turnout_gear_optional_size_definitions_unavailable',
+      error: errorMessage(error),
+      timestamp: new Date().toISOString()
+    }));
+  }
 
   const normalizeKey = value => String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
   const text = value => value === null || value === undefined ? '' : String(value).trim();
@@ -2126,11 +2134,27 @@ async function previewTurnoutGear(env, requestedInstant = null) {
         token,
         20000
       );
-    } catch (error) {
-      // Some OperativeIQ builds expose the same key as extendedPropertyId. If
-      // propertyID is rejected, safely fall back to the bounded collection.
-      extendedPropertyValues = await fetchAll('/api/extended-property-values', token, 20000);
+    } catch (filteredError) {
+      // Some OperativeIQ tenants reject filters on this resource. Fall back to
+      // an unfiltered read, but if that also fails continue with Notes fallback.
+      try {
+        extendedPropertyValues = await fetchAll('/api/extended-property-values', token, 20000);
+        sizeWarnings.push(`Filtered custom-size lookup failed; unfiltered fallback succeeded: ${errorMessage(filteredError)}`);
+      } catch (fallbackError) {
+        extendedPropertyValues = [];
+        sizeWarnings.push(`Custom-size values unavailable: ${errorMessage(fallbackError)}`);
+        console.warn(JSON.stringify({
+          event: 'turnout_gear_optional_size_values_unavailable',
+          filteredError: errorMessage(filteredError),
+          fallbackError: errorMessage(fallbackError),
+          timestamp: new Date().toISOString()
+        }));
+      }
     }
+  } else if (!extendedProperties.length) {
+    sizeWarnings.push('Coat Size/Pant Size custom-field definitions were unavailable; using item Notes fallback when present.');
+  } else {
+    sizeWarnings.push('Coat Size/Pant Size custom-field definitions were not found; using item Notes fallback when present.');
   }
 
   const customValuePropertyId = value => value?.propertyID ?? value?.propertyId
@@ -2210,7 +2234,9 @@ async function previewTurnoutGear(env, requestedInstant = null) {
     customSizeItemsMapped: customSizesByItemId.size,
     turnoutCatalogItemsLoaded: turnoutItemRows.length,
     catalogItemsResolvedForRows: 0,
-    customSizesAppliedToRows: 0
+    customSizesAppliedToRows: 0,
+    sizeEnrichmentAvailable: Boolean(sizePropertyIds.length && extendedPropertyValues.length),
+    sizeWarnings
   };
   const selected = new Map();
   const assetTagSet = new Set();
@@ -2327,13 +2353,16 @@ async function previewTurnoutGear(env, requestedInstant = null) {
       // compatibility fallback for older records where OperativeIQ duplicated
       // the same value there. Never use a coat field for pants or vice versa.
       const notesSizeFallback = text(get(catalogItem, 'notes'));
-      const coatSize = isCoat
-        ? text(mappedCustomSizes?.coatSize) || notesSizeFallback
-        : '';
-      const pantSize = isPant
-        ? text(mappedCustomSizes?.pantSize) || notesSizeFallback
-        : '';
+      const customCoatSize = text(mappedCustomSizes?.coatSize);
+      const customPantSize = text(mappedCustomSizes?.pantSize);
+      const coatSize = isCoat ? customCoatSize || notesSizeFallback : '';
+      const pantSize = isPant ? customPantSize || notesSizeFallback : '';
       const customSizeValue = isCoat ? coatSize : isPant ? pantSize : '';
+      const customFieldUsed = isCoat
+        ? Boolean(customCoatSize)
+        : isPant
+          ? Boolean(customPantSize)
+          : false;
 
       const row = {
         issuedTo,
@@ -2367,7 +2396,7 @@ async function previewTurnoutGear(env, requestedInstant = null) {
             ? pantSize
             : (text(get(management, 'size', 'part_Size'))
               || text(get(asset, 'size', 'asset_Size'))),
-        sizeSource: mappedCustomSizes && customSizeValue ? 'OperativeIQ custom field' : customSizeValue ? 'OperativeIQ item notes fallback' : 'Not mapped',
+        sizeSource: customFieldUsed ? 'OperativeIQ custom field' : customSizeValue ? 'OperativeIQ item notes fallback' : 'Not mapped',
         barcode: text(get(management, 'barcode'))
           || text(get(management, 'bar_Code'))
           || text(get(asset, 'barcode'))
