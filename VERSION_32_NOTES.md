@@ -8,3 +8,11 @@
 - Adds custom-field diagnostics to the preview response.
 
 The prior package contained the corrected logic in the root `operative-preview.js`, while Wrangler deploys `workers/operative-preview.js`. This release places the corrected implementation in the actual configured Worker entry file.
+
+## Turnout gear custom-size resilience fix
+- Keeps Asset Management, Assets All, and turnout item catalog reads as required core data.
+- Treats Coat Size/Pant Size extended-property definitions and values as optional enrichment.
+- Falls back to OperativeIQ item Notes for size when custom fields are unavailable.
+- Adds size enrichment warnings/diagnostics instead of returning HTTP 500 for optional size API failures.
+- Corrects `sizeSource` so it reports custom fields only when a real custom-field value was used.
+- Keeps `/debug/turnout-asset` independent of the optional extended-properties API.
