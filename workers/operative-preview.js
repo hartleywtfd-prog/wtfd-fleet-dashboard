@@ -1864,8 +1864,8 @@ async function debugTurnoutAsset(env, rawSearch = '') {
   // This route only inspects the two dynamic views. Keep it independent of the
   // optional extended-properties API so a size-enrichment outage cannot break diagnostics.
   const [managementRows, assetRows] = await Promise.all([
-    fetchAll(`/api/dynamic-views/vw_Asset_Management?$filter=${filter}`, token, 5000),
-    fetchAll(`/api/dynamic-views/vw_Assets_All?$filter=${filter}`, token, 5000)
+    fetchAll(`/api/dynamic-views/vw_Asset_Management?$filter=${filter}&$orderby=${encodeURIComponent('asset_Tag___Part_UPC asc')}`, token, 5000),
+    fetchAll(`/api/dynamic-views/vw_Assets_All?$filter=${filter}&$orderby=${encodeURIComponent('asset_Tag_Number asc')}`, token, 5000)
   ]);
 
   const query = search.toLowerCase();
@@ -1938,8 +1938,8 @@ async function previewTurnoutGearInspections(env, requestedInstant = null) {
   const filter = encodeURIComponent("asset_Class eq 'Turnout Gear'");
 
   const [managementRows, assetRows] = await Promise.all([
-    fetchAll(`/api/dynamic-views/vw_Asset_Management?$filter=${filter}`, token, 5000),
-    fetchAll(`/api/dynamic-views/vw_Assets_All?$filter=${filter}`, token, 5000)
+    fetchAll(`/api/dynamic-views/vw_Asset_Management?$filter=${filter}&$orderby=${encodeURIComponent('asset_Tag___Part_UPC asc')}`, token, 5000),
+    fetchAll(`/api/dynamic-views/vw_Assets_All?$filter=${filter}&$orderby=${encodeURIComponent('asset_Tag_Number asc')}`, token, 5000)
   ]);
 
   const normalizeKey = value => String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -2048,9 +2048,9 @@ async function previewTurnoutGear(env, requestedInstant = null) {
   // Core turnout data is required. Coat/Pant custom fields are optional
   // enrichment and must never be allowed to blank the turnout-gear dashboard.
   const [managementRows, assetRows, turnoutItemRows] = await Promise.all([
-    fetchAll(`/api/dynamic-views/vw_Asset_Management?$filter=${filter}`, token, 5000),
-    fetchAll(`/api/dynamic-views/vw_Assets_All?$filter=${filter}`, token, 5000),
-    fetchAll(`/api/items?$filter=${encodeURIComponent('categoryId eq 15')}`, token, 5000)
+    fetchAll(`/api/dynamic-views/vw_Asset_Management?$filter=${filter}&$orderby=${encodeURIComponent('asset_Tag___Part_UPC asc')}`, token, 5000),
+    fetchAll(`/api/dynamic-views/vw_Assets_All?$filter=${filter}&$orderby=${encodeURIComponent('asset_Tag_Number asc')}`, token, 5000),
+    fetchAll(`/api/items?$filter=${encodeURIComponent('categoryId eq 15')}&$orderby=${encodeURIComponent('id asc')}`, token, 5000)
   ]);
 
   const sizeWarnings = [];
@@ -2237,9 +2237,12 @@ async function previewTurnoutGear(env, requestedInstant = null) {
     catalogItemsResolvedForRows: 0,
     customSizesAppliedToRows: 0,
     sizeEnrichmentAvailable: Boolean(sizePropertyIds.length && extendedPropertyValues.length),
-    sizeWarnings
+    sizeWarnings,
+    deterministicDuplicateSelection: true,
+    stablePaginationOrder: true
   };
   const selected = new Map();
+  const selectedMeta = new Map();
   const assetTagSet = new Set();
 
   for (const asset of indexedAssetRows) {
@@ -2444,8 +2447,33 @@ async function previewTurnoutGear(env, requestedInstant = null) {
         )
       };
 
+      // A dynamic view can contain more than one row for the same asset tag.
+      // Never let API return order decide which row becomes authoritative. Prefer
+      // the row with the newest service/record timestamp, then the strongest
+      // physical-location signal, and finally a stable lexical tie-breaker.
+      const sourceTimestamp = value => {
+        const parsed = Date.parse(text(value));
+        return Number.isFinite(parsed) ? parsed : 0;
+      };
+      const candidateFreshness = Math.max(
+        sourceTimestamp(lastValue),
+        sourceTimestamp(nextValue) - 365 * 86400000,
+        sourceTimestamp(get(asset, 'last_Modification_Time', 'lastModificationTime', 'modified_Date', 'modifiedDate', 'updatedAt', 'last_Seen', 'lastSeen')),
+        sourceTimestamp(get(management, 'last_Modification_Time', 'lastModificationTime', 'modified_Date', 'modifiedDate', 'updatedAt'))
+      );
+      const candidateLocationRank = isRepairInspection ? 4 : isSupplyWarehouse ? 3 : isCrewLocation ? 2 : location ? 1 : 0;
+      const candidateTie = [location, crewMember, nextDate || '', lastDate || '', assetSerial, partDescription].join('|');
+      const existingMeta = selectedMeta.get(tag);
       if (selected.has(tag)) diagnostics.duplicateAssetTag++;
-      selected.set(tag, row);
+      if (
+        !existingMeta
+        || candidateFreshness > existingMeta.freshness
+        || (candidateFreshness === existingMeta.freshness && candidateLocationRank > existingMeta.locationRank)
+        || (candidateFreshness === existingMeta.freshness && candidateLocationRank === existingMeta.locationRank && candidateTie > existingMeta.tie)
+      ) {
+        selected.set(tag, row);
+        selectedMeta.set(tag, { freshness: candidateFreshness, locationRank: candidateLocationRank, tie: candidateTie });
+      }
     }
   }
 
