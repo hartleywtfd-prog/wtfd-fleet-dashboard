@@ -2412,9 +2412,16 @@ async function buildTurnoutGearPreviewLive(env, requestedInstant = null) {
           ? Boolean(customPantSize)
           : false;
 
+      const normalizedPhysicalLocation = isRepairInspection
+        ? 'Phoenix Gear Repair Supply Room'
+        : location;
+      const normalizedIssuedTo = isRepairInspection
+        ? 'Phoenix Gear Repair Supply Room'
+        : issuedTo;
+
       const row = {
-        issuedTo,
-        currentLocation: location,
+        issuedTo: normalizedIssuedTo,
+        currentLocation: normalizedPhysicalLocation,
         locationType: isRepairInspection
           ? 'Out for Repair / Inspection'
           : isSupplyWarehouse
