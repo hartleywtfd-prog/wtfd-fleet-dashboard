@@ -5,7 +5,9 @@
  * Rules are checked from top to bottom against the Active911 description.
  */
 window.WTFD_DASHBOARD_CONFIG = {
-  version: '5.3.2',
+  version: '5.3.3',
+  hiddenOperationalUnits: ['Chief 42'],
+  unitOverrides: { F104: 'Admin 41', F109: 'Chief 41' },
   alertSoundEnabled: true,
   alertSoundUrl: 'sounds/dispatch-chime.wav',
   alertSoundVolume: 1.0,
@@ -68,8 +70,7 @@ window.WTFD_DASHBOARD_CONFIG = {
   },
   crewSensePersonnelAssignments: {
     'Chief 40': ['Nick Bergman'],
-    'Chief 41': ['Troy Bonfield'],
-    'Chief 42': ['Jason Hartley'],
+    'Chief 41': ['Jason Hartley'],
     'Marshal 40': ['Bill Sutter'],
     'Prevention 41': ['Josh Doolin', 'Joshua Doolin'],
     'Prevention 42': ['Melissa Holland'],
@@ -84,10 +85,10 @@ window.WTFD_DASHBOARD_CONFIG = {
   // apparatus label. Alternates document expected temporary assignments.
   unitAssignments: {
     F103: { primary: 'Battalion 40', alternates: ['Training 40', 'Safety 40'] },
-    F104: { primary: 'Chief 41', alternates: [] },
+    F104: { primary: 'Admin 41', alternates: [] },
     F107: { primary: 'Prevention 42', alternates: [] },
     F108: { primary: 'Engine 45', alternates: ['Engine 41', 'Engine 42', 'Engine 43', 'Engine 44', 'Engine 143', 'Engine 243', 'Engine 142'] },
-    F109: { primary: 'Chief 42', alternates: [] },
+    F109: { primary: 'Chief 41', alternates: [] },
     F111: { primary: 'Utility 41', alternates: ['Safety 40', 'Training 40', 'Battalion 40'] },
     F112: { primary: 'Training 40', alternates: ['Battalion 40', 'Safety 40'] },
     F115: { primary: 'Engine 44', alternates: ['Engine 41', 'Engine 42', 'Engine 43', 'Engine 45', 'Engine 143', 'Engine 243', 'Engine 142'] },

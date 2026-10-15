@@ -1,0 +1,1 @@
+Desktop Chief 41 transition: F104 Admin 41 (A41); F109 Chief 41 (C41); Jason Hartley Chief 41; Chief 42 hidden; F104 residence suppression removed; browser cache versions 5.3.3. Do not apply seed.sql to production D1.

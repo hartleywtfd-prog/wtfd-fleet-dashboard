@@ -658,6 +658,8 @@ function normalizePrivateLocation(value) {
 }
 
 function isPrivateChiefResidence(v) {
+  // F104 Admin 41 no longer uses chief-residence hiding.
+  if (String(v?.apparatusNumber || '').trim().toUpperCase() === 'F104') return false;
   // Depending on the Samsara sync response, a recognized place can arrive in
   // either Facility or Location. Treat every protected chief-residence place
   // as private regardless of which field contains it. This also prevents a
@@ -817,6 +819,15 @@ function applyFacilityAssignments(locations) {
       applyCurrentUnitOverride(vehicle)
     )
   );
+}
+
+function isHiddenOperationalUnit(v) {
+  const unit = String(v?.unit || v?.displayName || '').trim().toLowerCase().replace(/\s+/g, ' ');
+  return (DASHBOARD_CONFIG.hiddenOperationalUnits || []).some(name => String(name).trim().toLowerCase().replace(/\s+/g, ' ') === unit);
+}
+
+function filterOperationalDisplayUnits(locations) {
+  return (locations || []).filter(v => !isHiddenOperationalUnit(v));
 }
 
 function shouldShowMapMarker(v) {
@@ -1184,6 +1195,7 @@ function shortLabel(v) {
   if (/^(ladder|truck)\b/.test(normalizedUnit)) return 'L' + number;
   if (/^battalion\b/.test(normalizedUnit)) return 'B' + number;
   if (/^chief\b/.test(normalizedUnit)) return 'C' + number;
+  if (/^admin(?:istration)?\b/.test(normalizedUnit)) return 'A' + number;
   if (/^training\b/.test(normalizedUnit)) return 'T' + number;
   if (/^safety\b/.test(normalizedUnit)) return 'S' + number;
   if (/^utility\b/.test(normalizedUnit)) return 'U' + number;
@@ -2633,7 +2645,7 @@ async function loadDashboard() {
     const data = await apiRequest('dashboard');
     const settings = data.settings || {};
     lastDashboardSettings = settings;
-    allLocations = applyFacilityAssignments(data.locations || []);
+    allLocations = filterOperationalDisplayUnits(applyFacilityAssignments(data.locations || []));
 
     if (!map) initMap(settings);
     renderDashboard(allLocations);
@@ -2652,7 +2664,7 @@ async function loadDashboard() {
     if ((!allLocations || !allLocations.length) && cached) {
       const data = cached.data;
       lastDashboardSettings = data.settings || {};
-      allLocations = applyFacilityAssignments(data.locations || []);
+      allLocations = filterOperationalDisplayUnits(applyFacilityAssignments(data.locations || []));
       if (!map) initMap(lastDashboardSettings);
       renderDashboard(allLocations);
     }
