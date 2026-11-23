@@ -5,7 +5,7 @@
  * Rules are checked from top to bottom against the Active911 description.
  */
 window.WTFD_DASHBOARD_CONFIG = {
-  version: '5.3.3',
+  version: '5.3.4',
   hiddenOperationalUnits: ['Chief 42'],
   unitOverrides: { F104: 'Car 45', F109: 'Chief 41' },
   alertSoundEnabled: true,
