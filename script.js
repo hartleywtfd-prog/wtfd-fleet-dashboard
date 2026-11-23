@@ -1196,6 +1196,7 @@ function shortLabel(v) {
   if (/^battalion\b/.test(normalizedUnit)) return 'B' + number;
   if (/^chief\b/.test(normalizedUnit)) return 'C' + number;
   if (/^admin(?:istration)?\b/.test(normalizedUnit)) return 'A' + number;
+  if (/^car\b/.test(normalizedUnit)) return 'C' + number;
   if (/^training\b/.test(normalizedUnit)) return 'T' + number;
   if (/^safety\b/.test(normalizedUnit)) return 'S' + number;
   if (/^utility\b/.test(normalizedUnit)) return 'U' + number;
