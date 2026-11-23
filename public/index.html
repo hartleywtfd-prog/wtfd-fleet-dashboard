@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+
+  <title>WTFD Fleet Dashboard</title>
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1"
+  >
+
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  >
+
+  <link
+    rel="stylesheet"
+    href="styles.css?v=5.2.0"
+  >
+</head>
+
+<body>
+  <div id="app">
+    <aside id="sidebar">
+      <div class="brand">
+        <div class="logo">
+          <img
+            src="logo.png"
+            alt="Washington Township Fire Department Logo"
+          >
+        </div>
+
+        <div>
+          <div class="title">
+            Washington Township
+          </div>
+
+          <div class="subtitle">
+            Fire Department
+          </div>
+
+          <div id="connectionStatus" class="connected connection-online">
+            ● Samsara Fleet Dashboard
+          </div>
+
+          <div class="kiosk-brand-line" aria-hidden="true">
+            <span>Command Display</span>
+            <strong id="kioskConnectionState">● CONNECTED</strong>
+          </div>
+        </div>
+      </div>
+
+      <div class="clockPanel">
+        <div id="clock"></div>
+        <div id="clockDate"></div>
+
+        <div id="lastRefresh">
+          Loading...
+        </div>
+      </div>
+
+      <div class="summary">
+        <div class="card">
+          Units
+          <span id="apparatusCount">0</span>
+        </div>
+
+        <div class="card respondingCard">
+          Responding
+          <span id="respondingCount">0</span>
+        </div>
+
+        <div class="card">
+          Available
+          <span id="availableCount">0</span>
+        </div>
+
+        <div class="card">
+          Away
+          <span id="awayCount">0</span>
+        </div>
+
+        <div class="card gpsIssueCard">
+          GPS Issues
+          <span id="gpsIssueCount">0</span>
+        </div>
+      </div>
+
+      <section
+        id="commandStatusPanel"
+        class="command-panel"
+      >
+        <div class="command-title">
+          Command Status
+        </div>
+
+        <div class="command-grid">
+          <div class="command-item response">
+            Responding
+            <strong id="commandResponding">0</strong>
+          </div>
+
+          <div class="command-item">
+            Engines
+            <strong id="commandEngines">0</strong>
+          </div>
+
+          <div class="command-item">
+            Medics
+            <strong id="commandMedics">0</strong>
+          </div>
+
+          <div class="command-item">
+            Command
+            <strong id="commandCommand">0</strong>
+          </div>
+
+          <div class="command-item">
+            Prevention
+            <strong id="commandPrevention">0</strong>
+          </div>
+
+          <div class="command-item">
+            Available
+            <strong id="commandAvailable">0</strong>
+          </div>
+
+          <div class="command-item">
+            Away
+            <strong id="commandAway">0</strong>
+          </div>
+
+          <div class="command-item warning">
+            GPS Issues
+            <strong id="commandGpsIssues">0</strong>
+          </div>
+        </div>
+      </section>
+
+      <div class="gpsLine">
+        <div class="gpsPill good">
+          GPS
+          <span id="gpsCount">0</span>
+        </div>
+
+        <div class="gpsPill warn">
+          No GPS
+          <span id="noGpsCount">0</span>
+        </div>
+
+        <div class="gpsPill bad">
+          Stale
+          <span id="staleCount">0</span>
+        </div>
+      </div>
+
+      <div class="controls">
+        <input
+          id="search"
+          type="search"
+          placeholder="Search units..."
+          autocomplete="off"
+        >
+
+        <button
+          id="forceSync"
+          type="button"
+        >
+          Refresh Data
+        </button>
+
+        <a
+          id="fleetHealthLink"
+          href="https://wtfd-fleet-health.pages.dev/"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Fleet Health
+        </a>
+
+        <a
+          id="operationalReadinessLink"
+          class="readiness-link"
+          href="#"
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-disabled="true"
+          title="Add the Operational Readiness web app URL in dashboard-config.js"
+        >
+          Operational Readiness
+        </a>
+
+        <a
+          id="incidentCommandLink"
+          class="readiness-link"
+          href="/command.html"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Incident Command
+        </a>
+      </div>
+
+      <div id="apparatusList"></div>
+
+      <div id="kioskStatusBoard" class="kiosk-status-board" aria-live="polite">
+        <section class="kiosk-board-section kiosk-responding-section">
+          <div class="kiosk-section-title">Responding</div>
+          <div id="kioskRespondingList" class="kiosk-board-list"></div>
+        </section>
+
+        <section class="kiosk-board-section">
+          <div class="kiosk-section-title">Stations</div>
+          <div id="kioskStationList" class="kiosk-station-grid"></div>
+        </section>
+
+        <section class="kiosk-board-section">
+          <div class="kiosk-section-title">Units Away</div>
+          <div id="kioskAwayList" class="kiosk-board-list"></div>
+        </section>
+
+        <section class="kiosk-board-section kiosk-health-section">
+          <div class="kiosk-section-title">System Health</div>
+          <div id="kioskHealth" class="kiosk-health-grid"></div>
+        </section>
+      </div>
+
+      <div class="dashboard-version" aria-label="Dashboard version">
+        WTFD Fleet Dashboard <span id="dashboardVersion">v5.2.0</span>
+      </div>
+    </aside>
+
+    <main
+      id="map"
+      aria-label="Fleet map"
+    >
+      <div id="kioskOperationStrip" class="kiosk-operation-strip" aria-live="polite">
+        <span id="kioskOperationState">NORMAL OPERATIONS</span>
+        <strong id="kioskIncidentSummary"></strong>
+      </div>
+
+      <div class="map-controls">
+        <button
+          class="map-mode-button active"
+          data-layer="street"
+          type="button"
+        >
+          Street Map
+        </button>
+
+        <button
+          class="map-mode-button"
+          data-layer="satellite"
+          type="button"
+        >
+          Satellite
+        </button>
+      </div>
+
+      <div class="map-legend">
+        <div class="legend-title">
+          Map Legend
+        </div>
+
+        <div class="legend-section">Apparatus color</div>
+
+        <div class="legend-row">
+          <span class="legend-dot engine"></span>
+          Engine
+        </div>
+
+        <div class="legend-row">
+          <span class="legend-dot medic"></span>
+          Medic
+        </div>
+
+        <div class="legend-row">
+          <span class="legend-dot ladder"></span>
+          Ladder
+        </div>
+
+        <div class="legend-row">
+          <span class="legend-dot prevention"></span>
+          Prevention
+        </div>
+
+        <div class="legend-row">
+          <span class="legend-dot command"></span>
+          Command / Support
+        </div>
+
+        <div class="legend-section operational">Operational indicator</div>
+
+        <div class="legend-row">
+          <span class="legend-ring responding"></span>
+          Responding — red halo
+        </div>
+
+        <div class="legend-row">
+          <span class="legend-ring moving"></span>
+          Moving — blue outline
+        </div>
+
+        <div class="legend-row">
+          <span class="legend-ring away"></span>
+          Away — amber outline
+        </div>
+
+        <div class="legend-row">
+          <span class="legend-ring nogps"></span>
+          No GPS / Offline — gray
+        </div>
+
+        <div class="legend-row">
+          <span class="legend-ring stale"></span>
+          Stale GPS — dashed red
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <section id="incidentBanner" class="incident-banner" aria-live="polite" hidden>
+    <div class="incident-banner-label"><span>ACTIVE911</span><strong>RECENT INCIDENTS</strong></div>
+    <div id="incidentBannerTrack" class="incident-banner-track"></div>
+  </section>
+
+  <div id="reconnectOverlay" class="reconnect-overlay" hidden>
+    <div class="reconnect-panel">
+      <div class="reconnect-spinner"></div>
+      <strong>CONNECTION LOST</strong>
+      <span id="reconnectDetail">Attempting to reconnect…</span>
+      <span id="reconnectCountdown">Retrying automatically…</span>
+    </div>
+  </div>
+
+  <div id="connectionWarning" class="connection-warning" hidden></div>
+
+  <div id="connectionRestoredToast" class="connection-restored-toast" role="status" hidden>
+    ✓ Connection restored
+  </div>
+
+  <div
+    id="active911Overlay"
+    class="active911-overlay"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="active911Description"
+    hidden
+  >
+    <div class="active911-panel">
+      <div class="active911-banner">
+        <span class="active911-light"></span>
+        ACTIVE911 ALERT
+        <span class="active911-light"></span>
+      </div>
+
+      <div id="active911Description" class="active911-description">
+        Emergency Call
+      </div>
+
+      <div id="active911Place" class="active911-place" hidden></div>
+
+      <div class="active911-address-block">
+        <div id="active911Address" class="active911-address"></div>
+        <div id="active911City" class="active911-city"></div>
+        <div id="active911CrossStreet" class="active911-cross-street" hidden></div>
+      </div>
+
+      <div class="active911-grid">
+        <div id="active911UnitsCard" class="active911-info-card" hidden>
+          <div class="active911-label">Dispatched Units</div>
+          <div id="active911Units" class="active911-value"></div>
+        </div>
+
+        <div id="active911DetailsCard" class="active911-info-card" hidden>
+          <div class="active911-label">Details</div>
+          <div id="active911Details" class="active911-value"></div>
+        </div>
+      </div>
+
+      <div class="active911-footer">
+        <div id="active911Received"></div>
+        <button id="active911Dismiss" type="button">Dismiss</button>
+      </div>
+    </div>
+  </div>
+
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+  ></script>
+
+  <script src="dashboard-config.js?v=5.3.4"></script>
+  <script src="script.js?v=5.3.5-car45"></script>
+</body>
+</html>

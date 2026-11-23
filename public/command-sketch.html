@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#09111f">
+  <title>WTFD Tactical Sketch</title>
+  <link rel="stylesheet" href="command-sketch.css?v=0.3.0">
+</head>
+<body>
+  <div class="sketch-app">
+    <header class="sketch-header">
+      <a href="/command.html" class="sketch-brand">
+        <img src="logo.png" alt="">
+        <span><strong>WTFD Tactical Sketch</strong><small id="incidentSummary">Incident-linked drawing board</small></span>
+      </a>
+      <div class="header-actions">
+        <span id="saveStatus">Ready</span>
+        <button id="exportSketch" class="secondary" type="button">Export PNG</button>
+        <button id="closeSketch" class="primary" type="button">Return to Command</button>
+      </div>
+    </header>
+
+    <main class="sketch-workspace">
+      <aside class="tool-panel" aria-label="Sketch tools">
+        <div class="tool-group">
+          <span class="tool-label">DRAW</span>
+          <button class="tool active" data-tool="pencil" type="button">✎ Freehand</button>
+          <button class="tool" data-tool="line" type="button">╱ Line</button>
+          <button class="tool" data-tool="rectangle" type="button">▭ Building</button>
+          <button class="tool" data-tool="text" type="button">T Label</button>
+          <button class="tool" data-tool="eraser" type="button">⌫ Eraser</button>
+        </div>
+
+        <div class="tool-group">
+          <span class="tool-label">COLOR</span>
+          <div class="color-row">
+            <button class="color active" data-color="#f7f9fc" style="--swatch:#f7f9fc" aria-label="White" type="button"></button>
+            <button class="color" data-color="#ef3340" style="--swatch:#ef3340" aria-label="Red" type="button"></button>
+            <button class="color" data-color="#f5a623" style="--swatch:#f5a623" aria-label="Amber" type="button"></button>
+            <button class="color" data-color="#51a8ff" style="--swatch:#51a8ff" aria-label="Blue" type="button"></button>
+            <button class="color" data-color="#35c57a" style="--swatch:#35c57a" aria-label="Green" type="button"></button>
+          </div>
+          <label>Line width<input id="lineWidth" type="range" min="2" max="16" value="5"></label>
+        </div>
+
+        <div class="tool-group">
+          <span class="tool-label">TEMPLATES</span>
+          <button id="residentialTemplate" class="secondary" type="button">Residential Box</button>
+          <button id="commercialTemplate" class="secondary" type="button">Commercial Box</button>
+        </div>
+
+        <div class="tool-group compact-actions">
+          <button id="undoSketch" class="secondary" type="button">Undo</button>
+          <button id="redoSketch" class="secondary" type="button">Redo</button>
+          <button id="clearSketch" class="danger" type="button">Clear</button>
+        </div>
+      </aside>
+
+      <section class="canvas-panel">
+        <div class="orientation-bar"><span>SIDE A</span><span>TACTICAL BUILDING SKETCH</span></div>
+        <div id="canvasWrap" class="canvas-wrap">
+          <canvas id="sketchCanvas" aria-label="Incident tactical sketch canvas"></canvas>
+        </div>
+        <div class="canvas-footer"><span>SIDE D</span><span>REAR — SIDE C</span><span>SIDE B</span></div>
+      </section>
+    </main>
+  </div>
+  <script src="command-sketch.js?v=0.3.0"></script>
+</body>
+</html>

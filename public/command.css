@@ -1,0 +1,670 @@
+:root {
+  color-scheme: dark;
+  --bg: #070c14;
+  --panel: #101927;
+  --panel-2: #172234;
+  --line: #2b3b51;
+  --muted: #91a0b5;
+  --text: #f7f9fc;
+  --red: #ef3340;
+  --red-dark: #a7111c;
+  --amber: #f5a623;
+  --green: #35c57a;
+  --blue: #51a8ff;
+  --shadow: 0 16px 45px rgba(0, 0, 0, .32);
+}
+
+* { box-sizing: border-box; }
+
+/* Author display rules must never override application visibility state. */
+[hidden] { display: none !important; }
+
+html, body { min-height: 100%; }
+
+body {
+  margin: 0;
+  background: radial-gradient(circle at 30% -10%, #172843 0, var(--bg) 38rem);
+  color: var(--text);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+button, input, select { font: inherit; }
+button { touch-action: manipulation; }
+
+.command-app { min-height: 100vh; }
+
+.command-header {
+  min-height: 76px;
+  padding: 10px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  background: rgba(8, 15, 26, .96);
+  border-bottom: 1px solid var(--line);
+  position: sticky;
+  top: 0;
+  z-index: 30;
+}
+
+.command-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--text);
+  text-decoration: none;
+}
+
+.command-brand img { width: 54px; height: 54px; object-fit: contain; }
+.command-brand strong { display: block; font-size: 1.15rem; letter-spacing: .05em; text-transform: uppercase; }
+.command-brand small { color: var(--muted); }
+
+.header-status { display: flex; align-items: center; gap: 14px; }
+.header-status time { min-width: 90px; font-size: 1.1rem; font-variant-numeric: tabular-nums; text-align: right; }
+.feed-status { font-size: .78rem; font-weight: 800; letter-spacing: .08em; }
+.feed-status.online { color: var(--green); }
+.feed-status.connecting { color: var(--amber); }
+.feed-status.offline { color: var(--red); }
+
+button {
+  min-height: 42px;
+  padding: 9px 14px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  color: var(--text);
+  font-weight: 750;
+  cursor: pointer;
+}
+
+button:disabled { opacity: .42; cursor: not-allowed; }
+.primary-button { background: var(--red); }
+.primary-button:hover { background: #ff4652; }
+.secondary-button { background: #1c2a3d; border-color: #354a65; }
+.secondary-button:hover { background: #263a54; }
+.warning-button { background: var(--amber); color: #241600; }
+.danger-button { background: #4a1117; border-color: #8e2831; }
+.danger-button:hover { background: #651820; }
+.danger-text { color: #ff6c76 !important; }
+.icon-button { width: 44px; min-width: 44px; padding: 0; font-size: 1.7rem; background: transparent; color: var(--muted); }
+
+.dispatch-banner {
+  padding: 12px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 18px;
+  background: linear-gradient(90deg, #72400b, #9d6213);
+  border-bottom: 1px solid #d79b42;
+  position: sticky;
+  top: 76px;
+  z-index: 25;
+}
+
+.dispatch-banner > div:first-child { display: flex; flex-direction: column; }
+.dispatch-banner span { color: #fff1d5; }
+.button-row { display: flex; gap: 8px; }
+
+main { padding: 18px; }
+.empty-state { min-height: calc(100vh - 112px); display: grid; place-items: center; }
+.empty-card { width: min(720px, 100%); padding: 48px; text-align: center; background: rgba(16, 25, 39, .92); border: 1px solid var(--line); border-radius: 20px; box-shadow: var(--shadow); }
+.empty-card h1 { margin: 10px 0; font-size: clamp(2rem, 5vw, 3.5rem); }
+.empty-card p { color: var(--muted); font-size: 1.1rem; }
+.empty-actions { margin-top: 28px; display: flex; justify-content: center; gap: 12px; flex-wrap: wrap; }
+
+.eyebrow { color: var(--muted); font-size: .72rem; font-weight: 850; letter-spacing: .13em; text-transform: uppercase; }
+.incident-workspace { display: grid; gap: 14px; }
+.incident-heading { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 16px 18px; background: linear-gradient(100deg, #171f2e, #101925); border: 1px solid var(--line); border-left: 6px solid var(--red); border-radius: 12px; }
+.incident-lock { margin-bottom: 6px; color: #ff8189; font-size: .7rem; font-weight: 850; letter-spacing: .11em; }
+.incident-lock span { display: inline-block; width: 8px; height: 8px; margin-right: 5px; background: var(--red); border-radius: 50%; box-shadow: 0 0 12px var(--red); }
+.incident-heading h1 { margin: 0; font-size: clamp(1.55rem, 3vw, 2.55rem); line-height: 1.05; text-transform: uppercase; }
+.incident-location { margin-top: 5px; color: #d8e1ed; font-size: 1.05rem; }
+.incident-meta { margin-top: 7px; display: flex; gap: 15px; flex-wrap: wrap; color: var(--muted); font-size: .88rem; }
+.incident-meta strong { color: var(--amber); font-variant-numeric: tabular-nums; }
+.incident-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+
+.mode-bar { padding: 10px 14px; display: flex; align-items: center; gap: 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; }
+.mode-bar > span { color: var(--muted); font-weight: 800; text-transform: uppercase; letter-spacing: .1em; font-size: .72rem; }
+.mode-buttons { display: flex; gap: 7px; flex-wrap: wrap; }
+.mode-buttons button { min-height: 38px; padding: 7px 12px; background: #172338; border-color: #344861; color: #bfcbd9; }
+.mode-buttons button.active { background: var(--red-dark); border-color: #ff515c; color: white; box-shadow: 0 0 0 2px rgba(239, 51, 64, .15); }
+
+.command-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 350px); gap: 14px; align-items: start; }
+.assignment-column, .resource-panel { padding: 15px; background: rgba(16, 25, 39, .94); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 10px 30px rgba(0, 0, 0, .16); }
+.resource-column { display: grid; gap: 14px; }
+.section-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.section-heading h2 { margin: 2px 0 0; font-size: 1.25rem; }
+.section-heading.compact h2 { font-size: 1.05rem; }
+.touch-hint { margin: 7px 0 12px; color: var(--muted); font-size: .8rem; }
+.panel-tools { display: flex; align-items: center; justify-content: flex-end; gap: 7px; flex-wrap: wrap; }
+.pager { display: grid; grid-template-columns: 38px minmax(62px, auto) 38px; align-items: center; gap: 5px; }
+.pager button { min-width: 38px; min-height: 38px; padding: 0; font-size: 1.5rem; line-height: 1; }
+.pager-label { color: #dce7f4; font-size: .7rem; letter-spacing: .06em; text-align: center; white-space: nowrap; }
+.full-width-pager { width: 100%; margin-top: 7px; grid-template-columns: 42px minmax(80px, 1fr) 42px; }
+.assignment-board { display: grid; grid-template-columns: repeat(3, minmax(180px, 1fr)); gap: 10px; }
+
+.assignment-card { min-height: 142px; display: flex; flex-direction: column; background: #111c2b; border: 1px solid #31425a; border-radius: 11px; overflow: hidden; }
+.assignment-card.drag-over, .apparatus-bank.drag-over { border-color: var(--amber); box-shadow: inset 0 0 0 2px rgba(245, 166, 35, .25); }
+.assignment-card.selected-target { border-color: var(--blue); box-shadow: inset 0 0 0 2px rgba(81, 168, 255, .25); }
+.assignment-card header { padding: 9px 10px; display: flex; justify-content: space-between; align-items: center; gap: 8px; background: #1a2739; border-bottom: 1px solid #31425a; cursor: pointer; }
+.assignment-card h3 { margin: 0; font-size: .9rem; letter-spacing: .04em; text-transform: uppercase; }
+.assignment-card header button { min-height: 28px; width: 28px; padding: 0; background: transparent; color: var(--muted); }
+.assignment-card header button[data-remove-position], .assignment-card header button[data-remove-assignment] { min-width: 34px; min-height: 34px; color: #ff8a92; font-size: 1.25rem; }
+.assignment-card header button[data-remove-position]:hover, .assignment-card header button[data-remove-assignment]:hover { background: #4a1117; color: white; }
+.assignment-units { min-height: 96px; padding: 9px; display: flex; align-content: flex-start; gap: 7px; flex-wrap: wrap; flex: 1; }
+
+.apparatus-bank { min-height: 98px; margin-top: 12px; padding: 9px; display: flex; align-content: flex-start; flex-wrap: wrap; gap: 8px; background: #0d1623; border: 1px dashed #415570; border-radius: 10px; }
+.apparatus-bank:empty::after, .assignment-units:empty::after { content: "No units assigned"; color: #65758a; font-size: .78rem; margin: auto; }
+.unit-chip { min-height: 42px; padding: 9px 12px; display: inline-flex; align-items: center; justify-content: center; background: #243b58; border: 1px solid #4e6d93; border-radius: 8px; color: #fff; font-size: .9rem; font-weight: 900; letter-spacing: .035em; user-select: none; cursor: grab; }
+.unit-chip.fire { background: #542027; border-color: #a84750; }
+.unit-chip.medic { background: #183f59; border-color: #3b82a8; }
+.unit-chip.command { background: #4a3512; border-color: #9f762a; }
+.unit-chip.selected { outline: 3px solid var(--blue); outline-offset: 2px; }
+
+.count-badge { min-width: 30px; padding: 4px 8px; text-align: center; background: #263951; border-radius: 999px; font-weight: 800; }
+.inline-form { margin-top: 10px; display: grid; grid-template-columns: 1fr auto; gap: 7px; }
+input, select { width: 100%; min-height: 42px; padding: 9px 11px; background: #0b1420; border: 1px solid #344861; border-radius: 8px; color: var(--text); }
+input:focus, select:focus { outline: 2px solid var(--blue); outline-offset: 1px; }
+label { display: grid; gap: 5px; color: #bdc9d7; font-size: .78rem; font-weight: 750; }
+.status-panel { display: grid; gap: 10px; }
+.profile-grid { display: grid; grid-template-columns: 1fr 1.3fr; gap: 9px; }
+.preplan-links { display: grid; gap: 6px; }
+.preplan-links a { padding: 9px 11px; color: #9fd0ff; background: #10233a; border: 1px solid #244a74; border-radius: 8px; text-decoration: none; font-size: .82rem; font-weight: 750; overflow-wrap: anywhere; }
+.preplan-links:empty::after { content: "Preplan links found in Active911 will appear here."; color: #65758a; font-size: .75rem; }
+.command-log { max-height: 290px; margin: 10px 0 0; padding: 0; overflow: auto; list-style: none; }
+.command-log li { padding: 8px 3px; display: grid; grid-template-columns: 62px 1fr; gap: 8px; border-bottom: 1px solid #25344a; font-size: .78rem; }
+.command-log time { color: var(--amber); font-variant-numeric: tabular-nums; }
+.command-log span { color: #d6dfeb; }
+
+dialog { width: min(620px, calc(100% - 24px)); padding: 0; background: var(--panel); color: var(--text); border: 1px solid #4a607c; border-radius: 14px; box-shadow: var(--shadow); }
+dialog::backdrop { background: rgba(0, 0, 0, .76); backdrop-filter: blur(3px); }
+.dialog-form { padding: 20px; display: grid; gap: 14px; }
+.dialog-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.dialog-heading h2 { margin: 2px 0 0; }
+.dialog-actions { display: flex; justify-content: flex-end; gap: 9px; }
+.details-dialog dl { margin: 0; display: grid; grid-template-columns: 120px 1fr; gap: 9px 12px; }
+.details-dialog dt { color: var(--muted); font-size: .78rem; font-weight: 800; text-transform: uppercase; }
+.details-dialog dd { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.dialog-note { padding: 10px; color: #ffdfaa; background: #382609; border-radius: 8px; }
+
+/* Policy-driven command board, Phase Two */
+.light-button { min-height: 34px; padding: 6px 10px; background: rgba(255, 255, 255, .1); border-color: rgba(255, 255, 255, .28); }
+.mayday-banner { padding: 11px 20px; display: flex; justify-content: space-between; align-items: center; gap: 15px; background: #8d0712; border-bottom: 2px solid #ff6570; position: sticky; top: 76px; z-index: 29; }
+.mayday-banner strong { letter-spacing: .08em; }
+.mayday-pulse { width: 12px; height: 12px; flex: 0 0 auto; background: white; border-radius: 50%; box-shadow: 0 0 0 7px rgba(255,255,255,.18); animation: maydayPulse 1.2s infinite; }
+@keyframes maydayPulse { 50% { transform: scale(.72); opacity: .55; } }
+
+.policy-suggestion { padding: 12px 14px; display: flex; align-items: center; justify-content: space-between; gap: 15px; background: #17283d; border: 1px solid #42658b; border-left: 5px solid var(--blue); border-radius: 11px; }
+.policy-suggestion > div:first-child { display: grid; gap: 3px; }
+.policy-suggestion small { color: #b5c5d9; }
+
+.incident-control-grid { display: grid; grid-template-columns: minmax(250px, 1.35fr) repeat(2, minmax(230px, 1fr)); gap: 10px; }
+.control-card { padding: 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 11px; }
+.control-card label, .control-card > .eyebrow { margin-bottom: 8px; }
+.segmented-buttons { display: flex; gap: 6px; flex-wrap: wrap; }
+.segmented-buttons button { min-height: 38px; flex: 1 1 auto; padding: 7px 10px; background: #172338; border-color: #344861; color: #bfcbd9; }
+.segmented-buttons button.active { background: var(--red-dark); border-color: #ff515c; color: white; box-shadow: 0 0 0 2px rgba(239, 51, 64, .15); }
+
+.safety-console { padding: 13px 14px; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; background: #111b29; border: 1px solid #3b4f69; border-radius: 12px; }
+.safety-status-grid { display: grid; grid-template-columns: repeat(4, minmax(140px, 1fr)); gap: 8px; }
+.safety-status { min-height: 60px; padding: 8px 10px; display: grid; align-content: center; gap: 3px; background: #172438; border: 1px solid #344b68; border-radius: 8px; }
+.safety-status span { color: var(--muted); font-size: .68rem; font-weight: 850; letter-spacing: .08em; text-transform: uppercase; }
+.safety-status strong { font-size: .84rem; }
+.safety-status.good { border-color: #277c50; background: #102d22; }
+.safety-status.warning { border-color: #a9771f; background: #35270d; }
+.safety-status.danger { border-color: #b52c37; background: #41131a; }
+.safety-actions { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; justify-content: flex-end; }
+.safety-actions button { min-height: 38px; padding: 7px 10px; }
+.mayday-button { min-width: 112px; background: #d60718; border: 2px solid #ff6974; letter-spacing: .08em; box-shadow: 0 0 18px rgba(239, 51, 64, .22); }
+
+.board-section { padding: 15px; background: rgba(16, 25, 39, .94); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 10px 30px rgba(0, 0, 0, .16); }
+.assignment-column { padding: 0; display: grid; gap: 14px; background: transparent; border: 0; border-radius: 0; box-shadow: none; }
+.position-board { display: grid; grid-template-columns: repeat(3, minmax(190px, 1fr)); gap: 10px; }
+.position-card { border-left: 4px solid var(--blue); }
+.position-card header { cursor: default; }
+.policy-tag { display: block; margin-top: 3px; color: #93a8c2; font-size: .64rem; font-weight: 800; letter-spacing: .045em; text-transform: uppercase; }
+.policy-tag.required { color: #ff858d; }
+.policy-tag.conditional { color: #ffc966; }
+.policy-tag.advisory { color: #8fcaff; }
+.policy-tag.optional { color: #a6b3c3; }
+.policy-tag.derived { color: #9bd9b6; }
+
+.benchmark-panel { border-top: 4px solid var(--amber); }
+.benchmark-counts { display: flex; align-items: center; gap: 6px; }
+.benchmark-counts > strong { color: #ffb6bb; font-size: .67rem; letter-spacing: .055em; }
+.benchmark-warning { margin: 7px 0 0; padding: 6px 8px; color: #ffd7da; background: #43131a; border: 1px solid #912a34; border-radius: 7px; font-size: .7rem; font-weight: 800; }
+.benchmark-list { margin-top: 10px; display: grid; gap: 7px; }
+.benchmark-item { width: 100%; min-height: 54px; padding: 8px; display: grid; grid-template-columns: 28px 1fr; gap: 8px; align-items: start; text-align: left; background: #111c2b; border-color: #344861; }
+.benchmark-item.complete { opacity: .72; background: #10291e; border-color: #2b6e4a; }
+.benchmark-check { width: 25px; height: 25px; display: grid; place-items: center; border: 2px solid #67809e; border-radius: 6px; color: white; }
+.benchmark-item.complete .benchmark-check { background: var(--green); border-color: var(--green); color: #052413; }
+.benchmark-item.not-applicable { opacity: .78; background: #2d2918; border-color: #75652e; }
+.benchmark-item.not-applicable .benchmark-check { border-color: var(--amber); color: var(--amber); font-size: .58rem; }
+.benchmark-copy { display: grid; gap: 2px; }
+.benchmark-copy strong { font-size: .8rem; }
+.benchmark-copy small { color: var(--muted); font-size: .66rem; }
+.benchmark-copy em { color: #85d6a9; font-size: .66rem; font-style: normal; }
+
+.checklist { display: grid; gap: 9px; }
+.checklist label { padding: 9px 10px; display: grid; grid-template-columns: 22px 1fr; align-items: start; background: #111c2b; border: 1px solid #30445d; border-radius: 8px; }
+.checklist input[type="checkbox"] { width: 18px; min-height: 18px; margin: 1px 0 0; }
+.danger-note { color: #ffd4d7; background: #43131a; border: 1px solid #922b35; }
+.benchmark-actions { flex-wrap: wrap; }
+
+.crew-roster-list { max-height: min(56vh, 520px); display: grid; gap: 8px; overflow: auto; }
+.crew-roster-unit { background: #0d1724; border: 1px solid #344861; border-radius: 9px; overflow: hidden; }
+.crew-roster-unit header { padding: 8px 10px; display: flex; justify-content: space-between; gap: 10px; background: #1a2739; }
+.crew-roster-unit header span { color: var(--muted); font-size: .75rem; }
+.crew-roster-unit ul { margin: 0; padding: 7px 10px; list-style: none; }
+.crew-roster-unit li { padding: 5px 0; display: flex; justify-content: space-between; gap: 10px; border-bottom: 1px solid #26364a; }
+.crew-roster-unit li:last-child { border-bottom: 0; }
+.crew-roster-unit li small { color: #91a9c5; }
+.crew-roster-unit p { margin: 0; padding: 10px; color: #ffb3b9; font-size: .78rem; }
+
+@media (max-width: 1100px) {
+  .command-layout { grid-template-columns: 1fr; }
+  .resource-column { grid-template-columns: repeat(3, 1fr); }
+  .assignment-board { grid-template-columns: repeat(2, minmax(180px, 1fr)); }
+  .incident-control-grid { grid-template-columns: 1fr 1fr; }
+  .profile-control { grid-column: 1 / -1; }
+  .safety-console { grid-template-columns: 1fr; }
+  .safety-actions { justify-content: flex-start; }
+}
+
+@media (max-width: 760px) {
+  .command-header { position: static; align-items: flex-start; }
+  .command-brand small, .feed-status { display: none; }
+  .command-brand strong { font-size: .95rem; }
+  .header-status { flex-wrap: wrap; justify-content: flex-end; }
+  .dispatch-banner { position: static; align-items: flex-start; flex-direction: column; }
+  .mayday-banner { position: static; flex-wrap: wrap; }
+  main { padding: 10px; }
+  .incident-heading { align-items: flex-start; flex-direction: column; }
+  .incident-actions { width: 100%; justify-content: flex-start; }
+  .incident-actions button { flex: 1 1 130px; }
+  .mode-bar { align-items: flex-start; flex-direction: column; }
+  .assignment-board { grid-template-columns: 1fr; }
+  .position-board, .incident-control-grid, .safety-status-grid { grid-template-columns: 1fr; }
+  .profile-control { grid-column: auto; }
+  .policy-suggestion { align-items: flex-start; flex-direction: column; }
+  .resource-column { grid-template-columns: 1fr; }
+  .empty-card { padding: 30px 18px; }
+}
+
+/* Desktop command-board mode: keep the full command surface in one viewport. */
+@media (min-width: 1200px) and (min-height: 700px) {
+  html, body { height: 100%; overflow: hidden; }
+  .command-app { height: 100vh; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+  .command-header { min-height: 64px; padding: 6px 16px; position: relative; flex: 0 0 auto; }
+  .command-brand img { width: 44px; height: 44px; }
+  .command-brand strong { font-size: 1.05rem; }
+  .dispatch-banner, .mayday-banner { padding: 8px 16px; position: static; flex: 0 0 auto; }
+  main { min-height: 0; padding: 10px; flex: 1 1 auto; overflow: hidden; }
+  .empty-state { min-height: 0; height: 100%; }
+  .incident-workspace { height: 100%; min-height: 0; gap: 8px; grid-template-rows: auto auto auto auto minmax(0, 1fr); }
+  .incident-heading { padding: 10px 14px; }
+  .incident-heading h1 { font-size: clamp(1.5rem, 2vw, 2rem); }
+  .incident-location { margin-top: 3px; font-size: .95rem; }
+  .incident-meta { margin-top: 4px; }
+  .incident-actions button { min-height: 38px; padding: 7px 11px; }
+  .incident-actions { max-width: 62%; }
+  .policy-suggestion { padding: 8px 12px; }
+  .control-card { padding: 8px 10px; }
+  .control-card label, .control-card > .eyebrow { margin-bottom: 5px; }
+  .segmented-buttons button { min-height: 34px; padding: 5px 9px; }
+  .safety-console { padding: 8px 10px; }
+  .safety-status { min-height: 52px; padding: 6px 9px; }
+  .safety-actions button { min-height: 34px; padding: 5px 9px; }
+  .command-layout { min-height: 0; grid-template-columns: minmax(0, 1fr) minmax(320px, 350px); gap: 8px; overflow: hidden; }
+  .assignment-column { min-height: 0; grid-template-columns: minmax(390px, .72fr) minmax(580px, 1.28fr); gap: 8px; overflow: hidden; }
+  .board-section { min-height: 0; padding: 10px; overflow: auto; scrollbar-gutter: stable; }
+  .section-heading h2 { font-size: 1.08rem; }
+  .touch-hint { margin: 4px 0 7px; }
+  .position-board { grid-template-columns: repeat(2, minmax(170px, 1fr)); gap: 7px; }
+  .assignment-board { grid-template-columns: repeat(3, minmax(160px, 1fr)); gap: 7px; }
+  .assignment-card { min-height: 112px; }
+  .assignment-card header { padding: 7px 8px; }
+  .assignment-card h3 { font-size: .8rem; }
+  .assignment-units { min-height: 68px; padding: 7px; }
+  .resource-column { min-height: 0; gap: 8px; overflow: auto; scrollbar-gutter: stable; }
+  .resource-panel { padding: 10px; }
+  .resource-column .status-panel { order: 2; }
+  .resource-column .benchmark-panel { order: 3; }
+  .resource-column .log-panel { order: 4; }
+  .status-panel { gap: 7px; }
+  .status-panel input, .status-panel select { min-height: 36px; padding: 6px 9px; }
+  .apparatus-bank { min-height: 72px; max-height: 135px; margin-top: 7px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-content: start; overflow-y: auto; scrollbar-gutter: stable; }
+  .apparatus-bank .unit-chip { width: 100%; min-width: 0; min-height: 36px; padding: 6px 8px; }
+  .benchmark-list { margin-top: 7px; gap: 5px; }
+  .benchmark-item { min-height: 46px; padding: 6px; }
+  .command-log { max-height: 210px; }
+  .organization-section, .tactical-section { overflow: hidden; }
+  .tactical-section .assignment-board { grid-auto-rows: minmax(98px, 1fr); }
+  .tactical-section .assignment-card { min-height: 98px; }
+  .tactical-section .assignment-units { min-height: 54px; }
+  .benchmark-panel .benchmark-list { grid-auto-rows: minmax(42px, auto); }
+  .benchmark-panel .benchmark-item { min-height: 42px; }
+}
+
+@media print {
+  body { background: white; color: black; }
+  .command-header, .dispatch-banner, .mayday-banner, .policy-suggestion, .incident-actions, .touch-hint, .inline-form, .assignment-card header button, .log-panel, .safety-actions { display: none !important; }
+  main { padding: 0; }
+  .incident-heading, .assignment-column, .resource-panel, .assignment-card { color: black; background: white; box-shadow: none; border-color: #777; }
+  .command-layout { grid-template-columns: 1fr 280px; }
+  .assignment-board { grid-template-columns: repeat(3, 1fr); }
+  .position-board { grid-template-columns: repeat(3, 1fr); }
+  .unit-chip { color: black; background: #eee !important; border-color: #555 !important; }
+  .eyebrow, .incident-meta, label { color: #444; }
+}
+
+/* v0.3.2 — 1536px/iPad landscape sizing correction */
+.benchmark-panel { display: none !important; }
+
+@media (min-width: 1200px) and (min-height: 700px) {
+  .command-header {
+    min-height: 58px;
+    padding: 4px 14px;
+  }
+  .command-brand img { width: 40px; height: 40px; }
+  .command-brand strong { font-size: 1rem; }
+  .command-brand small { font-size: .76rem; }
+  .header-status { gap: 10px; }
+  .header-status time { font-size: 1rem; }
+  .header-status button { min-height: 34px; padding: 5px 10px; }
+
+  main { padding: 8px; }
+  .incident-workspace { gap: 7px; }
+
+  .incident-heading {
+    padding: 8px 12px;
+    gap: 10px;
+    display: grid;
+    grid-template-columns: minmax(500px, .85fr) minmax(650px, 1.15fr);
+    align-items: center;
+  }
+  .incident-heading h1 {
+    font-size: clamp(1.45rem, 1.82vw, 1.78rem);
+    line-height: 1.02;
+    white-space: nowrap;
+  }
+  .incident-lock { margin-bottom: 2px; font-size: .6rem; }
+  .incident-location { margin-top: 2px; font-size: .83rem; }
+  .incident-meta { margin-top: 2px; gap: 9px; font-size: .69rem; }
+  .incident-actions {
+    max-width: none;
+    gap: 5px;
+    flex-wrap: nowrap;
+    justify-content: flex-end;
+  }
+  .incident-actions button {
+    min-height: 32px;
+    padding: 5px 8px;
+    font-size: .72rem;
+    white-space: nowrap;
+  }
+
+  .incident-control-grid {
+    grid-template-columns: minmax(330px, 1.35fr) minmax(340px, 1fr) minmax(390px, 1.08fr);
+    gap: 7px;
+  }
+  .control-card { padding: 7px 9px; }
+  .control-card label, .control-card > .eyebrow { margin-bottom: 4px; font-size: .68rem; }
+  .control-card select { min-height: 34px; padding: 5px 8px; font-size: .78rem; }
+  .segmented-buttons { gap: 5px; flex-wrap: nowrap; }
+  .segmented-buttons button {
+    min-width: 0;
+    min-height: 32px;
+    padding: 4px 7px;
+    font-size: .78rem;
+    white-space: nowrap;
+  }
+
+  .safety-console { padding: 7px 8px; gap: 8px; }
+  .safety-status-grid { gap: 6px; }
+  .safety-status { min-height: 47px; padding: 5px 8px; }
+  .safety-status .eyebrow { font-size: .62rem; }
+  .safety-status strong { font-size: .74rem; }
+  .safety-actions { gap: 5px; flex-wrap: nowrap; }
+  .safety-actions button { min-height: 32px; padding: 4px 8px; font-size: .75rem; white-space: nowrap; }
+
+  .command-layout {
+    grid-template-columns: minmax(0, 1fr) minmax(350px, 380px);
+    gap: 7px;
+  }
+  .assignment-column {
+    grid-template-columns: minmax(410px, .72fr) minmax(0, 1.28fr);
+    gap: 7px;
+  }
+  .board-section { padding: 8px; overflow: auto; }
+  .organization-section, .tactical-section { overflow: auto; }
+  .section-heading { gap: 7px; }
+  .section-heading h2 { font-size: 1rem; }
+  .touch-hint { margin: 3px 0 6px; font-size: .71rem; line-height: 1.2; }
+  .panel-tools { gap: 5px; }
+  .panel-tools button { min-height: 34px; padding: 5px 9px; font-size: .75rem; }
+  .pager { grid-template-columns: 34px minmax(54px, auto) 34px; }
+  .pager button { min-width: 34px; min-height: 34px; }
+  .pager-label { font-size: .62rem; }
+
+  .position-board, .assignment-board { gap: 6px; }
+  .assignment-card { min-height: 100px; }
+  .assignment-card header { padding: 6px 7px; }
+  .assignment-card h3 { font-size: .72rem; line-height: 1.12; }
+  .policy-tag { font-size: .55rem; line-height: 1.15; }
+  .assignment-units { min-height: 50px; padding: 6px; }
+  .unit-chip { min-height: 36px; padding: 6px 10px; font-size: .8rem; }
+
+  .resource-column { gap: 7px; grid-template-rows: auto minmax(0, 1fr) !important; }
+  .resource-panel { padding: 9px; }
+  .apparatus-bank { min-height: 70px; max-height: 118px; }
+  .status-panel { align-content: start; }
+  .status-panel input, .status-panel select { min-height: 34px; }
+}
+
+@media (min-width: 1200px) and (max-width: 1600px) and (min-height: 700px) {
+  .incident-heading {
+    grid-template-columns: minmax(460px, .82fr) minmax(640px, 1.18fr);
+  }
+  .incident-heading h1 { font-size: 1.55rem; }
+  .incident-actions button { padding-inline: 7px; font-size: .69rem; }
+  .command-layout { grid-template-columns: minmax(0, 1fr) 380px; }
+  .assignment-column { grid-template-columns: 420px minmax(0, 1fr); }
+}
+
+/* v0.3.3 — New-dispatch modal containment
+   Keep dispatch text inside the viewport and eliminate horizontal scrolling. */
+#newDispatchDialog {
+  width: min(760px, calc(100vw - 32px));
+  max-width: calc(100vw - 32px);
+  max-height: calc(100dvh - 32px);
+  overflow: hidden;
+}
+
+#newDispatchDialog .dialog-form {
+  width: 100%;
+  max-width: 100%;
+  max-height: calc(100dvh - 32px);
+  min-width: 0;
+  padding: 18px 20px;
+  gap: 12px;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  overflow: hidden;
+}
+
+#newDispatchDialog .dialog-heading,
+#newDispatchDialog .dialog-heading > div,
+#newDispatchDetails {
+  min-width: 0;
+  max-width: 100%;
+}
+
+#newDispatchDetails {
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+#newDispatchDetails h3 {
+  margin: 0 0 12px;
+  line-height: 1.2;
+}
+
+#newDispatchDetails p {
+  max-width: 100%;
+  margin: 0 0 10px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  line-height: 1.28;
+}
+
+#newDispatchDialog .dialog-note {
+  margin: 0;
+}
+
+@media (max-height: 650px) {
+  #newDispatchDialog .dialog-form {
+    padding: 14px 16px;
+    gap: 9px;
+  }
+
+  #newDispatchDialog .dialog-heading h2 { font-size: 1.25rem; }
+  #newDispatchDetails h3 { margin-bottom: 8px; font-size: 1rem; }
+  #newDispatchDetails p { margin-bottom: 7px; font-size: .92rem; line-height: 1.2; }
+  #newDispatchDialog .dialog-note { padding: 8px 10px; font-size: .9rem; }
+}
+
+
+/* v0.3.4 — direct new-dispatch switching */
+#newDispatchDialog .dialog-form {
+  grid-template-rows: auto minmax(0, 1fr) auto auto;
+}
+
+.dispatch-switch-actions {
+  margin-top: 0;
+  flex-wrap: wrap;
+}
+
+.dispatch-switch-actions .warning-button {
+  font-weight: 850;
+}
+
+@media (max-width: 760px) {
+  .dispatch-banner .button-row { flex-wrap: wrap; }
+  .dispatch-switch-actions { justify-content: stretch; }
+  .dispatch-switch-actions button { flex: 1 1 220px; }
+}
+
+/* v0.4.0 — Laptop command-board redesign
+   Keep active command work front-and-center; move secondary tools into on-demand dialogs. */
+.compact-actions { align-items: center; }
+.tools-menu { position: relative; }
+.tools-menu > summary {
+  list-style: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  padding: 9px 14px;
+  border-radius: 9px;
+  cursor: pointer;
+  user-select: none;
+}
+.tools-menu > summary::-webkit-details-marker { display: none; }
+.tools-menu[open] > summary { background: #263a54; }
+.tools-menu-panel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 7px);
+  z-index: 60;
+  width: 230px;
+  padding: 8px;
+  display: grid;
+  gap: 6px;
+  background: #101927;
+  border: 1px solid #40556f;
+  border-radius: 11px;
+  box-shadow: var(--shadow);
+}
+.tools-menu-panel button { width: 100%; justify-content: flex-start; text-align: left; }
+.tool-dialog { width: min(680px, calc(100vw - 28px)); }
+.log-tool-dialog { width: min(760px, calc(100vw - 28px)); }
+.tool-dialog .command-log { max-height: min(52vh, 460px); }
+
+/* Primary command workspace: organization + tactical work + bank. */
+.resource-column { align-content: start; }
+.resource-column > .resource-panel:not(:first-child) { display: none !important; }
+
+@media (min-width: 1100px) and (max-width: 1600px) {
+  main { padding: 9px; }
+  .incident-workspace { gap: 8px; }
+  .incident-heading { padding: 9px 11px; }
+  .incident-heading {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+  }
+  .incident-heading h1 { font-size: 1.4rem; }
+  .incident-location { font-size: .8rem; }
+  .incident-meta { font-size: .65rem; gap: 8px; }
+  .incident-actions { min-width: max-content; }
+
+  .incident-control-grid {
+    grid-template-columns: minmax(260px, .95fr) minmax(320px, 1fr) minmax(360px, 1.1fr);
+    gap: 6px;
+  }
+  .control-card { padding: 6px 8px; }
+  .segmented-buttons button { min-height: 30px; }
+
+  .safety-console { padding: 6px 7px; gap: 7px; }
+  .safety-status { min-height: 43px; }
+  .safety-actions button { min-height: 30px; padding: 4px 7px; font-size: .7rem; }
+
+  .command-layout {
+    grid-template-columns: minmax(0, 1fr) 230px;
+    gap: 7px;
+    align-items: stretch;
+  }
+  .assignment-column {
+    display: grid;
+    grid-template-columns: minmax(320px, 34%) minmax(0, 66%);
+    gap: 7px;
+  }
+  .board-section { padding: 8px; }
+  .section-heading h2 { font-size: .95rem; }
+  .touch-hint { display: none; }
+  .position-board { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+  .assignment-board { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+  .assignment-card { min-height: 112px; }
+  .assignment-units { min-height: 58px; }
+  .resource-panel { padding: 8px; }
+  .apparatus-bank { max-height: none; min-height: 150px; }
+  .inline-form { grid-template-columns: minmax(0, 1fr) auto; }
+  .inline-form input { min-width: 0; }
+}
+
+@media (min-width: 1100px) and (max-height: 800px) {
+  .command-header { min-height: 46px; padding: 4px 10px; }
+  .command-brand img { width: 32px; height: 32px; }
+  .command-brand strong { font-size: .9rem; }
+  .command-brand small { font-size: .62rem; }
+  .header-status { gap: 8px; }
+  .header-status time { font-size: .9rem; }
+  .command-header button { min-height: 32px; padding: 5px 9px; }
+  .incident-heading { padding-block: 7px; }
+  .incident-lock { margin-bottom: 1px; }
+  .incident-heading h1 { font-size: 1.25rem; }
+  .incident-location { margin-top: 1px; }
+  .incident-meta { margin-top: 1px; }
+  .control-card { min-height: 0; }
+  .safety-console { min-height: 0; }
+  .assignment-card { min-height: 96px; }
+  .assignment-card header { padding: 5px 6px; }
+  .assignment-units { min-height: 48px; padding: 5px; }
+  .unit-chip { min-height: 32px; padding: 5px 8px; }
+  .panel-tools button, .pager button { min-height: 30px; }
+}
+
+@media (max-width: 1099px) {
+  .tools-menu-panel { position: fixed; right: 14px; top: 82px; width: min(300px, calc(100vw - 28px)); }
+}
