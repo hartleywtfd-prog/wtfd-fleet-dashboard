@@ -739,7 +739,14 @@ function applyCurrentUnitOverride(vehicle) {
   const assignments = DASHBOARD_CONFIG.unitAssignments || {};
   const legacyFallbacks = DASHBOARD_CONFIG.unitFallbacks || {};
   const fNumber = extractFNumber(v.rawName, v.apparatusNumber);
-  const override = fNumber ? overrides[fNumber] : '';
+  // Samsara/CSV may report the reassigned F104 by its old call sign or
+  // shortened Car 45 call sign instead of its physical F-number.
+  const incomingUnit = String(v.unit || v.displayName || '').trim();
+  const incomingRawName = String(v.rawName || '').trim();
+  const car45Alias = /^(?:C45|C104)$/i.test(incomingUnit) ||
+    /^(?:C45|C104)$/i.test(incomingRawName);
+  const override = (fNumber ? overrides[fNumber] : '') ||
+    (car45Alias && (!fNumber || fNumber === 'F104') ? 'Car 45' : '');
 
   if (override) {
     // Keep the physical apparatus identity (F-number) unchanged while correcting
