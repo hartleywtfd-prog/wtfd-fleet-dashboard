@@ -7,7 +7,7 @@
 window.WTFD_DASHBOARD_CONFIG = {
   version: '5.3.3',
   hiddenOperationalUnits: ['Chief 42'],
-  unitOverrides: { F104: 'Admin 41', F109: 'Chief 41' },
+  unitOverrides: { F104: 'Car 45', F109: 'Chief 41' },
   alertSoundEnabled: true,
   alertSoundUrl: 'sounds/dispatch-chime.wav',
   alertSoundVolume: 1.0,
@@ -85,7 +85,7 @@ window.WTFD_DASHBOARD_CONFIG = {
   // apparatus label. Alternates document expected temporary assignments.
   unitAssignments: {
     F103: { primary: 'Battalion 40', alternates: ['Training 40', 'Safety 40'] },
-    F104: { primary: 'Admin 41', alternates: [] },
+    F104: { primary: 'Car 45', alternates: [] },
     F107: { primary: 'Prevention 42', alternates: [] },
     F108: { primary: 'Engine 45', alternates: ['Engine 41', 'Engine 42', 'Engine 43', 'Engine 44', 'Engine 143', 'Engine 243', 'Engine 142'] },
     F109: { primary: 'Chief 41', alternates: [] },
