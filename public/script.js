@@ -2077,6 +2077,9 @@ function renderDashboard(locations) {
   const nextMarkerByVehicle = new WeakMap();
   const nextMarkerLayer = L.layerGroup();
   const markerBuildErrors = [];
+  const markerTransitions = [];
+  const smoothLiveGps = !IS_KIOSK_MODE &&
+    new URLSearchParams(window.location.search).get('liveGps') === '1';
 
   const unitList =
     document.getElementById(
@@ -2214,6 +2217,24 @@ function renderDashboard(locations) {
           v.unit,
           index
         ].join('-');
+        // Reuse the previous on-screen position only for the live-GPS pilot.
+        // The API's verified coordinates remain the authoritative endpoint.
+        if (smoothLiveGps && markers[markerKey]) {
+          const start = markers[markerKey].getLatLng();
+          const end = marker.getLatLng();
+          const latDelta = end.lat - start.lat;
+          const lonDelta = end.lng - start.lng;
+          const meters = Math.hypot(
+            latDelta * 111320,
+            lonDelta * 111320 * Math.cos(end.lat * Math.PI / 180)
+          );
+          // Don't interpolate implausibly large jumps or stationary noise.
+          if (meters >= 5 && meters <= 500 &&
+              Date.now() - Date.parse(v.lastUpdate || '') < 45000) {
+            marker.setLatLng(start);
+            markerTransitions.push({ marker, start, end });
+          }
+        }
         nextMarkers[markerKey] = marker;
         nextMarkerByVehicle.set(v, marker);
       } catch (error) {
@@ -2239,6 +2260,26 @@ function renderDashboard(locations) {
     apparatusMarkerLayer.addTo(map);
     markers = nextMarkers;
     markerByVehicle = nextMarkerByVehicle;
+
+    // Move toward each received fix over the current refresh interval.
+    // This is visual interpolation only: no extra API requests or D1 writes.
+    if (markerTransitions.length) {
+      const animationLayer = apparatusMarkerLayer;
+      const startedAt = performance.now();
+      const durationMs = 8500;
+      const animate = now => {
+        if (apparatusMarkerLayer !== animationLayer) return;
+        const fraction = Math.min(1, (now - startedAt) / durationMs);
+        markerTransitions.forEach(({ marker, start, end }) => {
+          marker.setLatLng([
+            start.lat + (end.lat - start.lat) * fraction,
+            start.lng + (end.lng - start.lng) * fraction
+          ]);
+        });
+        if (fraction < 1) requestAnimationFrame(animate);
+      };
+      requestAnimationFrame(animate);
+    }
 
     Object.values(markers).forEach(marker => {
       const tag = marker.getElement()?.querySelector('.marker-tag');
