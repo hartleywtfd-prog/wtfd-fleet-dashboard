@@ -248,7 +248,9 @@ function showKioskCursorTemporarily() {
 }
 
 function apiRequest() {
-  const endpoint = '/api/dashboard-v2';
+  // Live GPS is an opt-in pilot. Fleet TV/kiosk views retain the original D1 feed.
+  const enableLiveGps = !IS_KIOSK_MODE && new URLSearchParams(window.location.search).get('liveGps') === '1';
+  const endpoint = enableLiveGps ? '/api/dashboard-v2?liveGps=1' : '/api/dashboard-v2';
   const separator = endpoint.includes('?') ? '&' : '?';
   const url = `${endpoint}${separator}_=${Date.now()}`;
 
